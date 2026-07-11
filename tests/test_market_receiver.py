@@ -221,6 +221,38 @@ def test_receiver_records_java_control_events_without_market_state_mutation(tmp_
     assert recorder.dropped_message_count == 1
 
 
+def test_receiver_invokes_market_and_control_callbacks() -> None:
+    """The receiver can feed the automatic runtime while preserving normal recording behavior."""
+    messages = [
+        json_payload({"type": "connected", "timestamp_ns": 10}),
+        event_to_json(
+            format_depth_update(
+                timestamp=11,
+                symbol="MNQU6",
+                side="bid",
+                price="100.00",
+                previous_size="0",
+                new_size="10",
+            ),
+        ),
+    ]
+    market_events: list[dict[str, object]] = []
+    control_events: list[dict[str, object]] = []
+
+    result = asyncio.run(
+        consume_market_stream(
+            MockWebSocketClient(messages),
+            on_market_event=lambda event: market_events.append(dict(event)),
+            on_control_event=lambda event: control_events.append(dict(event)),
+        ),
+    )
+
+    assert result.events_processed == 1
+    assert result.control_events_processed == 1
+    assert control_events[0]["type"] == "connected"
+    assert market_events[0]["symbol"] == "MNQU6"
+
+
 def test_decode_stream_message_accepts_java_heartbeat() -> None:
     """Single-message stream decoding is available for mixed Java bridge payloads."""
     event = decode_stream_message(

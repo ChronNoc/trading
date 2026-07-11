@@ -1,0 +1,102 @@
+sessions:
+  - name: asia
+    display_name: Asia
+    timezone: America/New_York
+    start: "18:00"
+    end: "03:00"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: london
+    display_name: London
+    timezone: Europe/London
+    start: "08:00"
+    end: "11:30"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: new_york_pre_open
+    display_name: New York pre-open
+    timezone: America/New_York
+    start: "08:00"
+    end: "09:30"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: new_york_open
+    display_name: New York open
+    timezone: America/New_York
+    start: "09:30"
+    end: "11:30"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: new_york_midday
+    display_name: New York midday
+    timezone: America/New_York
+    start: "11:30"
+    end: "14:00"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: new_york_close
+    display_name: New York close
+    timezone: America/New_York
+    start: "14:00"
+    end: "16:00"
+    weekdays: [0, 1, 2, 3, 4]
+  - name: overnight
+    display_name: Overnight
+    timezone: America/New_York
+    start: "16:00"
+    end: "18:00"
+    weekdays: [0, 1, 2, 3, 4]
+
+profiles:
+  - id: ny_open_normal_trend
+    session: new_york_open
+    volatility: normal
+    liquidity: normal
+    behavior: trending
+    strategy_version: rules-v0
+    model_version: null
+    minimum_historical_sample_size: 20
+    historical_sample_count: 120
+    validation_status: validated
+    decisions: shadow
+    threshold_rules:
+      aggressive_sell_volume:
+        kind: percentile
+        percentile: 70
+      bid_reload_count:
+        kind: median_multiple
+        multiple: 1
+  - id: ny_open_default
+    session: new_york_open
+    volatility: any
+    liquidity: any
+    behavior: any
+    strategy_version: rules-v0
+    model_version: null
+    minimum_historical_sample_size: 10
+    historical_sample_count: 40
+    validation_status: provisional
+    decisions: shadow
+  - id: london_default
+    session: london
+    volatility: any
+    liquidity: any
+    behavior: any
+    strategy_version: rules-v0
+    model_version: null
+    minimum_historical_sample_size: 10
+    historical_sample_count: 25
+    validation_status: provisional
+    decisions: shadow
+  - id: global_observe_only
+    session: global
+    volatility: any
+    liquidity: any
+    behavior: any
+    strategy_version: rules-v0
+    model_version: null
+    minimum_historical_sample_size: 0
+    historical_sample_count: 0
+    validation_status: unavailable
+    decisions: observe_only
+
+conservative_thresholds:
+  aggressive_sell_volume: "400"
+  bid_reload_count: "2"
+  ask_cancellation_ratio: "0.60"
+

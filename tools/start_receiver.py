@@ -69,6 +69,10 @@ async def start_receiver_websocket_server(
     *,
     state_store: CurrentMarketState | None = CURRENT_MARKET_STATE,
     on_state: Callable[[MarketState], None] | None = None,
+    on_market_event: Callable[[dict[str, object]], None] | None = None,
+    on_control_event: Callable[[dict[str, object]], None] | None = None,
+    recorder_factory: Callable[[], MarketSessionRecorder] | None = None,
+    on_session_finalized: Callable[[MarketSessionRecorder], None] | None = None,
 ) -> RunningReceiverServer:
     """Start the local WebSocket server that records Bookmap market events."""
     from websockets.asyncio.server import ServerConnection, serve
@@ -78,19 +82,23 @@ async def start_receiver_websocket_server(
         if request_path != config.path:
             await connection.close(code=1008, reason=f"expected {config.path}")
             return
-        recorder = MarketSessionRecorder(root_dir=config.output_root)
+        recorder = recorder_factory() if recorder_factory is not None else MarketSessionRecorder(root_dir=config.output_root)
         try:
             await consume_market_stream(
                 connection,
                 recorder=recorder,
                 state_store=state_store,
                 on_state=on_state,
+                on_market_event=on_market_event,
+                on_control_event=on_control_event,
             )
         except Exception:
             recorder.finalize(clean_shutdown=False, reason="receiver_error")
             raise
         finally:
             recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
+            if on_session_finalized is not None:
+                on_session_finalized(recorder)
 
     server = await serve(handler, config.host, config.port)
     actual_port = _actual_server_port(server, config.port)

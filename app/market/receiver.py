@@ -92,6 +92,8 @@ async def consume_market_stream(
     recorder: RawEventRecorder | StreamEventRecorder | None = None,
     state_store: CurrentMarketState | None = CURRENT_MARKET_STATE,
     on_state: Callable[[MarketState], None] | None = None,
+    on_market_event: Callable[[Mapping[str, object]], None] | None = None,
+    on_control_event: Callable[[Mapping[str, object]], None] | None = None,
     max_messages: int | None = None,
 ) -> MarketReceiverResult:
     """Consume a WebSocket-like stream, update ``MarketState``, and optionally record events."""
@@ -110,6 +112,8 @@ async def consume_market_stream(
         if is_control_event(event):
             if recorder is not None and hasattr(recorder, "record_control_event"):
                 recorder.record_control_event(event)
+            if on_control_event is not None:
+                on_control_event(event)
             control_events_processed += 1
             if max_messages is not None and messages_processed >= max_messages:
                 break
@@ -119,6 +123,8 @@ async def consume_market_stream(
             state_store.set_state(state)
         if recorder is not None:
             recorder.record(event)
+        if on_market_event is not None:
+            on_market_event(event)
         if on_state is not None:
             on_state(state)
         events_processed += 1
@@ -139,6 +145,8 @@ async def listen_for_market_events(
     recorder: RawEventRecorder | None = None,
     state_store: CurrentMarketState | None = CURRENT_MARKET_STATE,
     on_state: Callable[[MarketState], None] | None = None,
+    on_market_event: Callable[[Mapping[str, object]], None] | None = None,
+    on_control_event: Callable[[Mapping[str, object]], None] | None = None,
     max_messages: int | None = None,
 ) -> MarketReceiverResult:
     """Connect to a local WebSocket URL and consume Task 5 market-event messages."""
@@ -151,6 +159,8 @@ async def listen_for_market_events(
             recorder=recorder,
             state_store=state_store,
             on_state=on_state,
+            on_market_event=on_market_event,
+            on_control_event=on_control_event,
             max_messages=max_messages,
         )
 

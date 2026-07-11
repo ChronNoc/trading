@@ -52,15 +52,13 @@ public final class BridgeConfig {
     }
 
     public static BridgeConfig fromSettings(ForwarderSettings settings) {
-        if (settings == null) {
-            return defaults();
-        }
+        ForwarderSettings safeSettings = ForwarderSettings.sanitized(settings);
         return new BridgeConfig(
-                URI.create(settings.websocketUrl),
-                settings.allowNonLoopback,
-                settings.allowedSymbol,
-                settings.allowAnySymbol,
-                settings.queueCapacity,
+                URI.create(safeSettings.websocketUrl),
+                safeSettings.allowNonLoopback,
+                safeSettings.allowedSymbol,
+                safeSettings.allowAnySymbol,
+                safeSettings.queueCapacity,
                 Duration.ofSeconds(2),
                 Duration.ofMillis(250),
                 Duration.ofSeconds(10));

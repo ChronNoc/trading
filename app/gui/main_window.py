@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
     QApplication,
@@ -39,7 +39,9 @@ from PySide6.QtWidgets import (
 
 from app.market.receiver import get_current_market_state
 from app.market.state import MarketState
+from app.prototype.scenarios import PrototypeDashboardSnapshot, empty_prototype_dashboard_snapshot
 from app.risk.limits import EntryLimitState
+from app.runtime.controller import RuntimeSnapshot
 from app.strategy.setups import SetupConditionResult, SetupEvaluationResult
 
 
@@ -174,6 +176,9 @@ class MainWindow(QMainWindow):
         mock_data: MockGuiData | None = None,
         market_state_provider: Callable[[], MarketState] | None = None,
         risk_state_provider: Callable[[], EntryLimitState | None] | None = None,
+        runtime_snapshot_provider: Callable[[], RuntimeSnapshot] | None = None,
+        prototype_snapshot_provider: Callable[[], PrototypeDashboardSnapshot] | None = None,
+        prototype_control_handler: Callable[[str], None] | None = None,
         replay_data_root: str | Path = Path("data/raw"),
         confirm_simulator_mode: Callable[[], bool] | None = None,
     ) -> None:
@@ -185,6 +190,9 @@ class MainWindow(QMainWindow):
         self._mock_data = mock_data or create_mock_gui_data()
         self._market_state_provider = market_state_provider or get_current_market_state
         self._risk_state_provider = risk_state_provider or (lambda: None)
+        self._runtime_snapshot_provider = runtime_snapshot_provider
+        self._prototype_snapshot_provider = prototype_snapshot_provider
+        self._prototype_control_handler = prototype_control_handler
         self._replay_data_root = Path(replay_data_root)
         self._confirm_simulator_mode = confirm_simulator_mode
         self._current_mode = OBSERVE_MODE
@@ -208,6 +216,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.tabs)
 
         self.setCentralWidget(root)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(1000)
+        self._refresh_timer.timeout.connect(self.refresh_live_dashboard)
+        if self._runtime_snapshot_provider is not None or self._prototype_snapshot_provider is not None:
+            self._refresh_timer.start()
 
     @property
     def current_mode(self) -> str:
@@ -348,10 +361,72 @@ class MainWindow(QMainWindow):
             1,
             1,
         )
+        runtime = self._current_runtime_snapshot()
+        start_stop = QWidget()
+        start_stop_layout = QHBoxLayout(start_stop)
+        start_stop_layout.setContentsMargins(0, 0, 0, 0)
+        self.start_assistant_button = QPushButton("Start assistant")
+        self.start_assistant_button.setObjectName("start_assistant_button")
+        self.start_assistant_button.setEnabled(False)
+        self.start_assistant_button.setToolTip("Automatic runtime is started by start_mnq_assistant.bat.")
+        self.stop_assistant_button = QPushButton("Stop assistant")
+        self.stop_assistant_button.setObjectName("stop_assistant_button")
+        self.stop_assistant_button.setEnabled(False)
+        self.stop_assistant_button.setToolTip("Close the window or stop the launcher console to stop the runtime.")
+        start_stop_layout.addWidget(self.start_assistant_button)
+        start_stop_layout.addWidget(self.stop_assistant_button)
+        start_stop_layout.addStretch(1)
+        layout.addWidget(
+            _group(
+                "Assistant automation",
+                _form_widget(
+                    (
+                        ("Controls", start_stop),
+                        ("Runtime state", _named_label("runtime_state_value", _runtime_text(runtime, "state"))),
+                        ("Runtime mode", _named_label("runtime_mode_value", _runtime_text(runtime, "mode"))),
+                        ("Bookmap", _named_label("runtime_bookmap_status", _runtime_text(runtime, "bookmap_status"))),
+                        ("Recording", _named_label("runtime_recording_status", _runtime_bool_text(runtime, "recording"))),
+                        ("Contract", _named_label("runtime_exact_contract", _runtime_text(runtime, "exact_contract"))),
+                        ("Source mode", _named_label("runtime_source_mode", _runtime_text(runtime, "source_mode"))),
+                        ("Session", _named_label("runtime_session_name", _runtime_text(runtime, "session_name"))),
+                        ("Minutes", _named_label("runtime_session_minutes", _runtime_minutes_text(runtime))),
+                        ("Regime", _named_label("runtime_regime", _runtime_text(runtime, "regime"))),
+                        ("Profile", _named_label("runtime_profile_id", _runtime_text(runtime, "profile_id"))),
+                        ("Validation", _named_label("runtime_profile_validation", _runtime_text(runtime, "profile_validation"))),
+                        (
+                            "Historical samples",
+                            _named_label("runtime_historical_sample_count", _runtime_int_text(runtime, "historical_sample_count")),
+                        ),
+                        ("Fallback", _named_label("runtime_profile_fallback", _runtime_text(runtime, "profile_fallback"))),
+                        ("Decisions", _named_label("runtime_decisions_allowed", _runtime_bool_text(runtime, "decisions_allowed"))),
+                        ("Thresholds", _named_label("runtime_threshold_summary", _runtime_text(runtime, "threshold_summary"))),
+                        ("Warm-up samples", _named_label("runtime_sample_count", _runtime_sample_text(runtime))),
+                        ("Data age", _named_label("runtime_data_age", _runtime_data_age_text(runtime))),
+                        ("Dropped", _named_label("runtime_dropped_messages", _runtime_int_text(runtime, "dropped_message_count"))),
+                        ("Shadow decisions", _named_label("runtime_shadow_decisions", _runtime_int_text(runtime, "shadow_decisions"))),
+                        ("Reports", _named_label("runtime_report_root", _runtime_text(runtime, "report_root"))),
+                    ),
+                ),
+            ),
+            2,
+            0,
+            1,
+            2,
+        )
+        layout.addWidget(
+            _group(
+                "Prototype feed",
+                self._build_prototype_panel(),
+            ),
+            3,
+            0,
+            1,
+            2,
+        )
         refresh_button = QPushButton("Refresh")
         refresh_button.setObjectName("live_dashboard_refresh_button")
         refresh_button.clicked.connect(self.refresh_live_dashboard)
-        layout.addWidget(refresh_button, 2, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(refresh_button, 4, 1, alignment=Qt.AlignmentFlag.AlignRight)
         return tab
 
     def refresh_live_dashboard(self) -> None:
@@ -369,6 +444,110 @@ class MainWindow(QMainWindow):
             daily_risk_used.setText(_format_money(data.daily_risk_used))
         if daily_risk_remaining is not None:
             daily_risk_remaining.setText(_format_money(data.daily_risk_remaining))
+        self._refresh_runtime_labels()
+        self._refresh_prototype_labels()
+
+    def _build_prototype_panel(self) -> QWidget:
+        snapshot = self._current_prototype_snapshot()
+        banner = _named_label("prototype_banner_label", snapshot.banner)
+        banner.setStyleSheet("font-weight: 700; color: #9a3412;")
+        controls = self._build_prototype_controls(snapshot)
+        explanations = QTextEdit()
+        explanations.setObjectName("prototype_explanations")
+        explanations.setReadOnly(True)
+        explanations.setMaximumHeight(86)
+        explanations.setPlainText("\n".join(snapshot.explanations))
+        return _form_widget(
+            (
+                ("Warning", banner),
+                ("Controls", controls),
+                ("Runtime state", _named_label("prototype_runtime_state", snapshot.runtime_state)),
+                ("Synthetic status", _named_label("prototype_synthetic_status", snapshot.synthetic_status)),
+                ("Instrument", _named_label("prototype_instrument", snapshot.instrument)),
+                ("Source mode", _named_label("prototype_source_mode", snapshot.source_mode)),
+                ("Scenario", _named_label("prototype_scenario", snapshot.scenario)),
+                ("Session", _named_label("prototype_session", snapshot.session)),
+                ("Regime", _named_label("prototype_regime", snapshot.regime)),
+                ("Profile", _named_label("prototype_profile", snapshot.profile)),
+                ("Warm-up", _named_label("prototype_warmup", snapshot.warmup)),
+                ("Event counters", _named_label("prototype_event_counters", _prototype_counters(snapshot))),
+                ("Current setup", _named_label("prototype_current_setup", snapshot.current_setup)),
+                ("Decision", _named_label("prototype_decision", snapshot.decision)),
+                ("Raw features", _named_label("prototype_raw_features", snapshot.raw_features)),
+                ("Normalized features", _named_label("prototype_normalized_features", snapshot.normalized_features)),
+                ("Shadow order", _named_label("prototype_shadow_order", snapshot.shadow_order)),
+                ("Report path", _named_label("prototype_report_path", snapshot.report_path)),
+                ("Explanation", explanations),
+            ),
+        )
+
+    def _build_prototype_controls(self, snapshot: PrototypeDashboardSnapshot) -> QWidget:
+        controls = QWidget()
+        layout = QHBoxLayout(controls)
+        layout.setContentsMargins(0, 0, 0, 0)
+        for object_name, label, command in (
+            ("prototype_pause_button", "Pause", "pause"),
+            ("prototype_resume_button", "Resume", "resume"),
+            ("prototype_restart_button", "Restart", "restart"),
+            ("prototype_jump_clean_button", "Jump to clean", "jump_clean"),
+            ("prototype_jump_rejected_button", "Jump to rejected", "jump_rejected"),
+        ):
+            button = QPushButton(label)
+            button.setObjectName(object_name)
+            button.clicked.connect(lambda _checked=False, item=command: self._handle_prototype_command(item))
+            layout.addWidget(button)
+        speed_selector = QComboBox()
+        speed_selector.setObjectName("prototype_speed_selector")
+        speed_selector.addItems(["1", "2", "5", "10"])
+        speed_selector.setCurrentText(str(snapshot.playback_speed))
+        speed_selector.currentTextChanged.connect(lambda value: self._handle_prototype_command(f"speed:{value}"))
+        layout.addWidget(speed_selector)
+        layout.addStretch(1)
+        return controls
+
+    def _handle_prototype_command(self, command: str) -> None:
+        if self._prototype_control_handler is not None:
+            self._prototype_control_handler(command)
+        self._refresh_prototype_labels()
+
+    def _current_prototype_snapshot(self) -> PrototypeDashboardSnapshot:
+        if self._prototype_snapshot_provider is None:
+            return empty_prototype_dashboard_snapshot()
+        return self._prototype_snapshot_provider()
+
+    def _refresh_prototype_labels(self) -> None:
+        snapshot = self._current_prototype_snapshot()
+        values = {
+            "prototype_banner_label": snapshot.banner,
+            "prototype_runtime_state": snapshot.runtime_state,
+            "prototype_synthetic_status": snapshot.synthetic_status,
+            "prototype_instrument": snapshot.instrument,
+            "prototype_source_mode": snapshot.source_mode,
+            "prototype_scenario": snapshot.scenario,
+            "prototype_session": snapshot.session,
+            "prototype_regime": snapshot.regime,
+            "prototype_profile": snapshot.profile,
+            "prototype_warmup": snapshot.warmup,
+            "prototype_event_counters": _prototype_counters(snapshot),
+            "prototype_current_setup": snapshot.current_setup,
+            "prototype_decision": snapshot.decision,
+            "prototype_raw_features": snapshot.raw_features,
+            "prototype_normalized_features": snapshot.normalized_features,
+            "prototype_shadow_order": snapshot.shadow_order,
+            "prototype_report_path": snapshot.report_path,
+        }
+        for object_name, text in values.items():
+            label = self.findChild(QLabel, object_name)
+            if label is not None:
+                label.setText(text)
+        explanations = self.findChild(QTextEdit, "prototype_explanations")
+        if explanations is not None:
+            explanations.setPlainText("\n".join(snapshot.explanations))
+        speed_selector = self.findChild(QComboBox, "prototype_speed_selector")
+        if speed_selector is not None and speed_selector.currentText() != str(snapshot.playback_speed):
+            speed_selector.blockSignals(True)
+            speed_selector.setCurrentText(str(snapshot.playback_speed))
+            speed_selector.blockSignals(False)
 
     def _build_decision_explanation_tab(self) -> QWidget:
         result = self._mock_data.decision
@@ -546,6 +725,40 @@ class MainWindow(QMainWindow):
             setup_status=_market_status_text(market_state),
         )
 
+    def _current_runtime_snapshot(self) -> RuntimeSnapshot | None:
+        if self._runtime_snapshot_provider is None:
+            return None
+        return self._runtime_snapshot_provider()
+
+    def _refresh_runtime_labels(self) -> None:
+        runtime = self._current_runtime_snapshot()
+        values = {
+            "runtime_state_value": _runtime_text(runtime, "state"),
+            "runtime_mode_value": _runtime_text(runtime, "mode"),
+            "runtime_bookmap_status": _runtime_text(runtime, "bookmap_status"),
+            "runtime_recording_status": _runtime_bool_text(runtime, "recording"),
+            "runtime_exact_contract": _runtime_text(runtime, "exact_contract"),
+            "runtime_source_mode": _runtime_text(runtime, "source_mode"),
+            "runtime_session_name": _runtime_text(runtime, "session_name"),
+            "runtime_session_minutes": _runtime_minutes_text(runtime),
+            "runtime_regime": _runtime_text(runtime, "regime"),
+            "runtime_profile_id": _runtime_text(runtime, "profile_id"),
+            "runtime_profile_validation": _runtime_text(runtime, "profile_validation"),
+            "runtime_historical_sample_count": _runtime_int_text(runtime, "historical_sample_count"),
+            "runtime_profile_fallback": _runtime_text(runtime, "profile_fallback"),
+            "runtime_decisions_allowed": _runtime_bool_text(runtime, "decisions_allowed"),
+            "runtime_threshold_summary": _runtime_text(runtime, "threshold_summary"),
+            "runtime_sample_count": _runtime_sample_text(runtime),
+            "runtime_data_age": _runtime_data_age_text(runtime),
+            "runtime_dropped_messages": _runtime_int_text(runtime, "dropped_message_count"),
+            "runtime_shadow_decisions": _runtime_int_text(runtime, "shadow_decisions"),
+            "runtime_report_root": _runtime_text(runtime, "report_root"),
+        }
+        for object_name, text in values.items():
+            label = self.findChild(QLabel, object_name)
+            if label is not None:
+                label.setText(text)
+
     def _list_replay_sessions(self) -> tuple[ReplaySession, ...]:
         if not self._replay_data_root.exists():
             return ()
@@ -702,6 +915,52 @@ def _market_status_text(market_state: MarketState) -> str:
     if market_state.best_bid is not None and market_state.best_ask is not None:
         return f"book live bid={market_state.best_bid} ask={market_state.best_ask}"
     return "receiving partial market state"
+
+
+def _runtime_text(runtime: RuntimeSnapshot | None, field_name: str) -> str:
+    if runtime is None:
+        return "not started"
+    return str(getattr(runtime, field_name))
+
+
+def _runtime_bool_text(runtime: RuntimeSnapshot | None, field_name: str) -> str:
+    if runtime is None:
+        return "not started"
+    return "yes" if bool(getattr(runtime, field_name)) else "no"
+
+
+def _runtime_int_text(runtime: RuntimeSnapshot | None, field_name: str) -> str:
+    if runtime is None:
+        return "0"
+    return str(getattr(runtime, field_name))
+
+
+def _runtime_sample_text(runtime: RuntimeSnapshot | None) -> str:
+    if runtime is None:
+        return "0 / waiting"
+    status = "complete" if runtime.warmup_complete else "warming"
+    return f"{runtime.sample_count} / {status}"
+
+
+def _runtime_data_age_text(runtime: RuntimeSnapshot | None) -> str:
+    if runtime is None or runtime.data_age_ms is None:
+        return "unknown"
+    return f"{runtime.data_age_ms} ms"
+
+
+def _runtime_minutes_text(runtime: RuntimeSnapshot | None) -> str:
+    if runtime is None:
+        return "unknown"
+    since = "unknown" if runtime.minutes_since_open is None else str(runtime.minutes_since_open)
+    until = "unknown" if runtime.minutes_until_close is None else str(runtime.minutes_until_close)
+    return f"{since} since open / {until} until close"
+
+
+def _prototype_counters(snapshot: PrototypeDashboardSnapshot) -> str:
+    return (
+        f"depth={snapshot.depth_events}, trades={snapshot.trade_events}, "
+        f"control={snapshot.control_events}"
+    )
 
 
 def create_mock_gui_data() -> MockGuiData:

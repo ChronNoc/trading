@@ -26,6 +26,7 @@ from app.gui.main_window import (
 )
 from app.market.state import MarketState
 from app.risk.limits import EntryLimitState, InstrumentConfig
+from app.runtime.controller import RuntimeSnapshot
 
 
 @pytest.fixture
@@ -151,6 +152,52 @@ def test_live_dashboard_reads_market_state_and_risk_state(qtbot: object) -> None
     assert risk_used.text() == "$125.00"
     assert risk_remaining is not None
     assert risk_remaining.text() == "$375.00"
+
+
+def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> None:
+    """The live dashboard surfaces automatic runtime status from the controller."""
+    runtime = RuntimeSnapshot(
+        state="SHADOW_READY",
+        mode="SHADOW",
+        bookmap_status="connected",
+        recording=True,
+        exact_contract="MNQU6",
+        contract_reason="current",
+        source_mode="live",
+        session_name="New York open",
+        session_date="2026-07-10",
+        minutes_since_open=10,
+        minutes_until_close=110,
+        regime="normal/normal/trending",
+        profile_id="ny_open_normal_trend",
+        profile_fallback="matched session, volatility, liquidity, and behavior",
+        profile_validation="validated",
+        historical_sample_count=120,
+        decisions_allowed=True,
+        warmup_complete=True,
+        sample_count=42,
+        data_age_ms=12,
+        dropped_message_count=0,
+        threshold_summary="historical thresholds",
+        shadow_decisions=3,
+        report_root="data/reports",
+    )
+    window = MainWindow(runtime_snapshot_provider=lambda: runtime)
+    qtbot.addWidget(window)
+
+    state_label = window.findChild(QLabel, "runtime_state_value")
+    contract_label = window.findChild(QLabel, "runtime_exact_contract")
+    profile_label = window.findChild(QLabel, "runtime_profile_id")
+    samples_label = window.findChild(QLabel, "runtime_sample_count")
+
+    assert state_label is not None
+    assert state_label.text() == "SHADOW_READY"
+    assert contract_label is not None
+    assert contract_label.text() == "MNQU6"
+    assert profile_label is not None
+    assert profile_label.text() == "ny_open_normal_trend"
+    assert samples_label is not None
+    assert samples_label.text() == "42 / complete"
 
 
 def test_replay_tab_lists_recorded_sessions_and_renders_parquet_events(

@@ -20,7 +20,7 @@ import velox.api.layer1.simplified.TradeDataListener;
 @Layer1ApiPublic
 @Layer1SimpleAttachable
 @Layer1ApiVersion(Layer1ApiVersionValue.VERSION2)
-@Layer1StrategyName(value = "MNQ WebSocket Forwarder", localizationKey = "mnq.websocket.forwarder")
+@Layer1StrategyName("MNQ WebSocket Forwarder")
 public final class MnqWebSocketForwarder implements CustomModule, DepthDataListener, TradeDataListener, TimeListener, HistoricalModeListener {
     private volatile long latestTimestampNs = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
     private volatile ForwarderRuntime runtime;
@@ -30,20 +30,29 @@ public final class MnqWebSocketForwarder implements CustomModule, DepthDataListe
         if (initialState != null && initialState.getCurrentTime() > 0) {
             latestTimestampNs = initialState.getCurrentTime();
         }
-        ForwarderSettings settings = api.getSettings(ForwarderSettings.class);
-        if (settings == null) {
-            settings = new ForwarderSettings();
-            api.setSettings(settings);
-        }
+        ForwarderSettings settings = loadSettingsSafely(api);
         BridgeConfig config = BridgeConfig.fromSettings(settings);
         InstrumentContext instrument = InstrumentContext.from(alias, instrumentInfo, config);
         runtime = new ForwarderRuntime(config, instrument, new WebSocketTransport());
         runtime.start();
         runtime.publishConnected();
-        api.addTimeListeners(this);
-        api.addDepthDataListeners(this);
-        api.addTradeDataListeners(this);
-        api.addHistoricalModeListeners(this);
+    }
+
+    static ForwarderSettings loadSettingsSafely(Api api) {
+        ForwarderSettings settings = null;
+        try {
+            settings = api.getSettings(ForwarderSettings.class);
+        } catch (RuntimeException error) {
+            settings = new ForwarderSettings();
+        }
+
+        settings = ForwarderSettings.sanitized(settings);
+        try {
+            api.setSettings(settings);
+        } catch (RuntimeException error) {
+            // Bookmap can still run with sanitized in-memory defaults if saving fails.
+        }
+        return settings;
     }
 
     @Override

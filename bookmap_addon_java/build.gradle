@@ -24,6 +24,20 @@ dependencies {
     bookmapApi "com.bookmap.api:api-simplified:${bookmapApiVersion}"
 }
 
+def installedBookmapLibDir = file("C:/Program Files/Bookmap/lib")
+def installedBookmapApiJars = files(
+        new File(installedBookmapLibDir, "bm-l1api.jar"),
+        new File(installedBookmapLibDir, "bm-simplified-api-wrapper.jar"),
+)
+
+def bookmapApiClasspath = {
+    def installedFiles = installedBookmapApiJars.files
+    if (installedFiles.every { it.exists() }) {
+        return installedBookmapApiJars
+    }
+    return configurations.bookmapApi
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release = 17
@@ -33,7 +47,6 @@ tasks.withType(JavaCompile).configureEach {
 
 def mainClassesDir = layout.buildDirectory.dir("classes/java/main")
 def testClassesDir = layout.buildDirectory.dir("classes/java/test")
-def stubJavaSources = fileTree("src/bookmapStubs/java") { include "**/*.java" }
 def mainJavaSources = fileTree("src/main/java") { include "**/*.java" }
 def testJavaSources = fileTree("src/test/java") { include "**/*.java" }
 
@@ -44,20 +57,25 @@ String javacExecutable() {
 
 tasks.register("verifyBookmapApiArtifacts") {
     doLast {
-        def artifactNames = configurations.bookmapApi.files.collect { it.name }.sort()
-        def expectedNames = [
+        def apiFiles = bookmapApiClasspath().files.collect { it.name }.sort()
+        def installedNames = [
+                "bm-l1api.jar",
+                "bm-simplified-api-wrapper.jar",
+        ].sort()
+        def mavenNames = [
                 "api-core-${bookmapApiVersion}.jar",
                 "api-simplified-${bookmapApiVersion}.jar",
         ].sort()
-        if (artifactNames != expectedNames) {
-            throw new GradleException("Expected Bookmap API artifacts ${expectedNames}, got ${artifactNames}")
+        if (apiFiles != installedNames && apiFiles != mavenNames) {
+            throw new GradleException("Expected installed Bookmap API jars ${installedNames} or Maven API artifacts ${mavenNames}, got ${apiFiles}")
         }
+        logger.lifecycle("Using Bookmap API compile classpath: ${apiFiles}")
     }
 }
 
 tasks.register("compileJavaManual", Exec) {
     dependsOn tasks.named("verifyBookmapApiArtifacts")
-    inputs.files(stubJavaSources, mainJavaSources)
+    inputs.files(mainJavaSources, bookmapApiClasspath())
     outputs.dir(mainClassesDir)
     ignoreExitValue = true
     doFirst {
@@ -66,9 +84,8 @@ tasks.register("compileJavaManual", Exec) {
                 javacExecutable(),
                 "-encoding", "UTF-8",
                 "--release", "17",
-                "-classpath", ".",
+                "-classpath", bookmapApiClasspath().asPath,
                 "-d", mainClassesDir.get().asFile.absolutePath,
-                *stubJavaSources.files.collect { it.absolutePath },
                 *mainJavaSources.files.collect { it.absolutePath },
         )
     }
@@ -82,7 +99,7 @@ tasks.register("compileJavaManual", Exec) {
 
 tasks.register("compileTestJavaManual", Exec) {
     dependsOn tasks.named("compileJavaManual")
-    inputs.files(stubJavaSources, mainJavaSources, testJavaSources)
+    inputs.files(mainJavaSources, testJavaSources, bookmapApiClasspath())
     outputs.dir(testClassesDir)
     ignoreExitValue = true
     doFirst {
@@ -91,9 +108,8 @@ tasks.register("compileTestJavaManual", Exec) {
                 javacExecutable(),
                 "-encoding", "UTF-8",
                 "--release", "17",
-                "-classpath", ".",
+                "-classpath", bookmapApiClasspath().asPath,
                 "-d", testClassesDir.get().asFile.absolutePath,
-                *stubJavaSources.files.collect { it.absolutePath },
                 *mainJavaSources.files.collect { it.absolutePath },
                 *testJavaSources.files.collect { it.absolutePath },
         )
@@ -116,7 +132,7 @@ tasks.named("testClasses") {
 
 tasks.register("runBridgeTests", JavaExec) {
     dependsOn tasks.named("testClasses")
-    classpath = files(testClassesDir, mainClassesDir)
+    classpath = files(testClassesDir.get().asFile, mainClassesDir.get().asFile, bookmapApiClasspath())
     mainClass = "com.mnq.bookmap.TestRunner"
 }
 
@@ -132,6 +148,21 @@ shadowJar {
     archiveClassifier.set("all")
     exclude "velox/**"
     mergeServiceFiles()
+}
+
+tasks.register("verifyShadowJarNoBookmapApiClasses") {
+    doLast {
+        def jarFile = tasks.named("shadowJar").get().archiveFile.get().asFile
+        def veloxEntries = zipTree(jarFile).matching { include "velox/**/*.class" }.files
+        if (!veloxEntries.empty) {
+            throw new GradleException("Final add-on JAR must not contain Bookmap API classes, found ${veloxEntries.size()} velox class entries.")
+        }
+        logger.lifecycle("Verified final add-on JAR excludes Bookmap API velox classes.")
+    }
+}
+
+tasks.named("shadowJar") {
+    finalizedBy tasks.named("verifyShadowJarNoBookmapApiClasses")
 }
 
 jar {

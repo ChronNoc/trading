@@ -26,6 +26,7 @@ CONTROL_EVENT_TYPES = frozenset(
         "heartbeat",
         "replay_started",
         "historical_mode",
+        "prototype_mode",
         "realtime_started",
         "session_ended",
         "data_gap",

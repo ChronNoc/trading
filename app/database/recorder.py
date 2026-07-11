@@ -107,6 +107,10 @@ class MarketSessionRecorder:
     symbol: str | None = field(init=False, default=None)
     addon_version: str | None = field(init=False, default=None)
     source_mode: str = field(init=False, default="unknown")
+    synthetic: bool = field(init=False, default=False)
+    seed: int | None = field(init=False, default=None)
+    scenario_version: str | None = field(init=False, default=None)
+    playback_speed: str | None = field(init=False, default=None)
     continuity_status: str = field(init=False, default="continuous")
     clean_shutdown: bool = field(init=False, default=False)
     finalized: bool = field(init=False, default=False)
@@ -194,10 +198,22 @@ class MarketSessionRecorder:
             self.dropped_message_count = max(self.dropped_message_count, int(event["dropped_message_count"]))
         if event_type in {"replay_started", "historical_mode"}:
             self.source_mode = "replay"
+        elif event_type == "prototype_mode":
+            self.source_mode = "prototype"
+            self.synthetic = True
         elif event_type == "realtime_started":
-            self.source_mode = "live"
+            if self.source_mode != "prototype":
+                self.source_mode = "live"
         elif event_type in {"connected", "heartbeat"} and event.get("source_mode"):
             self.source_mode = _normalize_source_mode(str(event["source_mode"]))
+        if "synthetic" in event:
+            self.synthetic = bool(event["synthetic"])
+        if "seed" in event:
+            self.seed = int(event["seed"])
+        if "scenario_version" in event:
+            self.scenario_version = str(event["scenario_version"])
+        if "playback_speed" in event:
+            self.playback_speed = str(event["playback_speed"])
         if event_type == "data_gap":
             self.continuity_status = str(event.get("reason", "data_gap"))
         elif event_type == "disconnected":
@@ -216,6 +232,10 @@ class MarketSessionRecorder:
             "alias": self.alias,
             "symbol": self.symbol,
             "source_mode": self.source_mode,
+            "synthetic": self.synthetic,
+            "seed": self.seed,
+            "scenario_version": self.scenario_version,
+            "playback_speed": self.playback_speed,
             "utc_start": self.session_start_utc.isoformat(),
             "utc_end": self.utc_end,
             "addon_version": self.addon_version,
@@ -229,6 +249,8 @@ class MarketSessionRecorder:
             "continuity_status": self.continuity_status,
             "clean_shutdown": self.clean_shutdown,
             "valid_for_analysis": valid_for_analysis,
+            "valid_for_real_training": False if self.synthetic else valid_for_analysis,
+            "analysis_scope": "prototype_only" if self.synthetic else "real_or_replay",
         }
 
     def _write_manifest(self) -> None:
@@ -283,6 +305,8 @@ def _unique_session_dir(parent: Path, base_session_id: str) -> Path:
 
 def _normalize_source_mode(source_mode: str) -> str:
     normalized = source_mode.strip().lower()
+    if normalized in {"prototype", "synthetic", "prototype_mode"}:
+        return "prototype"
     if normalized in {"live", "realtime", "real_time"}:
         return "live"
     if normalized in {"replay", "historical", "history", "historical_mode"}:
