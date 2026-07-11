@@ -7,3 +7,6 @@ data/raw/
 videos/
 video_output/
 *.joblib
+*.egg-info/
+.pytest_cache/
+.pytest-tmp/

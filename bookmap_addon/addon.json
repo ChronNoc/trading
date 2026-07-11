@@ -1,0 +1,8 @@
+{
+  "name": "MNQ WebSocket Forwarder",
+  "version": "0.1.0",
+  "api": "bookmap-python-alpha",
+  "module": "bookmap_addon.addon",
+  "factory": "create_addon",
+  "default_websocket_url": "ws://127.0.0.1:8765/bookmap"
+}
