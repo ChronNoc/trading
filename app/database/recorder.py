@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from bookmap_addon.events import RawMarketEvent, event_to_json, parse_event_message
+from bookmap_addon.events import (
+    RawMarketEvent,
+    RawStreamEvent,
+    event_to_json,
+    is_control_event,
+    parse_event_message,
+)
 
 NANOSECONDS_PER_SECOND = 1_000_000_000
+RECEIVER_VERSION = "0.1.0"
 
 DEPTH_SCHEMA = pa.schema(
     [
@@ -81,6 +89,155 @@ class MarketEventRecorder:
         return RecorderWriteSummary(depth_updates=depth_updates, trades=trades)
 
 
+@dataclass(slots=True)
+class MarketSessionRecorder:
+    """Append one Bookmap bridge run into a unique raw-data session folder."""
+
+    root_dir: Path = Path("data/raw")
+    partition_timezone: timezone = UTC
+    session_start_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
+    requested_session_id: str | None = None
+    session_dir: Path = field(init=False)
+    session_id: str = field(init=False)
+    depth_updates: int = field(init=False, default=0)
+    trades: int = field(init=False, default=0)
+    connection_events: int = field(init=False, default=0)
+    dropped_message_count: int = field(init=False, default=0)
+    alias: str | None = field(init=False, default=None)
+    symbol: str | None = field(init=False, default=None)
+    addon_version: str | None = field(init=False, default=None)
+    source_mode: str = field(init=False, default="unknown")
+    continuity_status: str = field(init=False, default="continuous")
+    clean_shutdown: bool = field(init=False, default=False)
+    finalized: bool = field(init=False, default=False)
+    utc_end: str | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        """Create the session folder and initial manifest."""
+        start = self.session_start_utc.astimezone(UTC)
+        object.__setattr__(self, "session_start_utc", start)
+        partition_date = start.astimezone(self.partition_timezone).date().isoformat()
+        base_session_id = self.requested_session_id or f"session_{start.strftime('%Y%m%dT%H%M%SZ')}"
+        session_dir = _unique_session_dir(self.root_dir / partition_date, base_session_id)
+        session_dir.mkdir(parents=True, exist_ok=False)
+        self.session_dir = session_dir
+        self.session_id = session_dir.name
+        self._write_manifest()
+
+    @property
+    def depth_path(self) -> Path:
+        """Return the session depth Parquet path."""
+        return self.session_dir / "depth.parquet"
+
+    @property
+    def trades_path(self) -> Path:
+        """Return the session trades Parquet path."""
+        return self.session_dir / "trades.parquet"
+
+    @property
+    def connection_events_path(self) -> Path:
+        """Return the append-only connection event log path."""
+        return self.session_dir / "connection_events.jsonl"
+
+    @property
+    def manifest_path(self) -> Path:
+        """Return the session manifest path."""
+        return self.session_dir / "session_manifest.json"
+
+    def record(self, event: Mapping[str, object]) -> Path:
+        """Append one raw market event into this session and update the manifest."""
+        normalized_event = normalize_market_event(event)
+        event_kind = market_event_kind(normalized_event)
+        if event_kind == "depth":
+            _append_parquet(self.depth_path, DEPTH_SCHEMA, [_depth_row(normalized_event)])
+            self.depth_updates += 1
+            self.symbol = str(normalized_event["symbol"])
+            output_path = self.depth_path
+        else:
+            _append_parquet(self.trades_path, TRADE_SCHEMA, [_trade_row(normalized_event)])
+            self.trades += 1
+            self.symbol = str(normalized_event["instrument"])
+            output_path = self.trades_path
+        self._write_manifest()
+        return output_path
+
+    def record_control_event(self, event: Mapping[str, object]) -> Path:
+        """Append one Java bridge control event and update session metadata."""
+        if not is_control_event(event):
+            raise ValueError("control event must have a supported control type")
+        normalized_event = dict(event)
+        self.connection_events_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.connection_events_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(normalized_event, sort_keys=True, separators=(",", ":")) + "\n")
+        self.connection_events += 1
+        self._apply_control_metadata(normalized_event)
+        self._write_manifest()
+        return self.connection_events_path
+
+    def finalize(self, *, clean_shutdown: bool, reason: str | None = None) -> None:
+        """Finalize the session manifest after the WebSocket stream ends."""
+        if self.finalized:
+            return
+        self.clean_shutdown = clean_shutdown
+        if not clean_shutdown:
+            self.continuity_status = reason or "incomplete"
+        self.utc_end = datetime.now(UTC).isoformat()
+        self.finalized = True
+        self._write_manifest()
+
+    def _apply_control_metadata(self, event: RawStreamEvent) -> None:
+        event_type = str(event["type"])
+        self.alias = str(event.get("alias", self.alias or "")) or self.alias
+        self.symbol = str(event.get("symbol", self.symbol or "")) or self.symbol
+        self.addon_version = str(event.get("addon_version", self.addon_version or "")) or self.addon_version
+        if "dropped_message_count" in event:
+            self.dropped_message_count = max(self.dropped_message_count, int(event["dropped_message_count"]))
+        if event_type in {"replay_started", "historical_mode"}:
+            self.source_mode = "replay"
+        elif event_type == "realtime_started":
+            self.source_mode = "live"
+        elif event_type in {"connected", "heartbeat"} and event.get("source_mode"):
+            self.source_mode = _normalize_source_mode(str(event["source_mode"]))
+        if event_type == "data_gap":
+            self.continuity_status = str(event.get("reason", "data_gap"))
+        elif event_type == "disconnected":
+            self.continuity_status = str(event.get("reason", "disconnected"))
+        elif event_type == "session_ended":
+            self.finalize(clean_shutdown=True)
+
+    def _manifest(self) -> dict[str, object]:
+        valid_for_analysis = (
+            self.finalized
+            and self.clean_shutdown
+            and self.continuity_status == "continuous"
+            and self.dropped_message_count == 0
+        )
+        return {
+            "alias": self.alias,
+            "symbol": self.symbol,
+            "source_mode": self.source_mode,
+            "utc_start": self.session_start_utc.isoformat(),
+            "utc_end": self.utc_end,
+            "addon_version": self.addon_version,
+            "receiver_version": RECEIVER_VERSION,
+            "event_counts": {
+                "depth_updates": self.depth_updates,
+                "trades": self.trades,
+                "connection_events": self.connection_events,
+            },
+            "dropped_message_count": self.dropped_message_count,
+            "continuity_status": self.continuity_status,
+            "clean_shutdown": self.clean_shutdown,
+            "valid_for_analysis": valid_for_analysis,
+        }
+
+    def _write_manifest(self) -> None:
+        self.manifest_path.write_text(
+            json.dumps(self._manifest(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
 def normalize_market_event(event: Mapping[str, object]) -> RawMarketEvent:
     """Return a validated event that matches one of the Task 5 schemas exactly."""
     return parse_event_message(event_to_json(dict(event)))
@@ -113,6 +270,24 @@ def _append_parquet(path: Path, schema: pa.Schema, rows: list[dict[str, object]]
         existing_table = pq.read_table(path, schema=schema)
         new_table = pa.concat_tables([existing_table, new_table])
     pq.write_table(new_table, path)
+
+
+def _unique_session_dir(parent: Path, base_session_id: str) -> Path:
+    candidate = parent / base_session_id
+    index = 1
+    while candidate.exists():
+        candidate = parent / f"{base_session_id}_{index:04d}"
+        index += 1
+    return candidate
+
+
+def _normalize_source_mode(source_mode: str) -> str:
+    normalized = source_mode.strip().lower()
+    if normalized in {"live", "realtime", "real_time"}:
+        return "live"
+    if normalized in {"replay", "historical", "history", "historical_mode"}:
+        return "replay"
+    return "unknown"
 
 
 def _depth_row(event: Mapping[str, object]) -> dict[str, object]:

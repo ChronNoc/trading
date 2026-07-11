@@ -1,0 +1,140 @@
+plugins {
+    id "java"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+group = "com.mnq"
+version = "0.1.0"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+ext {
+    bookmapApiVersion = "7.6.0.20"
+}
+
+configurations {
+    bookmapApi
+}
+
+dependencies {
+    bookmapApi "com.bookmap.api:api-core:${bookmapApiVersion}"
+    bookmapApi "com.bookmap.api:api-simplified:${bookmapApiVersion}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release = 17
+    options.fork = true
+    enabled = false
+}
+
+def mainClassesDir = layout.buildDirectory.dir("classes/java/main")
+def testClassesDir = layout.buildDirectory.dir("classes/java/test")
+def stubJavaSources = fileTree("src/bookmapStubs/java") { include "**/*.java" }
+def mainJavaSources = fileTree("src/main/java") { include "**/*.java" }
+def testJavaSources = fileTree("src/test/java") { include "**/*.java" }
+
+String javacExecutable() {
+    def executableName = org.gradle.internal.os.OperatingSystem.current().isWindows() ? "javac.exe" : "javac"
+    return new File(System.getProperty("java.home"), "bin/${executableName}").absolutePath
+}
+
+tasks.register("verifyBookmapApiArtifacts") {
+    doLast {
+        def artifactNames = configurations.bookmapApi.files.collect { it.name }.sort()
+        def expectedNames = [
+                "api-core-${bookmapApiVersion}.jar",
+                "api-simplified-${bookmapApiVersion}.jar",
+        ].sort()
+        if (artifactNames != expectedNames) {
+            throw new GradleException("Expected Bookmap API artifacts ${expectedNames}, got ${artifactNames}")
+        }
+    }
+}
+
+tasks.register("compileJavaManual", Exec) {
+    dependsOn tasks.named("verifyBookmapApiArtifacts")
+    inputs.files(stubJavaSources, mainJavaSources)
+    outputs.dir(mainClassesDir)
+    ignoreExitValue = true
+    doFirst {
+        mainClassesDir.get().asFile.mkdirs()
+        commandLine(
+                javacExecutable(),
+                "-encoding", "UTF-8",
+                "--release", "17",
+                "-classpath", ".",
+                "-d", mainClassesDir.get().asFile.absolutePath,
+                *stubJavaSources.files.collect { it.absolutePath },
+                *mainJavaSources.files.collect { it.absolutePath },
+        )
+    }
+    doLast {
+        def expected = new File(mainClassesDir.get().asFile, "com/mnq/bookmap/MnqWebSocketForwarder.class")
+        if (!expected.exists()) {
+            throw new GradleException("manual Java compile did not produce ${expected}")
+        }
+    }
+}
+
+tasks.register("compileTestJavaManual", Exec) {
+    dependsOn tasks.named("compileJavaManual")
+    inputs.files(stubJavaSources, mainJavaSources, testJavaSources)
+    outputs.dir(testClassesDir)
+    ignoreExitValue = true
+    doFirst {
+        testClassesDir.get().asFile.mkdirs()
+        commandLine(
+                javacExecutable(),
+                "-encoding", "UTF-8",
+                "--release", "17",
+                "-classpath", ".",
+                "-d", testClassesDir.get().asFile.absolutePath,
+                *stubJavaSources.files.collect { it.absolutePath },
+                *mainJavaSources.files.collect { it.absolutePath },
+                *testJavaSources.files.collect { it.absolutePath },
+        )
+    }
+    doLast {
+        def expected = new File(testClassesDir.get().asFile, "com/mnq/bookmap/TestRunner.class")
+        if (!expected.exists()) {
+            throw new GradleException("manual Java test compile did not produce ${expected}")
+        }
+    }
+}
+
+tasks.named("classes") {
+    dependsOn tasks.named("compileJavaManual")
+}
+
+tasks.named("testClasses") {
+    dependsOn tasks.named("compileTestJavaManual")
+}
+
+tasks.register("runBridgeTests", JavaExec) {
+    dependsOn tasks.named("testClasses")
+    classpath = files(testClassesDir, mainClassesDir)
+    mainClass = "com.mnq.bookmap.TestRunner"
+}
+
+test {
+    dependsOn tasks.named("runBridgeTests")
+    exclude "**/*"
+}
+
+shadowJar {
+    dependsOn tasks.named("compileJavaManual")
+    archiveBaseName.set("mnq-bookmap-forwarder")
+    archiveVersion.set("")
+    archiveClassifier.set("all")
+    exclude "velox/**"
+    mergeServiceFiles()
+}
+
+jar {
+    dependsOn tasks.named("compileJavaManual")
+    exclude "velox/**"
+}

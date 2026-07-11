@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pyarrow.parquet as pq
 
 from app.database.recorder import (
     MarketEventRecorder,
+    MarketSessionRecorder,
     market_event_kind,
     normalize_market_event,
     partition_date_for_event,
@@ -156,6 +158,101 @@ def test_event_helpers_normalize_and_classify_events() -> None:
     assert event["aggressor_side"] == "buy"
     assert market_event_kind(event) == "trade"
     assert partition_date_for_event(event) == "1970-01-01"
+
+
+def test_session_recorder_writes_unique_session_manifest_events_and_parquet(tmp_path: Path) -> None:
+    """A Java bridge run is recorded under a unique session folder with manifest metadata."""
+    start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
+    recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+
+    recorder.record_control_event(
+        {
+            "type": "connected",
+            "timestamp_ns": timestamp_ns,
+            "session_id": "java-session",
+            "alias": "MNQ",
+            "symbol": "MNQ",
+            "source_mode": "historical",
+            "addon_version": "0.1.0",
+            "dropped_message_count": 0,
+        },
+    )
+    recorder.record(
+        {
+            "type": "depth_update",
+            "timestamp": timestamp_ns,
+            "symbol": "MNQ",
+            "side": "bid",
+            "price": "100.00",
+            "previous_size": "0",
+            "new_size": "10",
+        },
+    )
+    recorder.record(
+        {
+            "type": "trade",
+            "timestamp_ns": timestamp_ns + 1,
+            "price": "100.25",
+            "size": "3",
+            "aggressor_side": "buy",
+            "instrument": "MNQ",
+            "sequence_id": 1,
+        },
+    )
+    recorder.record_control_event({"type": "realtime_started", "timestamp_ns": timestamp_ns + 2})
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": timestamp_ns + 3})
+
+    session_dir = tmp_path / "2026-07-10" / "session_20260710T143000Z"
+    assert recorder.session_dir == session_dir
+    assert _rows(session_dir / "depth.parquet")[0]["new_size"] == "10"
+    assert _rows(session_dir / "trades.parquet")[0]["sequence_id"] == 1
+    assert len((session_dir / "connection_events.jsonl").read_text(encoding="utf-8").splitlines()) == 3
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["alias"] == "MNQ"
+    assert manifest["source_mode"] == "live"
+    assert manifest["event_counts"] == {
+        "depth_updates": 1,
+        "trades": 1,
+        "connection_events": 3,
+    }
+    assert manifest["clean_shutdown"] is True
+    assert manifest["valid_for_analysis"] is True
+
+
+def test_session_recorder_marks_data_gap_session_invalid(tmp_path: Path) -> None:
+    """Data gaps and dropped messages make the session invalid for later analysis."""
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 10, 14, 30, tzinfo=UTC),
+    )
+
+    recorder.record_control_event(
+        {
+            "type": "data_gap",
+            "timestamp_ns": _timestamp_ns(2026, 7, 10, 14, 31),
+            "reason": "bounded queue overflow",
+            "dropped_message_count": 2,
+        },
+    )
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": _timestamp_ns(2026, 7, 10, 14, 32)})
+
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["dropped_message_count"] == 2
+    assert manifest["continuity_status"] == "bounded queue overflow"
+    assert manifest["clean_shutdown"] is True
+    assert manifest["valid_for_analysis"] is False
+
+
+def test_session_recorder_creates_unique_session_directories(tmp_path: Path) -> None:
+    """Two receiver connections in the same second do not write into the same folder."""
+    start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
+
+    first = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    second = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+
+    assert first.session_dir.name == "session_20260710T143000Z"
+    assert second.session_dir.name == "session_20260710T143000Z_0001"
 
 
 def _timestamp_ns(year: int, month: int, day: int, hour: int, minute: int) -> int:

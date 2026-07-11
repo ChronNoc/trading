@@ -16,7 +16,7 @@ import pytest
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import QComboBox, QLabel, QTableWidget, QTabWidget, QTextEdit
 
-from app.database.recorder import MarketEventRecorder
+from app.database.recorder import MarketEventRecorder, MarketSessionRecorder
 from app.gui.main_window import (
     LIVE_DISABLED_TOOLTIP,
     LIVE_MODE,
@@ -200,6 +200,39 @@ def test_replay_tab_lists_recorded_sessions_and_renders_parquet_events(
     assert explanation is not None
     assert "Depth updates: 1" in explanation.toPlainText()
     assert "Trades: 1" in explanation.toPlainText()
+
+
+def test_replay_tab_lists_session_partition_recordings(qtbot: object, tmp_path: Path) -> None:
+    """The replay tab discovers Java bridge session directories under data/raw/{date}/."""
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 10, 14, 30, tzinfo=UTC),
+    )
+    recorder.record(
+        {
+            "type": "depth_update",
+            "timestamp": timestamp_ns,
+            "symbol": "MNQ",
+            "side": "ask",
+            "price": "100.25",
+            "previous_size": "0",
+            "new_size": "8",
+        },
+    )
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": timestamp_ns + 1})
+
+    window = MainWindow(replay_data_root=tmp_path)
+    qtbot.addWidget(window)
+
+    picker = window.findChild(QComboBox, "replay_session_picker")
+    table = window.findChild(QTableWidget, "replay_markers_table")
+
+    assert picker is not None
+    assert picker.currentText() == "2026-07-10/session_20260710T143000Z"
+    assert table is not None
+    assert table.rowCount() == 1
+    assert table.item(0, 1).text() == "depth"
 
 
 def _risk_state() -> EntryLimitState:

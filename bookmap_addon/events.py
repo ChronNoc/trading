@@ -3,18 +3,33 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Literal, TypeAlias, cast
 
 DepthSide: TypeAlias = Literal["bid", "ask"]
 AggressorSide: TypeAlias = Literal["buy", "sell"]
 RawMarketEvent: TypeAlias = dict[str, object]
+RawStreamEvent: TypeAlias = dict[str, object]
 
 DEPTH_UPDATE_KEYS = frozenset(
     {"type", "timestamp", "symbol", "side", "price", "previous_size", "new_size"},
 )
 TRADE_KEYS = frozenset(
     {"timestamp_ns", "price", "size", "aggressor_side", "instrument", "sequence_id"},
+)
+TRADE_KEYS_WITH_TYPE = TRADE_KEYS | {"type"}
+CONTROL_EVENT_TYPES = frozenset(
+    {
+        "connected",
+        "disconnected",
+        "heartbeat",
+        "replay_started",
+        "historical_mode",
+        "realtime_started",
+        "session_ended",
+        "data_gap",
+    },
 )
 
 
@@ -77,6 +92,30 @@ def event_to_json(event: RawMarketEvent) -> str:
 
 def parse_event_message(message: str | bytes) -> RawMarketEvent:
     """Parse and validate one JSON WebSocket payload into a market-event dictionary."""
+    payload = _json_object(message)
+    return _normalize_event(cast(RawMarketEvent, payload))
+
+
+def parse_stream_message(message: str | bytes) -> RawStreamEvent:
+    """Parse one Java Bookmap bridge message into a market or control event."""
+    payload = cast(RawStreamEvent, _json_object(message))
+    event_type = payload.get("type")
+    if isinstance(event_type, str) and event_type in CONTROL_EVENT_TYPES:
+        return _normalize_control_event(payload)
+    return _normalize_event(cast(RawMarketEvent, payload))
+
+
+def is_market_event(event: Mapping[str, object]) -> bool:
+    """Return whether a parsed stream event is a depth or trade market event."""
+    return event.get("type") == "depth_update" or TRADE_KEYS.issubset(event)
+
+
+def is_control_event(event: Mapping[str, object]) -> bool:
+    """Return whether a parsed stream event is a Java bridge control event."""
+    return str(event.get("type", "")) in CONTROL_EVENT_TYPES
+
+
+def _json_object(message: str | bytes) -> dict[str, object]:
     try:
         payload = json.loads(message)
     except json.JSONDecodeError as error:
@@ -85,7 +124,7 @@ def parse_event_message(message: str | bytes) -> RawMarketEvent:
     if not isinstance(payload, dict):
         raise EventSchemaError("message must contain a JSON object")
 
-    return _normalize_event(cast(RawMarketEvent, payload))
+    return cast(dict[str, object], payload)
 
 
 def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
@@ -102,7 +141,9 @@ def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
             previous_size=event["previous_size"],
             new_size=event["new_size"],
         )
-    if keys == TRADE_KEYS:
+    if keys == TRADE_KEYS or keys == TRADE_KEYS_WITH_TYPE:
+        if "type" in event and event.get("type") != "trade":
+            raise EventSchemaError("trade type must be trade")
         _reject_json_float_fields(event, ("price", "size"))
         return format_trade(
             timestamp_ns=_raw_int(event["timestamp_ns"], "timestamp_ns"),
@@ -113,6 +154,18 @@ def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
             sequence_id=_raw_int(event["sequence_id"], "sequence_id"),
         )
     raise EventSchemaError("message must match the Task 5 depth_update or trade schema exactly")
+
+
+def _normalize_control_event(event: RawStreamEvent) -> RawStreamEvent:
+    event_type = str(event.get("type", ""))
+    if event_type not in CONTROL_EVENT_TYPES:
+        raise EventSchemaError("control event type is not supported")
+    normalized = dict(event)
+    if "timestamp_ns" in normalized:
+        normalized["timestamp_ns"] = _timestamp_value(normalized["timestamp_ns"], "timestamp_ns")
+    if "timestamp" in normalized:
+        normalized["timestamp"] = _timestamp_value(normalized["timestamp"], "timestamp")
+    return normalized
 
 
 def _reject_json_float_fields(event: RawMarketEvent, field_names: tuple[str, ...]) -> None:

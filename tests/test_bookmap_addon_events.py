@@ -14,6 +14,7 @@ from bookmap_addon.events import (
     format_depth_update,
     format_trade,
     parse_event_message,
+    parse_stream_message,
 )
 
 
@@ -115,6 +116,52 @@ def test_event_json_round_trip_for_trade() -> None:
 
     assert json.loads(payload) == event
     assert parse_event_message(payload) == event
+
+
+def test_java_trade_message_with_type_parses_to_task_five_trade() -> None:
+    """The Java add-on may include type=trade while the app keeps the Task 5 event shape."""
+    payload = json.dumps(
+        {
+            "type": "trade",
+            "timestamp_ns": 456,
+            "price": "100.25",
+            "size": "4",
+            "aggressor_side": "buy",
+            "instrument": "MNQ",
+            "sequence_id": 10,
+        },
+    )
+
+    assert parse_event_message(payload) == {
+        "timestamp_ns": 456,
+        "price": "100.25",
+        "size": "4",
+        "aggressor_side": "buy",
+        "instrument": "MNQ",
+        "sequence_id": 10,
+    }
+
+
+def test_java_control_message_parses_without_becoming_market_event() -> None:
+    """Bridge control events are accepted by the stream parser for session metadata."""
+    payload = json.dumps(
+        {
+            "type": "heartbeat",
+            "timestamp_ns": 123,
+            "session_id": "session_20260710T143000Z",
+            "alias": "MNQ",
+            "symbol": "MNQ",
+            "source_mode": "historical",
+            "addon_version": "0.1.0",
+            "dropped_message_count": 0,
+        },
+    )
+
+    parsed = parse_stream_message(payload)
+
+    assert parsed["type"] == "heartbeat"
+    assert parsed["timestamp_ns"] == 123
+    assert parsed["alias"] == "MNQ"
 
 
 def test_parser_rejects_extra_fields() -> None:

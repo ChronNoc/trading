@@ -10,3 +10,5 @@ video_output/
 *.egg-info/
 .pytest_cache/
 .pytest-tmp/
+bookmap_addon_java/.gradle/
+bookmap_addon_java/build/

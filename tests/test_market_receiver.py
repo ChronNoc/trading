@@ -11,7 +11,7 @@ import pytest
 import pyarrow.parquet as pq
 
 from app.database.recorder import MarketEventRecorder
-from app.market.receiver import consume_market_stream, decode_market_message
+from app.market.receiver import consume_market_stream, decode_market_message, decode_stream_message
 from app.market.state import MarketState
 from bookmap_addon.events import EventSchemaError, event_to_json, format_depth_update, format_trade
 
@@ -166,3 +166,94 @@ def test_decode_market_message_returns_validated_event() -> None:
     )
 
     assert decode_market_message(event_to_json(event)) == event
+
+
+def test_receiver_records_java_control_events_without_market_state_mutation(tmp_path: Path) -> None:
+    """Java bridge control events are recorded separately and do not touch MarketState."""
+    timestamp_ns = 1_783_689_600 * 1_000_000_000
+    messages = [
+        json_payload(
+            {
+                "type": "heartbeat",
+                "timestamp_ns": timestamp_ns,
+                "session_id": "session_test",
+                "alias": "MNQ",
+                "symbol": "MNQ",
+                "source_mode": "historical",
+                "addon_version": "0.1.0",
+                "dropped_message_count": 0,
+            },
+        ),
+        event_to_json(
+            format_depth_update(
+                timestamp=timestamp_ns + 1,
+                symbol="MNQ",
+                side="bid",
+                price="100.00",
+                previous_size="0",
+                new_size="10",
+            ),
+        ),
+        json_payload(
+            {
+                "type": "data_gap",
+                "timestamp_ns": timestamp_ns + 2,
+                "reason": "bounded queue overflow",
+                "dropped_message_count": 1,
+            },
+        ),
+    ]
+
+    from app.database.recorder import MarketSessionRecorder
+
+    recorder = MarketSessionRecorder(root_dir=tmp_path)
+    result = asyncio.run(
+        consume_market_stream(
+            MockWebSocketClient(messages),
+            recorder=recorder,
+        ),
+    )
+
+    assert result.events_processed == 1
+    assert result.control_events_processed == 2
+    assert result.final_state.best_bid == Decimal("100.00")
+    assert recorder.connection_events_path.exists()
+    assert recorder.dropped_message_count == 1
+
+
+def test_decode_stream_message_accepts_java_heartbeat() -> None:
+    """Single-message stream decoding is available for mixed Java bridge payloads."""
+    event = decode_stream_message(
+        json_payload(
+            {
+                "type": "heartbeat",
+                "timestamp_ns": 10,
+                "source_mode": "live",
+            },
+        ),
+    )
+
+    assert event["type"] == "heartbeat"
+    assert event["timestamp_ns"] == 10
+
+
+def test_receiver_and_recorder_do_not_reference_execution_or_broker_code() -> None:
+    """The data bridge remains structurally separate from order execution modules."""
+    root = Path(__file__).resolve().parents[1]
+    checked_files = (
+        root / "app" / "market" / "receiver.py",
+        root / "app" / "database" / "recorder.py",
+        root / "tools" / "start_receiver.py",
+    )
+    combined = "\n".join(path.read_text(encoding="utf-8").lower() for path in checked_files)
+
+    assert "app.execution" not in combined
+    assert "tradovate" not in combined
+    assert "broker" not in combined
+
+
+def json_payload(event: dict[str, object]) -> str:
+    """Serialize a raw test event payload."""
+    import json
+
+    return json.dumps(event)

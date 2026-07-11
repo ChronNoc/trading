@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.database.recorder import MarketEventRecorder
+from app.database.recorder import MarketSessionRecorder
 from app.market.receiver import CURRENT_MARKET_STATE, CurrentMarketState, consume_market_stream
 from app.market.state import MarketState
 
@@ -73,19 +73,24 @@ async def start_receiver_websocket_server(
     """Start the local WebSocket server that records Bookmap market events."""
     from websockets.asyncio.server import ServerConnection, serve
 
-    recorder = MarketEventRecorder(root_dir=config.output_root)
-
     async def handler(connection: ServerConnection) -> None:
         request_path = getattr(getattr(connection, "request", None), "path", "")
         if request_path != config.path:
             await connection.close(code=1008, reason=f"expected {config.path}")
             return
-        await consume_market_stream(
-            connection,
-            recorder=recorder,
-            state_store=state_store,
-            on_state=on_state,
-        )
+        recorder = MarketSessionRecorder(root_dir=config.output_root)
+        try:
+            await consume_market_stream(
+                connection,
+                recorder=recorder,
+                state_store=state_store,
+                on_state=on_state,
+            )
+        except Exception:
+            recorder.finalize(clean_shutdown=False, reason="receiver_error")
+            raise
+        finally:
+            recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
 
     server = await serve(handler, config.host, config.port)
     actual_port = _actual_server_port(server, config.port)
@@ -155,7 +160,7 @@ def _actual_server_port(server: Any, configured_port: int) -> int:
 
 def _output_template(output_root: Path) -> str:
     normalized = output_root.as_posix().rstrip("/")
-    return f"{normalized}/{{date}}/"
+    return f"{normalized}/{{date}}/session_<UTC timestamp>/"
 
 
 if __name__ == "__main__":

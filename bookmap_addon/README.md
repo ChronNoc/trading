@@ -1,3 +1,14 @@
+# DEPRECATED: Python Bookmap WebSocket Forwarder
+
+This unverified Python adapter has been replaced by the loadable Java L1/Simplified
+Bookmap add-on in `bookmap_addon_java/`. Keep this folder only as a historical
+message-format reference and for older isolated parser tests. New Bookmap setup
+should use:
+
+```text
+bookmap_addon_java\build\libs\mnq-bookmap-forwarder-all.jar
+```
+
 # MNQ Bookmap WebSocket Forwarder
 
 This is a minimal Bookmap-side bridge. It listens for Bookmap depth and trade callbacks, formats events with the exact Task 5 schemas, and forwards them to the Python app over a local WebSocket.

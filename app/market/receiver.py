@@ -10,7 +10,13 @@ from typing import Protocol, TypeAlias
 
 from app.database.recorder import MarketEventRecorder
 from app.market.state import MarketState
-from bookmap_addon.events import RawMarketEvent, parse_event_message
+from bookmap_addon.events import (
+    RawMarketEvent,
+    RawStreamEvent,
+    is_control_event,
+    parse_event_message,
+    parse_stream_message,
+)
 
 DEFAULT_RECEIVER_URL = "ws://127.0.0.1:8765/bookmap"
 WebSocketMessage: TypeAlias = str | bytes
@@ -28,6 +34,13 @@ class RawEventRecorder(Protocol):
 
     def record(self, event: Mapping[str, object]) -> Path:
         """Persist one raw market event and return the destination path."""
+
+
+class StreamEventRecorder(RawEventRecorder, Protocol):
+    """Protocol for recorders that also persist Java bridge control events."""
+
+    def record_control_event(self, event: Mapping[str, object]) -> Path:
+        """Persist one raw control event and return the destination path."""
 
 
 @dataclass(slots=True)
@@ -59,6 +72,7 @@ class MarketReceiverResult:
 
     final_state: MarketState
     events_processed: int
+    control_events_processed: int = 0
 
 
 def apply_market_event(state: MarketState, event: Mapping[str, object]) -> MarketState:
@@ -75,7 +89,7 @@ async def consume_market_stream(
     stream: AsyncMessageStream,
     *,
     initial_state: MarketState | None = None,
-    recorder: RawEventRecorder | None = None,
+    recorder: RawEventRecorder | StreamEventRecorder | None = None,
     state_store: CurrentMarketState | None = CURRENT_MARKET_STATE,
     on_state: Callable[[MarketState], None] | None = None,
     max_messages: int | None = None,
@@ -88,8 +102,18 @@ async def consume_market_stream(
     if state_store is not None:
         state_store.set_state(state)
     events_processed = 0
+    control_events_processed = 0
+    messages_processed = 0
     async for message in stream:
-        event = parse_event_message(message)
+        event = parse_stream_message(message)
+        messages_processed += 1
+        if is_control_event(event):
+            if recorder is not None and hasattr(recorder, "record_control_event"):
+                recorder.record_control_event(event)
+            control_events_processed += 1
+            if max_messages is not None and messages_processed >= max_messages:
+                break
+            continue
         state = apply_market_event(state, event)
         if state_store is not None:
             state_store.set_state(state)
@@ -98,10 +122,14 @@ async def consume_market_stream(
         if on_state is not None:
             on_state(state)
         events_processed += 1
-        if max_messages is not None and events_processed >= max_messages:
+        if max_messages is not None and messages_processed >= max_messages:
             break
 
-    return MarketReceiverResult(final_state=state, events_processed=events_processed)
+    return MarketReceiverResult(
+        final_state=state,
+        events_processed=events_processed,
+        control_events_processed=control_events_processed,
+    )
 
 
 async def listen_for_market_events(
@@ -147,3 +175,8 @@ def run_market_receiver(
 def decode_market_message(message: WebSocketMessage) -> RawMarketEvent:
     """Decode and validate one Task 5 WebSocket market-event message."""
     return parse_event_message(message)
+
+
+def decode_stream_message(message: WebSocketMessage) -> RawStreamEvent:
+    """Decode and validate one Java Bookmap bridge stream message."""
+    return parse_stream_message(message)

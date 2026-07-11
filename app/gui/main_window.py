@@ -150,9 +150,9 @@ class MockGuiData:
 
 @dataclass(frozen=True, slots=True)
 class ReplaySession:
-    """Recorded session metadata discovered under data/raw/{date}."""
+    """Recorded session metadata discovered under data/raw."""
 
-    date: str
+    label: str
     depth_path: Path | None
     trades_path: Path | None
 
@@ -459,7 +459,7 @@ class MainWindow(QMainWindow):
 
     def _build_replay_tab(self) -> QWidget:
         sessions = self._list_replay_sessions()
-        selected_session = sessions[0].date if sessions else "No recorded sessions"
+        selected_session = sessions[0].label if sessions else "No recorded sessions"
         data = self._load_replay_snapshot(selected_session)
         tab = QWidget()
         tab.setObjectName("replay_tab")
@@ -468,7 +468,7 @@ class MainWindow(QMainWindow):
 
         self.replay_session_picker = QComboBox()
         self.replay_session_picker.setObjectName("replay_session_picker")
-        self.replay_session_picker.addItems([session.date for session in sessions] or [selected_session])
+        self.replay_session_picker.addItems([session.label for session in sessions] or [selected_session])
         self.replay_session_picker.setCurrentText(selected_session)
         self.replay_session_picker.currentTextChanged.connect(self.refresh_replay_session)
         layout.addWidget(_group("Historical session", self.replay_session_picker), 0, 0)
@@ -559,19 +559,32 @@ class MainWindow(QMainWindow):
             if depth_path.exists() or trades_path.exists():
                 sessions.append(
                     ReplaySession(
-                        date=child.name,
+                        label=child.name,
                         depth_path=depth_path if depth_path.exists() else None,
                         trades_path=trades_path if trades_path.exists() else None,
                     ),
                 )
+            for session_dir in sorted(child.iterdir()):
+                if not session_dir.is_dir():
+                    continue
+                depth_path = session_dir / "depth.parquet"
+                trades_path = session_dir / "trades.parquet"
+                if depth_path.exists() or trades_path.exists():
+                    sessions.append(
+                        ReplaySession(
+                            label=f"{child.name}/{session_dir.name}",
+                            depth_path=depth_path if depth_path.exists() else None,
+                            trades_path=trades_path if trades_path.exists() else None,
+                        ),
+                    )
         return tuple(sessions)
 
     def _load_replay_snapshot(self, session_date: str) -> ReplaySnapshot:
         sessions = self._list_replay_sessions()
-        matching_session = next((session for session in sessions if session.date == session_date), None)
+        matching_session = next((session for session in sessions if session.label == session_date), None)
         if matching_session is None:
             return ReplaySnapshot(
-                sessions=tuple(session.date for session in sessions),
+                sessions=tuple(session.label for session in sessions),
                 selected_session=session_date,
                 markers=(),
                 explanation=(f"No recorded session found in {self._replay_data_root}.",),
@@ -579,7 +592,7 @@ class MainWindow(QMainWindow):
 
         load_result = _load_replay_session(matching_session)
         return ReplaySnapshot(
-            sessions=tuple(session.date for session in sessions),
+            sessions=tuple(session.label for session in sessions),
             selected_session=session_date,
             markers=load_result.markers,
             explanation=load_result.explanation,
@@ -650,7 +663,7 @@ def _load_replay_session(session: ReplaySession) -> ReplayLoadResult:
 
     markers.sort(key=lambda marker: marker.timestamp)
     explanation = (
-        f"Session {session.date}",
+        f"Session {session.label}",
         f"Depth updates: {depth_count}",
         f"Trades: {trade_count}",
         f"Source: {session.depth_path.parent if session.depth_path is not None else session.trades_path.parent}",
