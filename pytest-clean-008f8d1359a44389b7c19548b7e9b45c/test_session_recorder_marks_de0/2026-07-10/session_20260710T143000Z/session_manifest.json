@@ -1,0 +1,26 @@
+{
+  "addon_version": null,
+  "alias": null,
+  "analysis_scope": "delayed_market_data",
+  "clean_shutdown": true,
+  "continuity_status": "continuous",
+  "data_delay_minutes": 15,
+  "dropped_message_count": 0,
+  "event_counts": {
+    "connection_events": 3,
+    "depth_updates": 0,
+    "trades": 0
+  },
+  "playback_speed": null,
+  "receiver_version": "0.1.0",
+  "scenario_version": null,
+  "seed": null,
+  "source_mode": "delayed",
+  "symbol": null,
+  "synthetic": false,
+  "utc_end": "2026-07-12T20:13:28.181430+00:00",
+  "utc_start": "2026-07-10T14:30:00+00:00",
+  "valid_for_analysis": true,
+  "valid_for_live_decisions": false,
+  "valid_for_real_training": true
+}

@@ -107,6 +107,7 @@ class MarketSessionRecorder:
     symbol: str | None = field(init=False, default=None)
     addon_version: str | None = field(init=False, default=None)
     source_mode: str = field(init=False, default="unknown")
+    data_delay_minutes: int | None = field(init=False, default=None)
     synthetic: bool = field(init=False, default=False)
     seed: int | None = field(init=False, default=None)
     scenario_version: str | None = field(init=False, default=None)
@@ -201,11 +202,17 @@ class MarketSessionRecorder:
         elif event_type == "prototype_mode":
             self.source_mode = "prototype"
             self.synthetic = True
+        elif event_type == "delayed_mode":
+            self.source_mode = "delayed"
+            self.data_delay_minutes = _optional_int(event.get("delay_minutes"))
         elif event_type == "realtime_started":
-            if self.source_mode != "prototype":
+            if self.source_mode not in {"prototype", "delayed"}:
                 self.source_mode = "live"
         elif event_type in {"connected", "heartbeat"} and event.get("source_mode"):
-            self.source_mode = _normalize_source_mode(str(event["source_mode"]))
+            if self.source_mode != "delayed":
+                self.source_mode = _normalize_source_mode(str(event["source_mode"]))
+        if "delay_minutes" in event:
+            self.data_delay_minutes = _optional_int(event.get("delay_minutes"))
         if "synthetic" in event:
             self.synthetic = bool(event["synthetic"])
         if "seed" in event:
@@ -232,6 +239,7 @@ class MarketSessionRecorder:
             "alias": self.alias,
             "symbol": self.symbol,
             "source_mode": self.source_mode,
+            "data_delay_minutes": self.data_delay_minutes,
             "synthetic": self.synthetic,
             "seed": self.seed,
             "scenario_version": self.scenario_version,
@@ -250,7 +258,8 @@ class MarketSessionRecorder:
             "clean_shutdown": self.clean_shutdown,
             "valid_for_analysis": valid_for_analysis,
             "valid_for_real_training": False if self.synthetic else valid_for_analysis,
-            "analysis_scope": "prototype_only" if self.synthetic else "real_or_replay",
+            "valid_for_live_decisions": self.source_mode == "live" and valid_for_analysis,
+            "analysis_scope": _analysis_scope(self.source_mode, self.synthetic),
         }
 
     def _write_manifest(self) -> None:
@@ -307,11 +316,27 @@ def _normalize_source_mode(source_mode: str) -> str:
     normalized = source_mode.strip().lower()
     if normalized in {"prototype", "synthetic", "prototype_mode"}:
         return "prototype"
+    if normalized in {"delayed", "delayed_mode", "bookmap_delayed", "free_delayed"}:
+        return "delayed"
     if normalized in {"live", "realtime", "real_time"}:
         return "live"
     if normalized in {"replay", "historical", "history", "historical_mode"}:
         return "replay"
     return "unknown"
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _analysis_scope(source_mode: str, synthetic: bool) -> str:
+    if synthetic:
+        return "prototype_only"
+    if source_mode == "delayed":
+        return "delayed_market_data"
+    return "real_or_replay"
 
 
 def _depth_row(event: Mapping[str, object]) -> dict[str, object]:

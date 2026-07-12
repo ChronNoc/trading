@@ -1,0 +1,1 @@
+{"actual_fill_price":null,"broker_ack_timestamp":null,"exit_timestamp":null,"fill_timestamp":null,"realized_pnl":null,"request_timestamp":1100,"requested_price":"100.25","signal_timestamp":1000,"slippage":null,"stop_confirmed_at":1300,"stop_submitted_at":1200,"target_confirmed_at":1500,"target_submitted_at":1400}

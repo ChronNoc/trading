@@ -39,6 +39,7 @@ class RuntimeSnapshot:
     exact_contract: str
     contract_reason: str
     source_mode: str
+    data_delay_minutes: int | None
     session_name: str
     session_date: str
     minutes_since_open: int | None
@@ -105,6 +106,7 @@ class AutomaticRuntimeController:
     warmup_samples: int = DEFAULT_WARMUP_SAMPLES
     market_state: MarketState = field(default_factory=MarketState)
     source_mode: str = "unknown"
+    data_delay_minutes: int | None = None
     current_session: SessionContext | None = None
     current_regime: RegimeClassification | None = None
     current_profile_id: str = "unavailable"
@@ -181,10 +183,20 @@ class AutomaticRuntimeController:
             self.source_mode = "prototype"
             self.threshold_summary = "PROVISIONAL/SYNTHETIC dynamic thresholds from warm-up events"
             self.health.record_event("prototype", "prototype_mode", "Synthetic prototype stream detected", now=now)
+        elif event_type == "delayed_mode":
+            self.source_mode = "delayed"
+            self.data_delay_minutes = _optional_int(event.get("delay_minutes"))
+            delay_text = _delay_text(self.data_delay_minutes)
+            self.threshold_summary = f"DELAYED {delay_text} Bookmap data - recording only; shadow decisions disabled"
+            self.decisions_allowed = False
+            self.lifecycle.recording_only("Bookmap delayed data recording only", now=now)
+            self.health.record_event("bookmap", "delayed_mode", f"Bookmap delayed data mode: {delay_text}", now=now)
         elif event_type == "realtime_started":
-            if self.source_mode != "prototype":
+            if self.source_mode not in {"prototype", "delayed"}:
                 self.source_mode = "live"
-            self.health.record_event("bookmap", "realtime_started", "Bookmap live stream detected", now=now)
+                self.health.record_event("bookmap", "realtime_started", "Bookmap live stream detected", now=now)
+            else:
+                self.health.record_event("bookmap", "realtime_started", f"Bookmap stream detected as {self.source_mode}", now=now)
         elif event_type == "session_ended":
             self.health.record_event("bookmap", "session_ended", "Bookmap session ended", now=now)
             self.lifecycle.bookmap_connected(now=now)
@@ -340,6 +352,7 @@ class AutomaticRuntimeController:
             "runtime_mode": self.mode.value,
             "final_state": self.lifecycle.state.value,
             "source_mode": self.source_mode,
+            "data_delay_minutes": self.data_delay_minutes,
             "selected_profile": self.current_profile_id,
             "profile_fallback": self.current_profile_fallback,
             "profile_validation": self.current_profile_validation,
@@ -378,6 +391,7 @@ class AutomaticRuntimeController:
             exact_contract=contract.display_symbol if contract is not None else "unknown",
             contract_reason=contract.reason if contract is not None else "awaiting exact MNQ contract alias",
             source_mode=self.source_mode,
+            data_delay_minutes=self.data_delay_minutes,
             session_name=session.display_name if session is not None else "unknown",
             session_date=session.session_date.isoformat() if session is not None and session.session_date else "unknown",
             minutes_since_open=session.minutes_since_open if session is not None else None,
@@ -413,6 +427,10 @@ class AutomaticRuntimeController:
             self.decisions_allowed = True
             self.lifecycle.shadow_ready()
             return
+        if self.source_mode == "delayed":
+            self.decisions_allowed = False
+            self.lifecycle.recording_only("Bookmap delayed data recording only")
+            return
         if self.current_regime is not None and not self.current_regime.decisions_allowed:
             self.lifecycle.data_stale()
             self.decisions_allowed = False
@@ -447,6 +465,18 @@ def _event_symbol(event: Mapping[str, object]) -> str | None:
 def _datetime_from_ns(timestamp_ns: int) -> datetime:
     seconds, nanoseconds = divmod(timestamp_ns, 1_000_000_000)
     return datetime.fromtimestamp(seconds, tz=UTC).replace(microsecond=nanoseconds // 1_000)
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _delay_text(delay_minutes: int | None) -> str:
+    if delay_minutes is None:
+        return "unknown-delay"
+    return f"{delay_minutes}-minute"
 
 
 def _write_json(path: Path, value: Mapping[str, object]) -> None:

@@ -1,0 +1,28 @@
+
+instrument:
+  symbol: MNQ
+  allowed_contracts: 2
+session:
+  timezone: America/Chicago
+  allowed_start: "08:30"
+  allowed_end: "15:00"
+context_requirements:
+  trend_condition: aligned_with_opening_drive
+  important_levels:
+    - prior_day_high
+    - overnight_low
+entry_setup:
+  liquidity_minimum: 100
+  aggressive_volume_minimum: 250.5
+  maximum_price_progress_ticks: 8
+  reclaim_ticks: 2
+  confirmation_window_ms: 1500
+risk:
+  maximum_trades_per_day: 3
+  daily_loss_fraction: "0.02"
+  maximum_open_positions: 1
+exit:
+  stop_method: 6
+  target_method: 12.5
+  break_even_rule: 4
+  time_stop_seconds: 300

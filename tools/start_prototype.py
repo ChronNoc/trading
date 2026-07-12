@@ -53,6 +53,7 @@ class PrototypeRuntimeConfig:
     gui: bool = True
     lock_path: Path = DEFAULT_LOCK_PATH
     wall_clock: bool = True
+    scenario: Path | None = None
 
     @property
     def receiver_config(self) -> ReceiverServerConfig:
@@ -87,6 +88,8 @@ class PrototypeRuntimeState:
     normalized_features: str = "not available"
     shadow_order: str = "none"
     report_path: str = "not written yet"
+    scenario_path: Path | None = None
+    scenario_seed: int = DEFAULT_SEED
     _last_trade_price: str = ""
 
     def on_control_event(self, event: Mapping[str, object]) -> None:
@@ -133,6 +136,7 @@ class PrototypeRuntimeState:
         self.current_setup = "Rejected lookalike"
         self.decision = "REJECTED"
         self.explanations = lines
+        self.shadow_order = ""
 
     def snapshot(self) -> PrototypeDashboardSnapshot:
         """Return the GUI-facing prototype snapshot."""
@@ -155,10 +159,11 @@ class PrototypeRuntimeState:
             explanations=self.explanations,
             raw_features=self.raw_features,
             normalized_features=self.normalized_features,
-            shadow_order=self.shadow_order,
+            shadow_order="" if self.decision.casefold() == "rejected" else self.shadow_order,
             report_path=self.report_path,
             playback_speed=self.playback.speed,
             paused=self.playback.paused,
+            last_trade_price=self._last_trade_price,
         )
 
 
@@ -214,12 +219,16 @@ async def run_headless_prototype(
     controller.start()
     controller.source_mode = "prototype"
     controller.threshold_summary = "PROVISIONAL/SYNTHETIC dynamic thresholds from warm-up events"
+    from app.market.feed_guard import FeedGuard, FeedGuardConfig
+
+    feed_guard = FeedGuard(FeedGuardConfig(source_mode="replay"))
     server = await start_receiver_websocket_server(
         config.receiver_config,
         on_market_event=lambda event: _handle_market_event(event, controller, prototype_state),
         on_control_event=lambda event: _handle_control_event(event, controller, prototype_state),
         on_session_finalized=lambda recorder: _finalize_report(controller, prototype_state, recorder),
         recorder_factory=lambda: MarketSessionRecorder(root_dir=config.output_root),
+        feed_guard=feed_guard,
     )
     actual_config = PrototypeRuntimeConfig(
         host=config.host,
@@ -233,6 +242,7 @@ async def run_headless_prototype(
         gui=config.gui,
         lock_path=config.lock_path,
         wall_clock=config.wall_clock,
+        scenario=config.scenario,
     )
     url = actual_config.receiver_config.url
     print("MNQ Prototype running in SHADOW mode.", flush=True)
@@ -244,6 +254,7 @@ async def run_headless_prototype(
             seed=config.seed,
             speed=config.speed,
             wall_clock=config.wall_clock,
+            scenario_path=config.scenario,
         ),
         controller=prototype_state.playback,
     )
@@ -273,7 +284,13 @@ def run_prototype(config: PrototypeRuntimeConfig) -> int:
         report_root=config.report_root,
     )
     playback = PrototypePlaybackController(speed=config.speed)
-    prototype_state = PrototypeRuntimeState(playback=playback)
+    prototype_state = PrototypeRuntimeState(
+        playback=playback,
+        scenario_path=config.scenario,
+        scenario_seed=config.seed,
+    )
+    if config.scenario is not None:
+        prototype_state.scenario = f"scenario file: {config.scenario.stem}"
     with PrototypeInstanceLock(config.lock_path):
         if not config.gui:
             try:
@@ -308,11 +325,19 @@ def parse_args(argv: Sequence[str] | None = None) -> PrototypeRuntimeConfig:
     parser.add_argument("--lock-path", type=Path, default=DEFAULT_LOCK_PATH)
     parser.add_argument("--no-gui", action="store_true")
     parser.add_argument("--no-wall-clock", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--scenario",
+        type=Path,
+        default=None,
+        help="Optional scenario YAML from config/prototype_scenarios to play instead of the default demo.",
+    )
     args = parser.parse_args(argv)
     if args.port <= 0:
         raise AssistantStartupError("--port must be greater than zero.")
     if not str(args.path).startswith("/"):
-        raise AssistantStartupError("--path must start with /.") 
+        raise AssistantStartupError("--path must start with /.")
+    if args.scenario is not None and not Path(args.scenario).is_file():
+        raise AssistantStartupError(f"--scenario file not found: {args.scenario}")
     return PrototypeRuntimeConfig(
         host=str(args.host),
         port=int(args.port),
@@ -325,6 +350,7 @@ def parse_args(argv: Sequence[str] | None = None) -> PrototypeRuntimeConfig:
         gui=not bool(args.no_gui),
         lock_path=Path(args.lock_path),
         wall_clock=not bool(args.no_wall_clock),
+        scenario=Path(args.scenario) if args.scenario is not None else None,
     )
 
 
@@ -409,7 +435,12 @@ def _record_setup_if_window_complete(
     if scenario is None:
         from app.prototype.scenarios import build_default_prototype_scenario, evaluate_prototype_setups
 
-        scenario = build_default_prototype_scenario(seed=DEFAULT_SEED)
+        if prototype_state.scenario_path is not None:
+            from app.prototype.scenario_library import load_scenario_yaml
+
+            scenario = load_scenario_yaml(prototype_state.scenario_path)
+        else:
+            scenario = build_default_prototype_scenario(seed=prototype_state.scenario_seed)
         setattr(_record_setup_if_window_complete, "_scenario", scenario)
         setattr(_record_setup_if_window_complete, "_evaluations", evaluate_prototype_setups(scenario))
         setattr(_record_setup_if_window_complete, "_recorded", set())

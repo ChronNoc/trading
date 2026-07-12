@@ -11,6 +11,7 @@ from typing import Protocol, TypeAlias
 from app.database.recorder import MarketEventRecorder
 from app.market.state import MarketState
 from bookmap_addon.events import (
+    EventSchemaError,
     RawMarketEvent,
     RawStreamEvent,
     is_control_event,
@@ -95,8 +96,16 @@ async def consume_market_stream(
     on_market_event: Callable[[Mapping[str, object]], None] | None = None,
     on_control_event: Callable[[Mapping[str, object]], None] | None = None,
     max_messages: int | None = None,
+    event_filter: Callable[[Mapping[str, object]], bool] | None = None,
+    on_schema_error: Callable[[str], None] | None = None,
 ) -> MarketReceiverResult:
-    """Consume a WebSocket-like stream, update ``MarketState``, and optionally record events."""
+    """Consume a WebSocket-like stream, update ``MarketState``, and optionally record events.
+
+    ``event_filter`` may reject a market event before it touches state or
+    the recorder. ``on_schema_error`` turns malformed messages into loud
+    counted rejections instead of a fatal error; without it, malformed
+    messages raise as before.
+    """
     if max_messages is not None and max_messages <= 0:
         raise ValueError("max_messages must be greater than zero when provided")
 
@@ -107,7 +116,16 @@ async def consume_market_stream(
     control_events_processed = 0
     messages_processed = 0
     async for message in stream:
-        event = parse_stream_message(message)
+        try:
+            event = parse_stream_message(message)
+        except EventSchemaError as error:
+            if on_schema_error is None:
+                raise
+            on_schema_error(str(error))
+            messages_processed += 1
+            if max_messages is not None and messages_processed >= max_messages:
+                break
+            continue
         messages_processed += 1
         if is_control_event(event):
             if recorder is not None and hasattr(recorder, "record_control_event"):
@@ -115,6 +133,10 @@ async def consume_market_stream(
             if on_control_event is not None:
                 on_control_event(event)
             control_events_processed += 1
+            if max_messages is not None and messages_processed >= max_messages:
+                break
+            continue
+        if event_filter is not None and not event_filter(event):
             if max_messages is not None and messages_processed >= max_messages:
                 break
             continue

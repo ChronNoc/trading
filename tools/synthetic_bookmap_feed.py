@@ -35,6 +35,7 @@ class SyntheticFeedConfig:
     reconnect_delay_seconds: float = 0.25
     wall_clock: bool = True
     max_connect_attempts: int | None = None
+    scenario_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,10 +111,15 @@ class SyntheticBookmapFeed:
 
     async def run(self) -> SyntheticFeedStats:
         """Run the synthetic feed until the scenario completes or shutdown is requested."""
-        scenario = build_default_prototype_scenario(
-            seed=self.config.seed,
-            start_timestamp_ns=self.config.start_timestamp_ns,
-        )
+        if self.config.scenario_path is not None:
+            from app.prototype.scenario_library import load_scenario_yaml
+
+            scenario = load_scenario_yaml(self.config.scenario_path)
+        else:
+            scenario = build_default_prototype_scenario(
+                seed=self.config.seed,
+                start_timestamp_ns=self.config.start_timestamp_ns,
+            )
         await self._play_scenario(scenario)
         return SyntheticFeedStats(
             market_events_sent=self._market_events_sent,
@@ -169,17 +175,22 @@ class SyntheticBookmapFeed:
             return websocket
         import websockets
 
-        attempts = 0
+        from app.market.feed_guard import ExponentialBackoff
+
+        backoff = ExponentialBackoff(base_seconds=self.config.reconnect_delay_seconds)
         while not self._stop_requested.is_set():
             try:
                 connection = await websockets.connect(self.config.url)
                 self._reconnects += 1
                 return connection
             except OSError:
-                attempts += 1
-                if self.config.max_connect_attempts is not None and attempts >= self.config.max_connect_attempts:
+                delay = backoff.next_delay()
+                if (
+                    self.config.max_connect_attempts is not None
+                    and backoff.attempts >= self.config.max_connect_attempts
+                ):
                     raise
-                await asyncio.sleep(self.config.reconnect_delay_seconds)
+                await asyncio.sleep(delay)
         raise asyncio.CancelledError
 
     async def _sleep_between(self, previous_timestamp_ns: int, timestamp_ns: int) -> None:

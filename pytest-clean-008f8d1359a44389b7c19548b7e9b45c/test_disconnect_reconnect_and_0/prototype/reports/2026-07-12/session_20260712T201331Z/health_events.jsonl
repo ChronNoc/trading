@@ -1,0 +1,6 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-12T20:13:31.460224+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-12T20:13:31.479562+00:00"}
+{"component":"prototype","message":"Synthetic prototype stream detected","status":"prototype_mode","timestamp_utc":"2026-07-12T20:13:31.480494+00:00"}
+{"component":"bookmap","message":"Bookmap stream detected as prototype","status":"realtime_started","timestamp_utc":"2026-07-12T20:13:31.481149+00:00"}
+{"component":"bookmap","message":"prototype data gap","status":"data_gap","timestamp_utc":"2026-07-12T20:13:33.128056+00:00"}
+{"component":"bookmap","message":"prototype reconnect exercise","status":"disconnected","timestamp_utc":"2026-07-12T20:13:33.128761+00:00"}

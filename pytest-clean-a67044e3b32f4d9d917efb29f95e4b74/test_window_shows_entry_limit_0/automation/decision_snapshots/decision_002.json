@@ -1,0 +1,14 @@
+{
+  "recorded_at": "20:12:31",
+  "setup_name": "Second lookalike",
+  "decision": "REJECTED",
+  "explanations": [
+    "[fail] Bid liquidity did not reload"
+  ],
+  "session": "New York open synthetic session",
+  "regime": "warming",
+  "depth_events": 0,
+  "trade_events": 0,
+  "last_trade_price": "",
+  "synthetic": true
+}

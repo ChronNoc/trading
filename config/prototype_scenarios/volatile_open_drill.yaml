@@ -1,0 +1,20 @@
+# Consistency drill: the session turns volatile BEFORE any setup forms,
+# so the runtime must re-classify the regime first. The clean setup then
+# appears, followed by a near-miss lookalike (bid reloads but price never
+# reclaims) that must still be rejected even right after a valid setup.
+name: volatile open drill
+seed: 20260712
+windows:
+  - kind: warmup
+  - kind: volatility_transition
+  - kind: absorption
+    level: "100.00"
+    reload: true
+    reclaim: true
+    description: The real setup, formed only after the volatile open settled.
+  - kind: absorption
+    level: "99.00"
+    reload: true
+    reclaim: false
+    description: Near-miss right after a win - bid reloads but no reclaim; must be rejected.
+  - kind: disconnect_reconnect

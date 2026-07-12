@@ -54,6 +54,10 @@ class RuntimeStateMachine:
         """Mark Bookmap connected and begin raw recording."""
         return self.transition(RuntimeState.RECORDING_ONLY, "Bookmap connected", now=now)
 
+    def recording_only(self, reason: str = "recording only", *, now: datetime | None = None) -> RuntimeState:
+        """Mark the runtime as intentionally recording without decisions."""
+        return self.transition(RuntimeState.RECORDING_ONLY, reason, now=now)
+
     def warmup(self, *, now: datetime | None = None) -> RuntimeState:
         """Mark the runtime as warming up automatic context."""
         return self.transition(RuntimeState.AUTO_WARMUP, "market data warmup in progress", now=now)
@@ -107,4 +111,3 @@ class RuntimeStateMachine:
         )
         self.state = new_state
         return self.state
-

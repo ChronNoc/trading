@@ -27,6 +27,7 @@ CONTROL_EVENT_TYPES = frozenset(
         "replay_started",
         "historical_mode",
         "prototype_mode",
+        "delayed_mode",
         "realtime_started",
         "session_ended",
         "data_gap",

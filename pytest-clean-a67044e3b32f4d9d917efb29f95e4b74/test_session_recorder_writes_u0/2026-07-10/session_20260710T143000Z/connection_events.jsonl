@@ -1,0 +1,3 @@
+{"addon_version":"0.1.0","alias":"MNQ","dropped_message_count":0,"session_id":"java-session","source_mode":"historical","symbol":"MNQ","timestamp_ns":1783693800000000000,"type":"connected"}
+{"timestamp_ns":1783693800000000002,"type":"realtime_started"}
+{"timestamp_ns":1783693800000000003,"type":"session_ended"}

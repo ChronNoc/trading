@@ -1,0 +1,12 @@
+# DRAFT strategy-spec candidates extracted from a video transcript.
+# Review every value against the video before using any of it.
+# This file is NOT a valid config and must never be copied into config/ as-is.
+
+entry_setup.aggressive_volume_minimum:
+  - value: "400"  # at 00:30
+
+entry_setup.reclaim_ticks:
+  - value: "1"  # at 00:55
+
+exit.stop_method:
+  - value: "8"  # at 00:12

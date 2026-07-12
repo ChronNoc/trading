@@ -1,0 +1,29 @@
+{
+  "feature_columns": [
+    "book_imbalance",
+    "recent_aggressive_buy_volume",
+    "recent_aggressive_sell_volume",
+    "liquidity_added",
+    "liquidity_cancelled",
+    "reload_count",
+    "distance_to_defended_level",
+    "price_velocity",
+    "trade_velocity",
+    "spread",
+    "short_term_volatility",
+    "time_of_day",
+    "distance_from_overnight_high_low",
+    "distance_from_prior_day_levels",
+    "direction",
+    "stop_distance",
+    "target_distance"
+  ],
+  "model_type": "xgboost",
+  "positive_label_count": 8,
+  "row_count": 16,
+  "training_period": {
+    "end": "2026-07-04T12:30:00+00:00",
+    "start": "2026-07-01T09:30:00+00:00"
+  },
+  "version": "1.0.0"
+}

@@ -1,0 +1,3 @@
+{"delay_minutes":15,"reason":"Bookmap free delayed data feed","source_mode":"delayed","timestamp_ns":1783693800000000000,"type":"delayed_mode"}
+{"timestamp_ns":1783693860000000000,"type":"realtime_started"}
+{"timestamp_ns":1783693920000000000,"type":"session_ended"}

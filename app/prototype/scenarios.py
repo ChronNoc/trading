@@ -107,6 +107,7 @@ class PrototypeDashboardSnapshot:
     report_path: str
     playback_speed: int
     paused: bool
+    last_trade_price: str = ""
 
 
 def build_default_prototype_scenario(
@@ -226,6 +227,7 @@ def empty_prototype_dashboard_snapshot() -> PrototypeDashboardSnapshot:
         report_path="not written yet",
         playback_speed=5,
         paused=False,
+        last_trade_price="",
     )
 
 

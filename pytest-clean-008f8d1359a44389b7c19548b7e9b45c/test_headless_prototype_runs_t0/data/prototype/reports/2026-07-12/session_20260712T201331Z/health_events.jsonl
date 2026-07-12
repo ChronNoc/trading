@@ -1,0 +1,10 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-12T20:13:29.609365+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-12T20:13:29.645613+00:00"}
+{"component":"prototype","message":"Synthetic prototype stream detected","status":"prototype_mode","timestamp_utc":"2026-07-12T20:13:29.646543+00:00"}
+{"component":"bookmap","message":"Bookmap stream detected as prototype","status":"realtime_started","timestamp_utc":"2026-07-12T20:13:29.647242+00:00"}
+{"component":"bookmap","message":"prototype data gap","status":"data_gap","timestamp_utc":"2026-07-12T20:13:31.286453+00:00"}
+{"component":"bookmap","message":"prototype reconnect exercise","status":"disconnected","timestamp_utc":"2026-07-12T20:13:31.287162+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-12T20:13:31.299883+00:00"}
+{"component":"prototype","message":"Synthetic prototype stream detected","status":"prototype_mode","timestamp_utc":"2026-07-12T20:13:31.300911+00:00"}
+{"component":"bookmap","message":"Bookmap session ended","status":"session_ended","timestamp_utc":"2026-07-12T20:13:31.301882+00:00"}
+{"component":"runtime","message":"automatic runtime stopping","status":"stopping","timestamp_utc":"2026-07-12T20:13:31.302262+00:00"}

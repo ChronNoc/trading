@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
 set "REPO=%~dp0"
 if not exist "%REPO%tools\start_assistant.py" (
@@ -18,10 +19,10 @@ if not exist "%PYTHON%" (
   exit /b 2
 )
 
-cd /d "%REPO%"
 echo Starting MNQ Assistant in SHADOW mode only.
 echo No live or demo order execution is started by this launcher.
-"%PYTHON%" "%REPO%tools\start_assistant.py"
+echo Bookmap free delayed-data test mode: 15 minutes delayed, recording only.
+"%PYTHON%" -m tools.start_assistant --delayed-data-minutes 15 %*
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (
   echo.
@@ -29,4 +30,3 @@ if not "%EXIT_CODE%"=="0" (
   pause
 )
 exit /b %EXIT_CODE%
-

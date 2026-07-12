@@ -1,0 +1,14 @@
+{
+  "segments": [
+    {
+      "start": 1.25,
+      "end": 2.5,
+      "text": "first setup"
+    },
+    {
+      "start": 65.0,
+      "end": 66.789,
+      "text": "second setup"
+    }
+  ]
+}

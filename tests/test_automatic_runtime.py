@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from app.database.recorder import MarketSessionRecorder
 from app.market.contract_resolver import ContractResolver
 from app.market.regime_classifier import (
     BehaviorRegime,
@@ -23,7 +24,7 @@ from app.strategy.dynamic_thresholds import DynamicThresholdEngine, RollingBasel
 from app.strategy.profile_registry import ProfileRegistry
 from app.strategy.session_router import SessionRouter
 from app.strategy.setups import SetupConditionResult, SetupEvaluationResult
-from tools.start_assistant import AssistantConfig, find_repo_root, parse_args
+from tools.start_assistant import AssistantConfig, _finalize_assistant_session, find_repo_root, parse_args
 
 
 def test_session_context_detects_new_york_open_across_dst_offsets() -> None:
@@ -190,6 +191,47 @@ def test_runtime_controller_blocks_duplicates_writes_reports_and_stays_shadow_on
     assert "tradovate" not in combined
 
 
+def test_runtime_delayed_bookmap_mode_records_only_and_blocks_shadow_decisions(tmp_path: Path) -> None:
+    """Bookmap free delayed data is visible/recorded but never decision-ready."""
+    controller = AutomaticRuntimeController.from_config(
+        "config/session_profiles.yaml",
+        report_root=tmp_path / "reports",
+    )
+
+    controller.start()
+    controller.handle_control_event({"type": "connected", "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30)})
+    controller.handle_control_event(
+        {
+            "type": "delayed_mode",
+            "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30),
+            "source_mode": "delayed",
+            "delay_minutes": 15,
+            "reason": "Bookmap free delayed data feed",
+        },
+    )
+    controller.handle_control_event({"type": "realtime_started", "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30)})
+    for event in _book_events():
+        controller.handle_market_event(event, current_timestamp_ns=_event_timestamp(event))
+
+    result = SetupEvaluationResult(
+        setup_name="LONG SETUP",
+        conditions=(SetupConditionResult("test_condition", True, "test condition passed"),),
+    )
+    decision = controller.record_setup_decision(
+        "delayed-setup",
+        result,
+        timestamp=datetime(2026, 7, 10, 13, 31, tzinfo=UTC),
+    )
+    snapshot = controller.snapshot()
+
+    assert snapshot.source_mode == "delayed"
+    assert snapshot.data_delay_minutes == 15
+    assert snapshot.decisions_allowed is False
+    assert snapshot.state == RuntimeState.RECORDING_ONLY.value
+    assert decision["decision"] == "rejected"
+    assert decision["reason"] == ["runtime blocked decisions"]
+
+
 def test_start_assistant_parses_config_and_batch_uses_local_venv_python() -> None:
     """The one-click entry point keeps the expected endpoint and local Python launcher."""
     config = parse_args(["--no-gui", "--port", "9009", "--output-root", "data/raw-test"])
@@ -201,9 +243,74 @@ def test_start_assistant_parses_config_and_batch_uses_local_venv_python() -> Non
         output_root=Path("data/raw-test"),
         gui=False,
     )
+    launch_lines = [line for line in batch_text.splitlines() if line.startswith('"%PYTHON%"')]
     assert ".venv\\Scripts\\python.exe" in batch_text
-    assert "tools\\start_assistant.py" in batch_text
+    assert 'cd /d "%~dp0"' in batch_text
+    assert len(launch_lines) == 1
+    assert "-m tools.start_assistant" in launch_lines[0]
+    assert "--delayed-data-minutes 15" in launch_lines[0]
+    assert ".py" not in launch_lines[0]
     assert "admin" not in batch_text.lower()
+
+
+def test_assistant_session_finalization_writes_daily_learning_report(tmp_path: Path) -> None:
+    """The one-click assistant refreshes daily learning reports after a Bookmap session."""
+    controller = AutomaticRuntimeController.from_config(
+        "config/session_profiles.yaml",
+        report_root=tmp_path / "reports",
+    )
+    config = AssistantConfig(
+        output_root=tmp_path / "raw",
+        report_root=tmp_path / "reports",
+        gui=False,
+    )
+    recorder = MarketSessionRecorder(
+        root_dir=config.output_root,
+        session_start_utc=datetime(2026, 7, 10, 14, 30, tzinfo=UTC),
+    )
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    recorder.record_control_event(
+        {
+            "type": "delayed_mode",
+            "timestamp_ns": timestamp_ns,
+            "source_mode": "delayed",
+            "delay_minutes": 15,
+            "reason": "Bookmap free delayed data feed",
+        },
+    )
+    recorder.record(
+        {
+            "type": "depth_update",
+            "timestamp": timestamp_ns + 1,
+            "symbol": "MNQU6",
+            "side": "bid",
+            "price": "100.00",
+            "previous_size": "0",
+            "new_size": "120",
+        },
+    )
+    recorder.record(
+        {
+            "type": "trade",
+            "timestamp_ns": timestamp_ns + 2,
+            "price": "100.00",
+            "size": "10",
+            "aggressor_side": "sell",
+            "instrument": "MNQU6",
+            "sequence_id": 1,
+        },
+    )
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": timestamp_ns + 3})
+
+    _finalize_assistant_session(controller, config, recorder)
+
+    report_dir = tmp_path / "reports" / "2026-07-10" / recorder.session_id
+    learning_report = tmp_path / "reports" / "daily_learning" / "2026-07-10" / "daily_learning.md"
+    learning_json = tmp_path / "reports" / "daily_learning" / "2026-07-10" / "daily_learning.json"
+    assert (report_dir / "summary.json").exists()
+    assert learning_report.exists()
+    assert learning_json.exists()
+    assert json.loads(learning_json.read_text(encoding="utf-8"))["auto_retraining_enabled"] is False
 
 
 def _market_snapshots(*, count: int) -> tuple[MarketState, ...]:
@@ -277,4 +384,3 @@ def _event_timestamp(event: dict[str, object]) -> int:
 def _timestamp_ns(year: int, month: int, day: int, hour: int, minute: int) -> int:
     timestamp = datetime(year, month, day, hour, minute, tzinfo=UTC)
     return int(timestamp.timestamp()) * 1_000_000_000
-

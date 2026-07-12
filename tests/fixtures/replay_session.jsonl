@@ -1,0 +1,22 @@
+{"type": "connected", "timestamp_ns": 1751999999999999998, "source_mode": "replay", "symbol": "MNQ"}
+{"type": "historical_mode", "timestamp_ns": 1751999999999999999, "source_mode": "replay", "symbol": "MNQ"}
+{"type": "depth_update", "timestamp": 1752000000000000000, "symbol": "MNQ", "side": "bid", "price": "100.00", "previous_size": "0", "new_size": "50"}
+{"type": "depth_update", "timestamp": 1752000000000000001, "symbol": "MNQ", "side": "ask", "price": "100.25", "previous_size": "0", "new_size": "40"}
+{"timestamp_ns": 1752000000000000002, "price": "100.00", "size": "2", "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 1}
+{"type": "depth_update", "timestamp": 1752000001000000000, "symbol": "MNQ", "side": "bid", "price": "100.25", "previous_size": "0", "new_size": "55"}
+{"type": "depth_update", "timestamp": 1752000001000000001, "symbol": "MNQ", "side": "ask", "price": "100.50", "previous_size": "0", "new_size": "43"}
+{"timestamp_ns": 1752000001000000002, "price": "100.25", "size": "3", "aggressor_side": "sell", "instrument": "MNQ", "sequence_id": 2}
+{"type": "depth_update", "timestamp": 1752000002000000000, "symbol": "MNQ", "side": "bid", "price": "100.00", "previous_size": "0", "new_size": "60"}
+{"type": "depth_update", "timestamp": 1752000002000000001, "symbol": "MNQ", "side": "ask", "price": "100.25", "previous_size": "0", "new_size": "46"}
+{"timestamp_ns": 1752000002000000002, "price": "100.00", "size": "4", "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 3}
+{"type": "depth_update", "timestamp": 1752000003000000000, "symbol": "MNQ", "side": "bid", "price": "99.75", "previous_size": "0", "new_size": "65"}
+{"type": "depth_update", "timestamp": 1752000003000000001, "symbol": "MNQ", "side": "ask", "price": "100.00", "previous_size": "0", "new_size": "49"}
+{"timestamp_ns": 1752000003000000002, "price": "99.75", "size": "5", "aggressor_side": "sell", "instrument": "MNQ", "sequence_id": 4}
+{"type": "depth_update", "timestamp": 1752000004000000000, "symbol": "MNQ", "side": "bid", "price": "100.00", "previous_size": "0", "new_size": "70"}
+{"type": "depth_update", "timestamp": 1752000004000000001, "symbol": "MNQ", "side": "ask", "price": "100.25", "previous_size": "0", "new_size": "52"}
+{"timestamp_ns": 1752000004000000002, "price": "100.00", "size": "6", "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 5}
+{"type": "depth_update", "timestamp": 1752000005000000000, "symbol": "MNQ", "side": "bid", "price": "100.25", "previous_size": "0", "new_size": "75"}
+{"type": "depth_update", "timestamp": 1752000005000000001, "symbol": "MNQ", "side": "ask", "price": "100.50", "previous_size": "0", "new_size": "55"}
+{"timestamp_ns": 1752000005000000002, "price": "100.25", "size": "7", "aggressor_side": "sell", "instrument": "MNQ", "sequence_id": 6}
+{"type": "heartbeat", "timestamp_ns": 1752000007000000000, "source_mode": "replay", "symbol": "MNQ"}
+{"type": "session_ended", "timestamp_ns": 1752000008000000000, "source_mode": "replay", "symbol": "MNQ"}

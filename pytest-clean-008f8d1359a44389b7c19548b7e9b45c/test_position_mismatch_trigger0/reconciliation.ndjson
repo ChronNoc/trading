@@ -1,0 +1,1 @@
+{"broker":{"contract_id":44,"net_quantity":1,"symbol":"MNQU6"},"discrepancy_kind":"position_mismatch","flatten_attempted":true,"flattened":true,"kill_switch_reason":"Manual override requested flatten now.","local":{"contract_id":44,"net_quantity":0,"symbol":"MNQU6"},"reason":"Local MNQU6 position 0 does not match broker 1.","symbol":"MNQU6","timestamp_ns":1000}

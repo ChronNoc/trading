@@ -1,0 +1,3 @@
+timestamp,setup_id,symbol,direction,accepted,duplicate,profile_id,regime,reason
+2026-07-10T13:31:00+00:00,setup-1,MNQ,long,True,False,ny_open_normal_trend,normal/normal/trending,would have submitted long MNQ shadow bracket
+2026-07-10T13:32:00+00:00,setup-1,MNQ,long,False,True,ny_open_normal_trend,normal/normal/trending,duplicate setup episode suppressed

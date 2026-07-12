@@ -12,7 +12,7 @@ os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QLabel, QPushButton, QComboBox
+from PySide6.QtWidgets import QComboBox, QLabel, QListWidget, QPushButton, QTableWidget
 
 from app.prototype.scenarios import (
     PROTOTYPE_SYMBOL,
@@ -112,6 +112,7 @@ def test_headless_prototype_runs_through_receiver_and_writes_only_prototype_arti
     assert state.trade_events > 0
     assert state.control_events > 0
     assert state.decision == "REJECTED"
+    assert state.snapshot().shadow_order in ("", None)
     assert any(decision["decision"] == "accepted" for decision in controller.decisions)
     assert any(decision["decision"] == "rejected" for decision in controller.decisions)
 
@@ -158,6 +159,58 @@ def test_prototype_gui_panel_renders_and_controls_update_producer(qtbot: object)
     assert commands[-1] == "speed:10"
 
 
+def test_prototype_snapshot_drives_both_main_screens_and_clears_rejected_order(qtbot: object) -> None:
+    """Prototype refreshes Screen 1 and Screen 2 from the same current snapshot."""
+    from app.gui.main_window import MainWindow
+
+    snapshots = [
+        replace(
+            empty_prototype_dashboard_snapshot(),
+            synthetic_status="connected",
+            session="Prototype New York open",
+            depth_events=12,
+            trade_events=4,
+            current_setup="Clean long absorption reclaim",
+            decision="ACCEPTED",
+            explanations=("[pass] absorption",),
+            shadow_order="would have submitted a shadow bracket",
+        ),
+    ]
+    window = MainWindow(prototype_snapshot_provider=lambda: snapshots[0])
+    qtbot.addWidget(window)
+
+    snapshots[0] = replace(
+        snapshots[0],
+        current_setup="Rejected lookalike",
+        decision="rejected",
+        explanations=("[pass] sell pressure", "[fail] no bid reload", "[fail] no reclaim"),
+        shadow_order="would have submitted long MNQ-PROTOTYPE shadow bracket near 97.00",
+    )
+    window.refresh_live_dashboard()
+
+    feed_table = window.findChild(QTableWidget, "connection_status_table")
+    setup = window.findChild(QLabel, "dashboard_setup_name")
+    status = window.findChild(QLabel, "dashboard_setup_status")
+    session = window.findChild(QLabel, "dashboard_session")
+    mode = window.findChild(QLabel, "dashboard_mode_value")
+    shadow_order = window.findChild(QLabel, "prototype_shadow_order")
+    decision_heading = window.findChild(QLabel, "decision_status")
+    conditions = window.findChild(QListWidget, "decision_condition_list")
+
+    assert feed_table is not None
+    assert [feed_table.item(row, 1).text() for row in range(3)] == ["receiving"] * 3
+    assert setup is not None and setup.text() == "Rejected lookalike"
+    assert status is not None and status.text() == "rejected"
+    assert session is not None and session.text() == "Prototype New York open"
+    assert mode is not None and mode.text() == "PROTOTYPE"
+    assert shadow_order is not None and shadow_order.text() in ("", None)
+    assert decision_heading is not None
+    assert decision_heading.text() == "Rejected lookalike: rejected"
+    assert conditions is not None
+    rendered_conditions = [conditions.item(row).text() for row in range(conditions.count())]
+    assert rendered_conditions == list(snapshots[0].explanations)
+
+
 def test_prototype_lock_prevents_duplicate_instances(tmp_path: Path) -> None:
     """The one-click runtime has a clear duplicate-instance guard."""
     lock_path = tmp_path / "prototype.lock"
@@ -172,8 +225,8 @@ def test_prototype_lock_prevents_duplicate_instances(tmp_path: Path) -> None:
     assert not lock_path.exists()
 
 
-def test_parse_args_and_batch_file_use_free_local_prototype_runtime() -> None:
-    """The Windows entry point uses the local venv and prototype launcher."""
+def test_parse_args_and_batch_files_use_module_launchers() -> None:
+    """Both Windows entry points use their local-venv module launchers."""
     config = parse_args(
         [
             "--no-gui",
@@ -185,14 +238,25 @@ def test_parse_args_and_batch_file_use_free_local_prototype_runtime() -> None:
             "data/prototype/raw-test",
         ],
     )
-    batch_text = Path("start_mnq_prototype.bat").read_text(encoding="utf-8")
-
     assert config.port == 8777
     assert config.speed == 10
     assert config.output_root == Path("data/prototype/raw-test")
-    assert ".venv\\Scripts\\python.exe" in batch_text
-    assert "tools\\start_prototype.py" in batch_text
-    assert "admin" not in batch_text.lower()
+    for batch_path, module in (
+        (Path("start_mnq_prototype.bat"), "tools.start_prototype"),
+        (Path("start_mnq_assistant.bat"), "tools.start_assistant"),
+    ):
+        batch_text = batch_path.read_text(encoding="utf-8")
+        launch_lines = [
+            line
+            for line in batch_text.splitlines()
+            if line.startswith(('".venv\\Scripts\\python.exe"', '"%PYTHON%"'))
+        ]
+        assert 'cd /d "%~dp0"' in batch_text
+        assert ".venv\\Scripts\\python.exe" in batch_text
+        assert len(launch_lines) == 1
+        assert f"-m {module}" in launch_lines[0]
+        assert ".py" not in launch_lines[0]
+        assert "admin" not in batch_text.lower()
 
 
 def test_disconnect_reconnect_and_warmup_flow_reaches_controller_state(tmp_path: Path) -> None:
@@ -225,7 +289,7 @@ def test_prototype_code_does_not_import_execution_or_broker_modules() -> None:
         (root / path).read_text(encoding="utf-8").lower()
         for path in (
             "app/prototype/scenarios.py",
-            "tools/start_prototype.py",
+            str(Path("tools") / "start_prototype.py"),
             "tools/synthetic_bookmap_feed.py",
             "start_mnq_prototype.bat",
         )

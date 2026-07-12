@@ -1,0 +1,19 @@
+# Mirrors the built-in default demonstration: warm-up, one clean
+# absorption-reclaim, one rejected lookalike, a volatility shift, and a
+# disconnect/reconnect drill. Synthetic data only.
+name: default demo
+seed: 20260710
+windows:
+  - kind: warmup
+  - kind: absorption
+    level: "100.00"
+    reload: true
+    reclaim: true
+    description: Clean long absorption reclaim at the defended level.
+  - kind: absorption
+    level: "99.00"
+    reload: false
+    reclaim: false
+    description: Lookalike with sell pressure but no reload and no reclaim.
+  - kind: volatility_transition
+  - kind: disconnect_reconnect

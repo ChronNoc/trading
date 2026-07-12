@@ -11,7 +11,7 @@ if not exist ".venv\Scripts\python.exe" (
 
 echo Starting MNQ Prototype in SHADOW mode...
 echo PROTOTYPE DATA - NOT REAL MARKET DATA
-".venv\Scripts\python.exe" "tools\start_prototype.py"
+".venv\Scripts\python.exe" -m tools.start_prototype %*
 set EXIT_CODE=%ERRORLEVEL%
 if not "%EXIT_CODE%"=="0" (
     echo.

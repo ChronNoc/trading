@@ -1,0 +1,4 @@
+windows:
+  - kind: absorption
+    reload: true
+    reclaim: true

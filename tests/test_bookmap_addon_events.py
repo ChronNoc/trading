@@ -164,6 +164,25 @@ def test_java_control_message_parses_without_becoming_market_event() -> None:
     assert parsed["alias"] == "MNQ"
 
 
+def test_delayed_mode_control_message_parses_for_free_bookmap_data() -> None:
+    """The app accepts a local delayed-data marker for Bookmap free feeds."""
+    payload = json.dumps(
+        {
+            "type": "delayed_mode",
+            "timestamp_ns": 123,
+            "source_mode": "delayed",
+            "delay_minutes": 15,
+            "reason": "Bookmap free delayed data feed",
+        },
+    )
+
+    parsed = parse_stream_message(payload)
+
+    assert parsed["type"] == "delayed_mode"
+    assert parsed["source_mode"] == "delayed"
+    assert parsed["delay_minutes"] == 15
+
+
 def test_parser_rejects_extra_fields() -> None:
     """WebSocket payload parsing rejects messages outside the exact schemas."""
     payload = json.dumps(

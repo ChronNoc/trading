@@ -244,6 +244,32 @@ def test_session_recorder_marks_data_gap_session_invalid(tmp_path: Path) -> None
     assert manifest["valid_for_analysis"] is False
 
 
+def test_session_recorder_marks_delayed_bookmap_data_not_live_decision_ready(tmp_path: Path) -> None:
+    """Free Bookmap delayed sessions are recorded but not marked usable for live decisions."""
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 10, 14, 30, tzinfo=UTC),
+    )
+
+    recorder.record_control_event(
+        {
+            "type": "delayed_mode",
+            "timestamp_ns": _timestamp_ns(2026, 7, 10, 14, 30),
+            "source_mode": "delayed",
+            "delay_minutes": 15,
+            "reason": "Bookmap free delayed data feed",
+        },
+    )
+    recorder.record_control_event({"type": "realtime_started", "timestamp_ns": _timestamp_ns(2026, 7, 10, 14, 31)})
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": _timestamp_ns(2026, 7, 10, 14, 32)})
+
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["source_mode"] == "delayed"
+    assert manifest["data_delay_minutes"] == 15
+    assert manifest["analysis_scope"] == "delayed_market_data"
+    assert manifest["valid_for_live_decisions"] is False
+
+
 def test_session_recorder_creates_unique_session_directories(tmp_path: Path) -> None:
     """Two receiver connections in the same second do not write into the same folder."""
     start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)

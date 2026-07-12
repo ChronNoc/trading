@@ -1,0 +1,22 @@
+{
+  "accepted_decisions": 1,
+  "broker_execution_data": null,
+  "data_delay_minutes": null,
+  "data_gaps": [],
+  "decisions_allowed": true,
+  "dropped_message_count": 0,
+  "execution_data_included": false,
+  "final_state": "SHADOW_ACTIVE",
+  "historical_sample_count": 120,
+  "profile_fallback": "matched session, volatility, liquidity, and behavior",
+  "profile_validation": "validated",
+  "recorder_manifest": {
+    "valid_for_analysis": true
+  },
+  "rejected_decisions": 1,
+  "runtime_mode": "SHADOW",
+  "selected_profile": "ny_open_normal_trend",
+  "session_date": "2026-07-10",
+  "session_id": "session_test",
+  "source_mode": "live"
+}

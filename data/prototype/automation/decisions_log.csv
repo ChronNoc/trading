@@ -1,0 +1,121 @@
+recorded_at,setup,decision,failed_conditions,explanations
+15:03:00,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+15:03:00,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+15:03:01,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+15:03:35,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+15:03:35,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+15:03:35,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+15:03:38,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+15:03:40,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+15:03:40,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:10:44,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:10:44,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:10:44,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:10:48,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:10:51,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+16:10:51,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:12:00,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:12:00,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:12:00,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:12:00,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:12:52,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:12:52,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:12:52,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:12:55,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:12:57,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+16:12:57,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:13:09,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:13:09,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:13:09,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:13:11,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:13:14,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+16:13:14,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:18:44,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:18:44,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:18:44,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:18:56,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:18:56,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:18:56,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:18:59,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:19:02,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+16:19:02,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:55:15,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:55:15,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:55:15,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:55:27,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:55:27,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:55:27,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+16:55:30,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:55:33,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+16:55:33,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+16:57:07,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:57:07,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:57:17,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+16:57:17,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+16:57:18,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+16:57:18,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+18:19:56,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+18:19:56,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+18:19:57,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+18:20:00,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+18:20:02,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+18:20:02,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:11:49,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:11:49,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:11:50,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:11:50,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:12:31,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:12:32,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:12:32,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+20:12:35,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:12:37,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+20:12:37,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:13:29,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:13:29,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:13:29,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+20:13:31,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:13:33,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+20:13:33,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:14:30,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:14:30,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:14:30,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+20:14:32,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:14:34,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+20:14:34,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:15:36,watching prototype setup stream,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low | [pass] 420 contracts sold aggressively | [pass] Price moved only 0 ticks lower | [pass] Bid liquidity reloaded 1 times | [pass] Ask cancellation ratio 0.5 met threshold | [pass] Reclaim confirmation completed | [pass] Not in a news lockout window
+20:15:41,watching prototype setup stream,REJECTED,3,LONG SETUP: REJECTED | [pass] Price at overnight_low | [pass] 420 contracts sold aggressively | [pass] Price moved only 0 ticks lower | [fail] Bid liquidity reloaded 0 times; needed 1 | [fail] Ask cancellation ratio 0.4736842105263157894736842105 is below required 0.50 | [fail] Reclaim confirmation not completed | [pass] Not in a news lockout window
+20:45:09,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:45:09,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:45:09,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+20:45:12,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:45:14,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+20:45:14,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+20:46:14,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+20:46:14,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+20:46:14,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+20:46:17,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+20:46:19,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+20:46:19,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+23:27:54,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+23:27:54,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+23:27:54,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+23:27:58,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+23:28:00,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+23:28:00,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+23:46:54,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+23:46:54,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+23:46:54,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+23:48:39,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+23:48:39,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+23:48:39,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+23:48:43,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+23:48:45,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+23:48:45,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+23:52:30,Clean long absorption reclaim,ACCEPTED,0,[pass] Price at overnight_low | [pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
+23:52:30,Rejected lookalike,REJECTED,2,[pass] Price at overnight_low | [fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed
+23:52:30,Rejected lookalike,REJECTED,1,[pass] Price at overnight_low | [fail] Bid liquidity did not reload
+23:52:34,Rejected lookalike,rejected,2,[pass] sell pressure | [fail] no bid reload | [fail] no reclaim
+23:52:36,waiting for synthetic feed,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low
+23:52:36,Clean long absorption reclaim,ACCEPTED,0,[pass] Reclaim confirmation completed
+23:52:48,watching prototype setup stream,ACCEPTED,0,LONG SETUP: ACCEPTED | [pass] Price at overnight_low | [pass] 420 contracts sold aggressively | [pass] Price moved only 0 ticks lower | [pass] Bid liquidity reloaded 1 times | [pass] Ask cancellation ratio 0.5 met threshold | [pass] Reclaim confirmation completed | [pass] Not in a news lockout window
+23:52:53,watching prototype setup stream,REJECTED,3,LONG SETUP: REJECTED | [pass] Price at overnight_low | [pass] 420 contracts sold aggressively | [pass] Price moved only 0 ticks lower | [fail] Bid liquidity reloaded 0 times; needed 1 | [fail] Ask cancellation ratio 0.4736842105263157894736842105 is below required 0.50 | [fail] Reclaim confirmation not completed | [pass] Not in a news lockout window

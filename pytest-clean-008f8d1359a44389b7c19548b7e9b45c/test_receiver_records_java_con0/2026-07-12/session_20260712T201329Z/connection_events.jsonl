@@ -1,0 +1,2 @@
+{"addon_version":"0.1.0","alias":"MNQ","dropped_message_count":0,"session_id":"session_test","source_mode":"historical","symbol":"MNQ","timestamp_ns":1783689600000000000,"type":"heartbeat"}
+{"dropped_message_count":1,"reason":"bounded queue overflow","timestamp_ns":1783689600000000002,"type":"data_gap"}

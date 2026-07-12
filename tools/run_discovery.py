@@ -1,0 +1,77 @@
+"""CLI for one full strategy-discovery run ending at the validation gate.
+
+    .venv\\Scripts\\python.exe -m tools.run_discovery --output-root data/discovery
+
+Produces candidates.jsonl, per-worker traces, and (when a candidate clears
+every gate) recommendation.md. Then it stops - see Part 7 / AGENTS.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Sequence
+from datetime import date
+from pathlib import Path
+
+from app.discovery.episodes import generate_synthetic_episodes
+from app.discovery.search import SearchLimits, SearchRateLimiter, run_search
+from app.discovery.splits import split_holdout
+from app.discovery.supervisor import ModeSupervisor
+
+DEFAULT_OUTPUT_ROOT = Path("data/discovery")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run one rate-limited search over the (currently synthetic) episode set."""
+    parser = argparse.ArgumentParser(description="Run one strategy-discovery search.")
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--seed", type=int, default=20260713)
+    parser.add_argument("--trading-days", type=int, default=120)
+    parser.add_argument("--minimum-trades", type=int, default=100)
+    parser.add_argument("--max-workers", type=int, default=4)
+    parser.add_argument("--min-run-interval-seconds", type=float, default=3600.0)
+    parser.add_argument("--skip-rate-limit", action="store_true", help="Testing only.")
+    args = parser.parse_args(argv)
+
+    mode = ModeSupervisor().view()
+    print(f"Mode: {mode.mode} (LIVE armed: {mode.live_armed}) - discovery never changes this.")
+
+    episodes = generate_synthetic_episodes(
+        seed=args.seed,
+        start_date=date(2026, 1, 5),
+        trading_days=args.trading_days,
+    )
+    search_episodes, holdout = split_holdout(episodes)
+    limiter = None
+    if not args.skip_rate_limit:
+        limiter = SearchRateLimiter(
+            args.output_root / ".last_search_run",
+            min_seconds_between_runs=args.min_run_interval_seconds,
+        )
+    result = run_search(
+        search_episodes,
+        holdout,
+        base_seed=args.seed,
+        output_root=args.output_root,
+        limits=SearchLimits(max_workers=args.max_workers),
+        minimum_trades=args.minimum_trades,
+        rate_limiter=limiter,
+    )
+
+    print(f"Candidates evaluated: {len(result.candidates)}")
+    print(f"Candidates log: {result.candidates_log_path}")
+    if result.leader is None:
+        print("No candidate cleared every gate. Rejection reasons are in the candidates log.")
+        return 0
+    print(f"Leader: {result.leader.parameters.key()}")
+    if result.holdout_score is not None:
+        for line in result.holdout_score.component_lines():
+            print(f"  holdout {line}")
+    if result.recommendation_path is not None:
+        print(f"Recommendation report: {result.recommendation_path}")
+    print("THE SYSTEM STOPS HERE. Review the report; going live is a manual human decision.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

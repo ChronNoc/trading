@@ -43,7 +43,7 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
     tabs = window.findChild(QTabWidget, "main_tab_widget")
 
     assert tabs is not None
-    assert tabs.count() == 6
+    assert tabs.count() == 11
     assert [tabs.tabText(index) for index in range(tabs.count())] == [
         "Live dashboard",
         "Decision explanation",
@@ -51,6 +51,11 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
         "Risk configuration",
         "Replay",
         "Model health",
+        "Ask",
+        "Session review",
+        "Automations",
+        "Decision log",
+        "Leaderboard",
     ]
     for object_name in (
         "live_dashboard_tab",
@@ -59,6 +64,11 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
         "risk_configuration_tab",
         "replay_tab",
         "model_health_tab",
+        "ask_tab",
+        "session_review_tab",
+        "automations_tab",
+        "decision_log_tab",
+        "leaderboard_tab",
     ):
         assert window.findChild(type(tabs.widget(0)), object_name) is not None
 
@@ -141,6 +151,9 @@ def test_live_dashboard_reads_market_state_and_risk_state(qtbot: object) -> None
     losses_count = window.findChild(QLabel, "dashboard_losses_count")
     risk_used = window.findChild(QLabel, "dashboard_daily_risk_used")
     risk_remaining = window.findChild(QLabel, "dashboard_daily_risk_remaining")
+    market_price = window.findChild(QLabel, "dashboard_market_price")
+    bid_ask = window.findChild(QLabel, "dashboard_bid_ask")
+    spread = window.findChild(QLabel, "dashboard_spread")
 
     assert feed_table is not None
     assert feed_table.item(0, 1).text() == "receiving"
@@ -152,6 +165,21 @@ def test_live_dashboard_reads_market_state_and_risk_state(qtbot: object) -> None
     assert risk_used.text() == "$125.00"
     assert risk_remaining is not None
     assert risk_remaining.text() == "$375.00"
+    assert market_price is not None
+    assert market_price.text() == "100.125"
+    assert bid_ask is not None
+    assert bid_ask.text() == "100.00 / 100.25"
+    assert spread is not None
+    assert spread.text() == "0.25"
+
+    state = state.update(_depth_event(timestamp=400, side="bid", price="100.25", previous_size="0", new_size="10"))
+    state = state.update(_depth_event(timestamp=500, side="ask", price="100.25", previous_size="8", new_size="0"))
+    state = state.update(_depth_event(timestamp=600, side="ask", price="100.50", previous_size="0", new_size="8"))
+    window.refresh_live_dashboard()
+
+    assert market_price.text() == "100.375"
+    assert bid_ask.text() == "100.25 / 100.50"
+    assert spread.text() == "0.25"
 
 
 def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> None:
@@ -163,7 +191,8 @@ def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> No
         recording=True,
         exact_contract="MNQU6",
         contract_reason="current",
-        source_mode="live",
+        source_mode="delayed",
+        data_delay_minutes=15,
         session_name="New York open",
         session_date="2026-07-10",
         minutes_since_open=10,
@@ -189,6 +218,7 @@ def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> No
     contract_label = window.findChild(QLabel, "runtime_exact_contract")
     profile_label = window.findChild(QLabel, "runtime_profile_id")
     samples_label = window.findChild(QLabel, "runtime_sample_count")
+    delay_label = window.findChild(QLabel, "runtime_data_delay")
 
     assert state_label is not None
     assert state_label.text() == "SHADOW_READY"
@@ -198,6 +228,8 @@ def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> No
     assert profile_label.text() == "ny_open_normal_trend"
     assert samples_label is not None
     assert samples_label.text() == "42 / complete"
+    assert delay_label is not None
+    assert delay_label.text() == "15 minutes delayed"
 
 
 def test_replay_tab_lists_recorded_sessions_and_renders_parquet_events(
@@ -324,3 +356,159 @@ def _depth_event(
 def _timestamp_ns(year: int, month: int, day: int, hour: int, minute: int) -> int:
     timestamp = datetime(year, month, day, hour, minute, tzinfo=UTC)
     return int(timestamp.timestamp()) * 1_000_000_000
+
+
+def test_agent_panels_narrate_and_track_decision_history(qtbot: object) -> None:
+    """The narrator, condition matrix, timeline, and watchdog follow prototype decisions."""
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QListWidget
+
+    from app.prototype.scenarios import empty_prototype_dashboard_snapshot
+
+    snapshots = [
+        replace(
+            empty_prototype_dashboard_snapshot(),
+            runtime_state="playing",
+            synthetic_status="connected",
+            depth_events=10,
+            trade_events=4,
+            current_setup="Clean long absorption reclaim",
+            decision="ACCEPTED",
+            explanations=(
+                "[pass] Price at overnight_low",
+                "[pass] Bid liquidity reloaded 2 times",
+                "[pass] Reclaim confirmation completed",
+            ),
+        ),
+    ]
+    window = MainWindow(prototype_snapshot_provider=lambda: snapshots[0])
+    qtbot.addWidget(window)
+
+    window.refresh_live_dashboard()
+    snapshots[0] = replace(
+        snapshots[0],
+        current_setup="Rejected lookalike",
+        decision="REJECTED",
+        explanations=(
+            "[pass] Price at overnight_low",
+            "[fail] Bid liquidity did not reload",
+            "[fail] Reclaim confirmation not completed",
+        ),
+    )
+    window.refresh_live_dashboard()
+
+    narrator = window.findChild(QTextEdit, "ai_narrator_text")
+    timeline = window.findChild(QListWidget, "decision_timeline_list")
+    matrix = window.findChild(QTableWidget, "condition_matrix_table")
+    watchdog = window.findChild(QLabel, "watchdog_status_label")
+
+    assert narrator is not None
+    assert "REJECTED" in narrator.toPlainText()
+    assert "nobody reloaded the bid" in narrator.toPlainText()
+    assert timeline is not None
+    assert timeline.count() == 2
+    assert "ACCEPTED" in timeline.item(0).text()
+    assert "REJECTED" in timeline.item(1).text()
+    assert matrix is not None
+    assert matrix.columnCount() == 2
+    assert matrix.rowCount() >= 3
+    assert watchdog is not None
+    assert "feeds healthy" in watchdog.text()
+
+
+def test_ask_tab_answers_from_snapshot_and_history(qtbot: object) -> None:
+    """The ask tab answers counter questions from the snapshot without guessing."""
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QLineEdit, QPushButton
+
+    from app.prototype.scenarios import empty_prototype_dashboard_snapshot
+
+    snapshot = replace(
+        empty_prototype_dashboard_snapshot(),
+        depth_events=120,
+        trade_events=34,
+        control_events=6,
+    )
+    window = MainWindow(prototype_snapshot_provider=lambda: snapshot)
+    qtbot.addWidget(window)
+
+    question_input = window.findChild(QLineEdit, "ask_input")
+    send_button = window.findChild(QPushButton, "ask_send_button")
+    conversation = window.findChild(QTextEdit, "ask_conversation")
+
+    assert question_input is not None
+    assert send_button is not None
+    assert conversation is not None
+    question_input.setText("how many events so far?")
+    send_button.click()
+
+    text = conversation.toPlainText()
+    assert "how many events so far?" in text
+    assert "120 depth" in text
+    assert "34 trade" in text
+    assert question_input.text() == ""
+
+
+def test_session_review_tab_writes_markdown_report(qtbot: object, tmp_path: Path) -> None:
+    """Generating a review writes a markdown file and renders it in the tab."""
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QPushButton
+
+    from app.prototype.scenarios import empty_prototype_dashboard_snapshot
+
+    snapshots = [
+        replace(
+            empty_prototype_dashboard_snapshot(),
+            runtime_state="playing",
+            synthetic_status="connected",
+            current_setup="Rejected lookalike",
+            decision="REJECTED",
+            explanations=(
+                "[pass] Price at overnight_low",
+                "[fail] Bid liquidity did not reload",
+            ),
+        ),
+    ]
+    window = MainWindow(
+        prototype_snapshot_provider=lambda: snapshots[0],
+        review_output_root=tmp_path,
+    )
+    qtbot.addWidget(window)
+    window.refresh_live_dashboard()
+
+    button = window.findChild(QPushButton, "session_review_button")
+    review_text = window.findChild(QTextEdit, "session_review_text")
+    path_label = window.findChild(QLabel, "session_review_path")
+
+    assert button is not None
+    button.click()
+
+    written = sorted(tmp_path.rglob("ai_review_*.md"))
+    assert len(written) == 1
+    assert review_text is not None
+    assert "Decisions recorded: 1" in review_text.toPlainText()
+    assert path_label is not None
+    assert path_label.text() == str(written[0])
+
+
+def test_session_review_without_decisions_explains_instead_of_writing(
+    qtbot: object, tmp_path: Path
+) -> None:
+    """With no recorded decisions the review tab explains and writes nothing."""
+    from PySide6.QtWidgets import QPushButton
+
+    window = MainWindow(review_output_root=tmp_path)
+    qtbot.addWidget(window)
+
+    button = window.findChild(QPushButton, "session_review_button")
+    review_text = window.findChild(QTextEdit, "session_review_text")
+
+    assert button is not None
+    button.click()
+
+    assert review_text is not None
+    assert "No decisions recorded yet" in review_text.toPlainText()
+    assert not list(tmp_path.rglob("*.md"))

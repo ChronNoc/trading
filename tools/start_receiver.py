@@ -6,10 +6,12 @@ import argparse
 import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from app.database.recorder import MarketSessionRecorder
+from app.market.feed_guard import FeedGuard
 from app.market.receiver import CURRENT_MARKET_STATE, CurrentMarketState, consume_market_stream
 from app.market.state import MarketState
 
@@ -43,6 +45,7 @@ class RunningReceiverServer:
     port: int
     path: str
     output_root: Path
+    feed_guard: FeedGuard | None = None
 
     @property
     def url(self) -> str:
@@ -73,9 +76,23 @@ async def start_receiver_websocket_server(
     on_control_event: Callable[[dict[str, object]], None] | None = None,
     recorder_factory: Callable[[], MarketSessionRecorder] | None = None,
     on_session_finalized: Callable[[MarketSessionRecorder], None] | None = None,
+    initial_control_events: Sequence[dict[str, object]] = (),
+    feed_guard: FeedGuard | None = None,
 ) -> RunningReceiverServer:
-    """Start the local WebSocket server that records Bookmap market events."""
+    """Start the local WebSocket server that records Bookmap market events.
+
+    When ``feed_guard`` is provided, every message flows through it first:
+    malformed messages are counted loudly instead of killing the session,
+    rejected events (e.g. out-of-order depth) never reach state or disk,
+    and the guard's dual connection/data-quality flags stay current.
+    """
     from websockets.asyncio.server import ServerConnection, serve
+
+    def _guarded_control_event(event: dict[str, object]) -> None:
+        if feed_guard is not None:
+            feed_guard.handle_control_event(event)
+        if on_control_event is not None:
+            on_control_event(event)
 
     async def handler(connection: ServerConnection) -> None:
         request_path = getattr(getattr(connection, "request", None), "path", "")
@@ -84,13 +101,23 @@ async def start_receiver_websocket_server(
             return
         recorder = recorder_factory() if recorder_factory is not None else MarketSessionRecorder(root_dir=config.output_root)
         try:
+            for control_event in initial_control_events:
+                event = _fresh_control_event(control_event)
+                recorder.record_control_event(event)
+                _guarded_control_event(event)
             await consume_market_stream(
                 connection,
                 recorder=recorder,
                 state_store=state_store,
                 on_state=on_state,
                 on_market_event=on_market_event,
-                on_control_event=on_control_event,
+                on_control_event=_guarded_control_event,
+                event_filter=(
+                    (lambda event: feed_guard.ingest_market_event(event)[0])
+                    if feed_guard is not None
+                    else None
+                ),
+                on_schema_error=feed_guard.record_malformed if feed_guard is not None else None,
             )
         except Exception:
             recorder.finalize(clean_shutdown=False, reason="receiver_error")
@@ -108,6 +135,7 @@ async def start_receiver_websocket_server(
         port=actual_port,
         path=config.path,
         output_root=config.output_root,
+        feed_guard=feed_guard,
     )
 
 
@@ -169,6 +197,12 @@ def _actual_server_port(server: Any, configured_port: int) -> int:
 def _output_template(output_root: Path) -> str:
     normalized = output_root.as_posix().rstrip("/")
     return f"{normalized}/{{date}}/session_<UTC timestamp>/"
+
+
+def _fresh_control_event(event: dict[str, object]) -> dict[str, object]:
+    current = dict(event)
+    current["timestamp_ns"] = int(datetime.now(UTC).timestamp()) * 1_000_000_000
+    return current
 
 
 if __name__ == "__main__":

@@ -1,0 +1,53 @@
+{
+  "parameters": "reload=1|volume=450|pull=0.40|target=2.0|stop=1.0",
+  "seed": 165681138187736,
+  "validation": {
+    "trades": "410",
+    "win rate": "0.7512",
+    "profit factor": "6.4584",
+    "max drawdown (R)": "2.2700",
+    "sortino": "2.3094",
+    "expectancy (R)": "0.7560",
+    "composite": "3.3032"
+  },
+  "worst_case_expectancy_r": "0.6160",
+  "regime_expectancy": {
+    "ranging/high_vol": "0.7734",
+    "ranging/low_vol": "0.7058",
+    "trending/high_vol": "0.8368",
+    "trending/low_vol": "0.7130"
+  },
+  "gates": [
+    {
+      "gate": "label_leakage",
+      "passed": true,
+      "reason": "all 3 features decision-time safe"
+    },
+    {
+      "gate": "sample_size",
+      "passed": true,
+      "reason": "410 trades meets minimum 100"
+    },
+    {
+      "gate": "regime_robustness",
+      "passed": true,
+      "reason": "positive in regimes ['ranging/high_vol', 'ranging/low_vol', 'trending/high_vol', 'trending/low_vol'] and sessions ['london', 'new_york_afternoon', 'new_york_open']"
+    },
+    {
+      "gate": "monte_carlo",
+      "passed": true,
+      "reason": "risk of ruin 0.0000, p95 drawdown 4.03R"
+    },
+    {
+      "gate": "sensitivity",
+      "passed": true,
+      "reason": "neighbors held composite >= 2.0356 vs base 3.3032"
+    },
+    {
+      "gate": "worst_case_costs",
+      "passed": true,
+      "reason": "expectancy 0.6160R survives worst-case costs"
+    }
+  ],
+  "accepted": true
+}

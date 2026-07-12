@@ -57,6 +57,11 @@ def test_server_records_mock_bookmap_client_messages(tmp_path: Path) -> None:
     asyncio.run(_server_records_messages(tmp_path))
 
 
+def test_server_injects_initial_delayed_mode_control_event(tmp_path: Path) -> None:
+    """The assistant can mark every Bookmap-free connection as delayed before data arrives."""
+    asyncio.run(_server_injects_delayed_mode(tmp_path))
+
+
 async def _server_records_messages(tmp_path: Path) -> None:
     timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
     state_store = CurrentMarketState()
@@ -133,6 +138,38 @@ async def _server_records_messages(tmp_path: Path) -> None:
     assert manifest["clean_shutdown"] is True
     assert manifest["event_counts"]["depth_updates"] == 1
     assert manifest["event_counts"]["trades"] == 1
+
+
+async def _server_injects_delayed_mode(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    control_events: list[dict[str, object]] = []
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+        on_control_event=lambda event: control_events.append(dict(event)),
+        initial_control_events=(
+            {
+                "type": "delayed_mode",
+                "timestamp_ns": timestamp_ns,
+                "source_mode": "delayed",
+                "delay_minutes": 15,
+                "reason": "Bookmap free delayed data feed",
+            },
+        ),
+    )
+
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send(json.dumps({"type": "session_ended", "timestamp_ns": timestamp_ns + 1}))
+        session_dir = await _wait_for_session_dir(tmp_path)
+    finally:
+        await server.close()
+
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    assert control_events[0]["type"] == "delayed_mode"
+    assert control_events[0]["delay_minutes"] == 15
+    assert manifest["source_mode"] == "delayed"
+    assert manifest["data_delay_minutes"] == 15
+    assert manifest["valid_for_live_decisions"] is False
 
 
 async def _wait_for_path(path: Path) -> None:
