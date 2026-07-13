@@ -801,10 +801,21 @@ class MainWindow(QMainWindow):
                 timeline.addItem(item)
 
     def _refresh_watchdog(self) -> None:
-        """Update the header watchdog line from the current prototype snapshot."""
+        """Update the header watchdog line from prototype or live runtime state."""
         label = self.findChild(QLabel, "watchdog_status_label")
         if label is None:
             return
+        if self._prototype_snapshot_provider is None and self._runtime_snapshot_provider is not None:
+            runtime = self._current_runtime_snapshot()
+            if runtime is not None:
+                connected = runtime.bookmap_status == "connected"
+                label.setText(
+                    f"Watchdog: Bookmap {runtime.bookmap_status}; "
+                    f"recording {'yes' if runtime.recording else 'no'}; "
+                    f"dropped {runtime.dropped_message_count}",
+                )
+                label.setStyleSheet(WATCHDOG_OK_STYLE if connected else WATCHDOG_WARNING_STYLE)
+                return
         report = self._watchdog.evaluate(self._current_prototype_snapshot())
         self._last_watchdog_report = report
         label.setText(report.message)

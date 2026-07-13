@@ -25,11 +25,11 @@ public final class MessageFactory {
         return toJson(payload);
     }
 
-    public String trade(long timestampNs, double price, int size, String aggressorSide, long sequenceId) {
+    public String trade(long timestampNs, String price, int size, String aggressorSide, long sequenceId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "trade");
         payload.put("timestamp_ns", timestampNs);
-        payload.put("price", decimalString(price));
+        payload.put("price", price);
         payload.put("size", Integer.toString(size));
         payload.put("aggressor_side", aggressorSide);
         payload.put("instrument", instrument.symbol());

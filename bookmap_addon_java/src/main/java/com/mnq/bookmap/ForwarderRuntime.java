@@ -85,7 +85,8 @@ public final class ForwarderRuntime implements Closeable {
             return;
         }
         long sequenceId = instrument.sequenceGenerator().next();
-        enqueue(messageFactory.trade(timestampNs, price, size, TradeSideMapper.fromBidAggressor(isBidAggressor), sequenceId));
+        String realPrice = instrument.priceConverter().toPriceString(price);
+        enqueue(messageFactory.trade(timestampNs, realPrice, size, TradeSideMapper.fromBidAggressor(isBidAggressor), sequenceId));
     }
 
     public ForwardingQueue queue() {

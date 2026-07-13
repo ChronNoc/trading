@@ -205,3 +205,48 @@ def test_leaderboard_renders_composite_breakdown_and_trace(qtbot: object, tmp_pa
     text = trace.toPlainText()
     assert "cleared every gate" in text
     assert "trending/high_vol: 0.6" in text
+
+
+def test_watchdog_reports_live_runtime_in_assistant_mode(qtbot: object, tmp_path: Path) -> None:
+    """Without a prototype provider, the watchdog reflects the live Bookmap runtime."""
+    from app.runtime.controller import RuntimeSnapshot
+
+    runtime = RuntimeSnapshot(
+        state="RECORDING_ONLY",
+        mode="SHADOW",
+        bookmap_status="connected",
+        recording=True,
+        exact_contract="MNQU6",
+        contract_reason="current",
+        source_mode="delayed",
+        session_name="Closed",
+        session_date="2026-07-13",
+        minutes_since_open=None,
+        minutes_until_close=None,
+        regime="extreme/thin/unstable",
+        profile_id="global_observe_only",
+        profile_fallback="fell back to the global profile",
+        profile_validation="unavailable",
+        historical_sample_count=0,
+        decisions_allowed=False,
+        warmup_complete=True,
+        sample_count=240,
+        data_age_ms=None,
+        dropped_message_count=24407,
+        threshold_summary="DELAYED",
+        shadow_decisions=0,
+        report_root="data/reports",
+        data_delay_minutes=15,
+    )
+    window = MainWindow(
+        runtime_snapshot_provider=lambda: runtime,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+    )
+    qtbot.addWidget(window)
+    window.refresh_live_dashboard()
+
+    watchdog = window.findChild(QLabel, "watchdog_status_label")
+    assert watchdog is not None
+    assert "Bookmap connected" in watchdog.text()
+    assert "recording yes" in watchdog.text()
+    assert "dropped 24407" in watchdog.text()

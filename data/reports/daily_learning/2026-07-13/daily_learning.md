@@ -4,21 +4,21 @@
 
 ## Consistency
 
-- Consistency score: 31.09 / 100
-- Sessions analyzed: 137
+- Consistency score: 30.96 / 100
+- Sessions analyzed: 140
 - Valid sessions: 0
-- Delayed/free-data sessions: 136
-- Depth updates: 8480
+- Delayed/free-data sessions: 139
+- Depth updates: 8679
 - Trades: 153
 
 ## Recurring patterns
 
-- Price and CVD aligned in 104 session(s).
+- Price and CVD aligned in 107 session(s).
 
 ## Blockers
 
-- 137 session(s) were not analysis-clean.
-- 136 delayed/free-data session(s) cannot be used for live decisions.
+- 140 session(s) were not analysis-clean.
+- 139 delayed/free-data session(s) cannot be used for live decisions.
 
 ## Session table
 
@@ -161,6 +161,9 @@
 | 2026-07-13/session_20260713T115328Z | delayed | no | up | down | no | 0 | 0 | delayed data: review only; not analysis-clean; price/CVD divergence; sellers controlled tape |
 | 2026-07-13/session_20260713T115341Z | delayed | no | up | flat | yes | 0 | 0 | delayed data: review only; not analysis-clean; no trade prints |
 | 2026-07-13/session_20260713T115353Z | delayed | no | up | up | yes | 0 | 0 | delayed data: review only; not analysis-clean; buyers controlled tape |
+| 2026-07-13/session_20260713T115407Z | delayed | no | flat | flat | yes | 0 | 0 | delayed data: review only; not analysis-clean; no trade prints |
+| 2026-07-13/session_20260713T115418Z | delayed | no | down | flat | yes | 0 | 0 | delayed data: review only; not analysis-clean; no trade prints |
+| 2026-07-13/session_20260713T115432Z | delayed | no | up | flat | yes | 0 | 0 | delayed data: review only; not analysis-clean; no trade prints |
 
 ## Safety
 

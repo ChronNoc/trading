@@ -3,7 +3,9 @@ package com.mnq.bookmap;
 import java.math.BigDecimal;
 import java.math.MathContext;
 
-/** Converts Bookmap integer prices to decimal-string wire prices using InstrumentInfo.pips. */
+/** Converts Bookmap pips-unit prices to real decimal-string wire prices.
+ *  Bookmap's Simplified API reports prices as counts of InstrumentInfo.pips,
+ *  so the real price is rawPrice MULTIPLIED by pips (MNQ: 119085 * 0.25 = 29771.25). */
 public final class PriceConverter {
     private final BigDecimal pips;
 
@@ -15,7 +17,15 @@ public final class PriceConverter {
     }
 
     public String toPriceString(int rawPrice) {
-        BigDecimal price = BigDecimal.valueOf(rawPrice).divide(pips, MathContext.DECIMAL64);
+        BigDecimal price = BigDecimal.valueOf(rawPrice).multiply(pips, MathContext.DECIMAL64);
+        return price.stripTrailingZeros().toPlainString();
+    }
+
+    public String toPriceString(double rawPrice) {
+        if (!Double.isFinite(rawPrice)) {
+            throw new IllegalArgumentException("rawPrice must be finite");
+        }
+        BigDecimal price = BigDecimal.valueOf(rawPrice).multiply(pips, MathContext.DECIMAL64);
         return price.stripTrailingZeros().toPlainString();
     }
 }

@@ -63,9 +63,10 @@ public final class TestRunner {
     }
 
     private void testPriceConversion() {
-        PriceConverter converter = new PriceConverter(100.0);
-        assertEquals("100.25", converter.toPriceString(10025), "price conversion");
-        assertEquals("100", converter.toPriceString(10000), "whole price conversion");
+        PriceConverter converter = new PriceConverter(0.25);
+        assertEquals("29771.25", converter.toPriceString(119085), "MNQ price conversion");
+        assertEquals("29771", converter.toPriceString(119084), "whole price conversion");
+        assertEquals("29771.125", converter.toPriceString(119084.5d), "trade double conversion");
         assertThrows(() -> new PriceConverter(0.0), "invalid pips");
         testsRun++;
     }
@@ -97,7 +98,7 @@ public final class TestRunner {
     private void testJsonSchemas() {
         MessageFactory factory = factory();
         String depth = factory.depthUpdate(123L, new DepthUpdate("bid", "100.25", 4, 8));
-        String trade = factory.trade(456L, 100.25, 3, "sell", 42L);
+        String trade = factory.trade(456L, "100.25", 3, "sell", 42L);
         String heartbeat = factory.heartbeat(789L, "live", 2L, 10L);
 
         assertContains(depth, "\"type\":\"depth_update\"", "depth type");
@@ -187,16 +188,17 @@ public final class TestRunner {
         BridgeConfig config = BridgeConfig.defaults();
         ForwarderRuntime runtime = new ForwarderRuntime(
                 config,
-                InstrumentContext.synthetic("MNQ", "MNQ", 100.0, config),
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
                 new CaptureTransport(),
                 Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
 
-        runtime.publishDepth(100L, true, 10025, 12);
-        runtime.publishTrade(200L, 100.25, 3, true);
+        runtime.publishDepth(100L, true, 119085, 12);
+        runtime.publishTrade(200L, 119084.5d, 3, true);
 
-        assertContains(runtime.queue().take(1, TimeUnit.SECONDS), "\"price\":\"100.25\"", "depth price");
+        assertContains(runtime.queue().take(1, TimeUnit.SECONDS), "\"price\":\"29771.25\"", "depth price");
         String trade = runtime.queue().take(1, TimeUnit.SECONDS);
         assertContains(trade, "\"type\":\"trade\"", "trade type");
+        assertContains(trade, "\"price\":\"29771.125\"", "trade real price");
         assertContains(trade, "\"aggressor_side\":\"buy\"", "trade side");
         assertContains(trade, "\"sequence_id\":1", "trade sequence");
         testsRun++;
