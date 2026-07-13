@@ -47,6 +47,9 @@ from app.agents.narrator import narrate_decision
 from app.agents.records import DecisionRecord, canonical_condition_name, parse_explanation_lines
 from app.agents.session_reviewer import write_review
 from app.agents.watchdog import SEVERITY_OK, SEVERITY_WARNING, Watchdog, WatchdogReport
+from app.discovery.consistency import score_run
+from app.discovery.metrics import TradeResult
+from app.discovery.paper_account import PaperAccountConfig, run_paper_accounts
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.automations import AUTOMATION_DEFINITIONS, AutomationEngine
 from app.gui.price_chart import PriceChartWidget
@@ -263,6 +266,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_automations_tab(), "Automations")
         self.tabs.addTab(self._build_decision_log_tab(), "Decision log")
         self.tabs.addTab(self._build_leaderboard_tab(), "Leaderboard")
+        self.tabs.addTab(self._build_paper_trading_tab(), "Paper trading")
         layout.addWidget(self.tabs)
 
         self.setCentralWidget(root)
@@ -1522,6 +1526,118 @@ class MainWindow(QMainWindow):
             label = self.findChild(QLabel, f"automation_count_{definition.key}")
             if label is not None:
                 label.setText(f"fired {self._automation_engine.fire_counts[definition.key]}x")
+
+    def _build_paper_trading_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setObjectName("paper_trading_tab")
+        layout = QVBoxLayout(tab)
+
+        intro = QLabel(
+            "$100,000 paper account using your mentor's rules (10-point stop, "
+            "max 3 trades / 3 losses per day). Each blown account opens a fresh "
+            "$100k until a run is profitable. SIMULATION on discovery data - "
+            "synthetic until Stage C fills in real setups. No real orders.",
+        )
+        intro.setWordWrap(True)
+        intro.setStyleSheet(BANNER_STYLE)
+        layout.addWidget(intro)
+
+        run_button = QPushButton("Run paper simulation")
+        run_button.setObjectName("paper_run_button")
+        run_button.clicked.connect(self._run_paper_simulation)
+        layout.addWidget(run_button)
+
+        progress = QListWidget()
+        progress.setObjectName("paper_progress_list")
+        progress.setMaximumHeight(200)
+        layout.addWidget(_group("Consistency progress", progress))
+
+        table = QTableWidget(0, 6)
+        table.setObjectName("paper_trades_table")
+        table.setHorizontalHeaderLabels(["Account", "Date", "Contracts", "R", "P&L", "Balance"])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(_group("Simulated trades (green win / red loss)", table))
+        self._paper_progress = progress
+        self._paper_table = table
+        return tab
+
+    def _load_discovery_trades(self) -> tuple[TradeResult, ...]:
+        """Build a trade sequence from the discovery candidates log, if any.
+
+        Uses the top-ranked candidate's per-regime expectancy to synthesize a
+        representative outcome stream. This is discovery/synthetic data until
+        real Stage-C setups replace it.
+        """
+        path = self._discovery_root / "candidates.jsonl"
+        if not path.is_file():
+            return ()
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            return ()
+        top = json.loads(lines[0])
+        trade_count = int(top.get("trade_count", 0) or 0)
+        expectancy = Decimal(str(top.get("expectancy_r", "0") or "0"))
+        win_rate = Decimal(str(top.get("win_rate", "0") or "0"))
+        if trade_count <= 0:
+            return ()
+        # Reconstruct a deterministic win/loss stream matching the reported
+        # win rate and expectancy: wins of +w, losses of -1R.
+        wins = int((win_rate * Decimal(trade_count)).to_integral_value())
+        losses = trade_count - wins
+        # Solve win payoff so mean == expectancy: (wins*w - losses) / n = E.
+        win_payoff = (
+            (expectancy * Decimal(trade_count) + Decimal(losses)) / Decimal(wins)
+            if wins
+            else Decimal("0")
+        )
+        trades: list[TradeResult] = []
+        for index in range(trade_count):
+            is_win = index % trade_count < wins
+            day = f"2026-07-{(index // 6) % 28 + 1:02d}"
+            trades.append(
+                TradeResult(
+                    r_multiple=win_payoff if is_win else Decimal("-1"),
+                    session="new_york_open",
+                    regime_tag="trending/high_vol",
+                    trade_date=day,
+                ),
+            )
+        return tuple(trades)
+
+    def _run_paper_simulation(self) -> None:
+        """Run the $100k reset simulation and render trades + progress."""
+        progress = getattr(self, "_paper_progress", None)
+        table = getattr(self, "_paper_table", None)
+        if progress is None or table is None:
+            return
+        trades = self._load_discovery_trades()
+        progress.clear()
+        table.setRowCount(0)
+        if not trades:
+            progress.addItem("No discovery candidates yet - run: python -m tools.run_discovery")
+            return
+
+        result = run_paper_accounts(trades, PaperAccountConfig())
+        report = score_run(result)
+        for line in report.summary_lines():
+            progress.addItem(line)
+
+        all_trades = result.all_trades()
+        table.setRowCount(len(all_trades))
+        for row, trade in enumerate(all_trades):
+            cells = [
+                str(trade.account_number),
+                trade.trade_date,
+                str(trade.contracts),
+                str(trade.r_multiple),
+                _format_money(trade.pnl),
+                _format_money(trade.balance_after),
+            ]
+            for column, value in enumerate(cells):
+                item = _read_only_item(value)
+                item.setForeground(QColor(74, 222, 128) if trade.won else QColor(248, 113, 113))
+                table.setItem(row, column, item)
 
     def _build_ask_tab(self) -> QWidget:
         tab = QWidget()

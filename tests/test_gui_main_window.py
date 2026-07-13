@@ -43,7 +43,7 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
     tabs = window.findChild(QTabWidget, "main_tab_widget")
 
     assert tabs is not None
-    assert tabs.count() == 11
+    assert tabs.count() == 12
     assert [tabs.tabText(index) for index in range(tabs.count())] == [
         "Live dashboard",
         "Decision explanation",
@@ -56,6 +56,7 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
         "Automations",
         "Decision log",
         "Leaderboard",
+        "Paper trading",
     ]
     for object_name in (
         "live_dashboard_tab",
@@ -69,6 +70,7 @@ def test_main_window_renders_all_required_tabs(window: MainWindow) -> None:
         "automations_tab",
         "decision_log_tab",
         "leaderboard_tab",
+        "paper_trading_tab",
     ):
         assert window.findChild(type(tabs.widget(0)), object_name) is not None
 
