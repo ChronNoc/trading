@@ -1,14 +1,15 @@
 {
-  "recorded_at": "11:27:13",
-  "setup_name": "Clean long absorption reclaim",
+  "recorded_at": "11:35:04",
+  "setup_name": "waiting for synthetic feed",
   "decision": "ACCEPTED",
   "explanations": [
-    "[pass] Reclaim confirmation completed"
+    "LONG SETUP: ACCEPTED",
+    "[pass] Price at overnight_low"
   ],
   "session": "New York open synthetic session",
   "regime": "warming",
-  "depth_events": 0,
-  "trade_events": 0,
-  "last_trade_price": "100.50",
+  "depth_events": 10,
+  "trade_events": 2,
+  "last_trade_price": "",
   "synthetic": true
 }

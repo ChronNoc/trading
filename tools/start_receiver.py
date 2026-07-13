@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -67,6 +68,24 @@ def startup_message(config: ReceiverServerConfig) -> str:
     return f"listening on {config.url}, writing to {_output_template(config.output_root)}"
 
 
+class _PortProbeNoiseFilter(logging.Filter):
+    """Drop handshake-failure logs caused by plain TCP port probes.
+
+    Health checks like ``Test-NetConnection`` open a raw TCP connection and
+    close it without an HTTP request; the websockets server would log a
+    full traceback for each probe. Real protocol errors still log.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "opening handshake failed" not in record.getMessage()
+
+
+def _install_port_probe_noise_filter() -> None:
+    logger = logging.getLogger("websockets.server")
+    if not any(isinstance(existing, _PortProbeNoiseFilter) for existing in logger.filters):
+        logger.addFilter(_PortProbeNoiseFilter())
+
+
 async def start_receiver_websocket_server(
     config: ReceiverServerConfig,
     *,
@@ -87,6 +106,8 @@ async def start_receiver_websocket_server(
     and the guard's dual connection/data-quality flags stay current.
     """
     from websockets.asyncio.server import ServerConnection, serve
+
+    _install_port_probe_noise_filter()
 
     def _guarded_control_event(event: dict[str, object]) -> None:
         if feed_guard is not None:
