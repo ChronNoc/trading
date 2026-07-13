@@ -122,17 +122,30 @@ def transcribe_video(
     video_path: str | Path,
     output_dir: str | Path,
     model_factory: WhisperModelFactory | None = None,
+    *,
+    language: str | None = None,
+    task: str = "transcribe",
 ) -> TranscriptOutputs:
-    """Transcribe a video and write transcript outputs."""
+    """Transcribe (or translate to English) a video and write transcript outputs.
+
+    ``task="translate"`` makes Whisper emit English text for non-English
+    speech, which the English-keyword rule extractor needs. ``language``
+    (e.g. ``he``) skips auto-detection for faster, more reliable results.
+    """
+    if task not in ("transcribe", "translate"):
+        raise ValueError("task must be 'transcribe' or 'translate'")
     source_path = Path(video_path)
     if not source_path.is_file():
         raise FileNotFoundError(f"Video file not found: {source_path}")
 
     whisper_model_factory = model_factory or _load_whisper_model_class()
     model = whisper_model_factory(MODEL_NAME, compute_type=COMPUTE_TYPE)
+    transcribe_kwargs: dict[str, object] = {"vad_filter": VAD_FILTER, "task": task}
+    if language is not None:
+        transcribe_kwargs["language"] = language
     raw_segments, _transcription_info = model.transcribe(
         str(source_path),
-        vad_filter=VAD_FILTER,
+        **transcribe_kwargs,
     )
     segments = tuple(_normalize_segment(segment) for segment in raw_segments)
 
@@ -146,6 +159,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("video_path", help="Path to the source video file.")
     parser.add_argument("output_dir", help="Directory where transcript files are written.")
+    parser.add_argument(
+        "--language",
+        default=None,
+        help="Spoken language code (e.g. 'he' for Hebrew); default auto-detects.",
+    )
+    parser.add_argument(
+        "--task",
+        choices=("transcribe", "translate"),
+        default="transcribe",
+        help="'translate' emits English text for non-English speech.",
+    )
     return parser
 
 
@@ -155,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        outputs = transcribe_video(args.video_path, args.output_dir)
+        outputs = transcribe_video(args.video_path, args.output_dir, language=args.language, task=args.task)
     except FileNotFoundError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

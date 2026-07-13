@@ -32,9 +32,11 @@ class FakeWhisperModel:
         audio: str,
         *,
         vad_filter: bool,
+        task: str = "transcribe",
+        language: str | None = None,
     ) -> tuple[list[FakeSegment], object]:
         """Return deterministic fake segments."""
-        self.calls.append((audio, vad_filter))
+        self.calls.append((audio, vad_filter, task, language))
         return (
             [
                 FakeSegment(start=1.25, end=2.5, text=" first setup "),
@@ -59,7 +61,7 @@ def test_transcribe_video_writes_json_and_text_with_mocked_model(tmp_path: Path)
     outputs = transcribe.transcribe_video(video_path, output_dir, model_factory=fake_model_factory)
 
     assert factory_calls == [("small", "int8")]
-    assert fake_model.calls == [(str(video_path), True)]
+    assert fake_model.calls == [(str(video_path), True, 'transcribe', None)]
     assert outputs.json_path == output_dir / "transcript.json"
     assert outputs.text_path == output_dir / "transcript.txt"
     assert json.loads(outputs.json_path.read_text(encoding="utf-8")) == {
@@ -97,7 +99,7 @@ def test_cli_uses_mocked_whisper_model(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "transcript.json" in captured.out
-    assert fake_model.calls == [(str(video_path), True)]
+    assert fake_model.calls == [(str(video_path), True, 'transcribe', None)]
     assert (output_dir / "transcript.json").is_file()
     assert (output_dir / "transcript.txt").is_file()
 
