@@ -1,14 +1,15 @@
 {
-  "recorded_at": "12:17:03",
-  "setup_name": "Clean long absorption reclaim",
-  "decision": "ACCEPTED",
+  "recorded_at": "13:20:47",
+  "setup_name": "Rejected lookalike",
+  "decision": "REJECTED",
   "explanations": [
-    "[pass] Reclaim confirmation completed"
+    "[pass] Price at overnight_low",
+    "[fail] Bid liquidity did not reload"
   ],
   "session": "New York open synthetic session",
   "regime": "warming",
   "depth_events": 0,
   "trade_events": 0,
-  "last_trade_price": "100.50",
+  "last_trade_price": "",
   "synthetic": true
 }

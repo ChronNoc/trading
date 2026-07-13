@@ -1912,7 +1912,9 @@ def _format_money(value: Decimal) -> str:
 
 
 def _format_decimal(value: Decimal) -> str:
-    return str(value.normalize())
+    # format(..., 'f') keeps plain notation; normalize() alone renders
+    # Decimal("50000") as "5E+4" in the risk configuration fields.
+    return format(value.normalize(), "f")
 
 
 def _format_price(value: Decimal) -> str:
