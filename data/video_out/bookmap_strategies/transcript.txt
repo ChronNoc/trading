@@ -1,0 +1,2020 @@
+[00:00:00.910 - 00:00:12.910] Okay, friends and friends, I'm going to teach you how to use the strategy from scratch, and I'm not going to use the strategy from many people,
+[00:00:12.910 - 00:00:15.910] because I'm going to explain to you how to use the bookmap.
+[00:00:15.910 - 00:00:23.910] You can also take the ICT strategy that we are using today in the community, the IFG SMT,
+[00:00:23.910 - 00:00:28.910] and put it on a very high level and add it to the WinRate.
+[00:00:28.910 - 00:00:34.910] And on the other hand, I'm going to teach you how to use the bookmap that I can tell you about myself,
+[00:00:34.910 - 00:00:39.910] and you will see it in the course of a live session that I'm going to show you here,
+[00:00:39.910 - 00:00:41.910] that I recorded myself using the bookmap.
+[00:00:41.910 - 00:00:48.910] You can see how I turned off the graphics, and I have nothing to complain about.
+[00:00:48.910 - 00:00:54.910] Today, I'm using the bookmap without a doubt.
+[00:00:54.910 - 00:01:00.910] So, you will see a lot in the course that I'm working half and half,
+[00:01:00.910 - 00:01:06.910] half with a bookmap and half with a trading view, of course, a thousand, so that I can send you a message.
+[00:01:06.910 - 00:01:13.910] I would work at the beginning with the trading view in the main field, and with the bookmap in the other field.
+[00:01:13.910 - 00:01:16.910] But since I started sending you a message and I started doing the solution,
+[00:01:16.910 - 00:01:19.910] it's half and half, I can tell you that it's super cool.
+[00:01:19.910 - 00:01:24.910] It's really, really cool for me to get the execution through the trading view
+[00:01:24.910 - 00:01:27.910] and choose and use the bookmap data.
+[00:01:27.910 - 00:01:31.910] So, let's start with the thing that will be much easier for you to learn,
+[00:01:31.910 - 00:01:39.910] and the thing that really, let's say, can very, very help you already in your current location.
+[00:01:39.910 - 00:01:47.910] See, I already say that choose with a bookmap without using the graphics at all.
+[00:01:47.910 - 00:01:51.910] It's super, it's much more difficult, I don't want to say it's super difficult,
+[00:01:51.910 - 00:01:55.910] it's much more difficult than just to save the ICT.
+[00:01:55.910 - 00:01:59.910] But, and there is a big but, I think that if you come to this course in the first place,
+[00:01:59.910 - 00:02:05.910] and you understand the potential of the process of understanding what is happening on the right side of the map,
+[00:02:05.910 - 00:02:10.910] and to work on the left side of the map, what we tried to do until today,
+[00:02:10.910 - 00:02:13.910] you understand that the real edge is here.
+[00:02:13.910 - 00:02:19.910] That's right, the most successful players in the world.
+[00:02:19.910 - 00:02:23.910] Why? Because it's much more difficult to work on blind in areas,
+[00:02:23.910 - 00:02:26.910] to learn from a person who knows how to understand the map and read it,
+[00:02:26.910 - 00:02:31.910] and I hope that in the end of this course you will find people who really know how to read the map.
+[00:02:31.910 - 00:02:33.910] So, let's start first.
+[00:02:33.910 - 00:02:36.910] How can I improve the ICT strategy?
+[00:02:36.910 - 00:02:39.910] And I think that this is a great example.
+[00:02:39.910 - 00:02:44.910] Before I started this project, I saw that here at 3.20 am in New York,
+[00:02:44.910 - 00:02:49.910] there is a 5-minute value gap here, which is a huge gap.
+[00:02:49.910 - 00:02:54.910] So, I went and checked at 3.20 am, I'll show you.
+[00:02:54.910 - 00:02:56.910] What happened here?
+[00:02:56.910 - 00:03:00.910] And you can see that just like I showed you in the previous project,
+[00:03:00.910 - 00:03:01.910] there was a block here.
+[00:03:01.910 - 00:03:04.910] You can see the limit with the details written here before.
+[00:03:04.910 - 00:03:07.910] There is a block here.
+[00:03:07.910 - 00:03:09.910] There is no block here.
+[00:03:09.910 - 00:03:11.910] Because we encountered these points here.
+[00:03:11.910 - 00:03:14.910] But what happened is that this block encountered these points.
+[00:03:14.910 - 00:03:16.910] There was a gap here.
+[00:03:16.910 - 00:03:20.910] You see the details, these details,
+[00:03:20.910 - 00:03:22.910] that did not succeed in breaking the limit.
+[00:03:22.910 - 00:03:28.910] And from there, we moved to another block.
+[00:03:28.910 - 00:03:31.910] So, what do we learn from this?
+[00:03:31.910 - 00:03:35.910] We learn from this that we can use it for our own good.
+[00:03:35.910 - 00:03:44.910] There are actually two ways that you can work with the blocks in the ICT strategy.
+[00:03:44.910 - 00:03:49.910] The first way that you can work with it,
+[00:03:49.910 - 00:03:52.910] again, I'm going to talk a little bit about the ICT,
+[00:03:52.910 - 00:03:55.910] about our price action strategy that we are learning in the course.
+[00:03:55.910 - 00:03:59.910] I'm not going to talk a little bit about another price action strategy,
+[00:03:59.910 - 00:04:01.910] I'm not going to talk about working with the block in the ICT,
+[00:04:01.910 - 00:04:03.910] that's what I'm going to talk about in the ICT.
+[00:04:03.910 - 00:04:05.910] I can tell you in the ICT about my strategy,
+[00:04:05.910 - 00:04:07.910] and how I call the block in the ICT,
+[00:04:07.910 - 00:04:09.910] and what is my strategy for the block in the ICT.
+[00:04:09.910 - 00:04:12.910] So, you can first of all,
+[00:04:12.910 - 00:04:15.910] set an interest rate,
+[00:04:15.910 - 00:04:24.600] and calculate the amount in the ICT,
+[00:04:24.600 - 00:04:28.600] and only then, it will decrease.
+[00:04:28.600 - 00:04:30.600] To sum up,
+[00:04:30.600 - 00:04:33.600] as I mentioned here,
+[00:04:33.600 - 00:04:38.600] but let's take a look at the value of this 5-minute value,
+[00:04:38.600 - 00:04:40.600] it's a value of an hour.
+[00:04:40.600 - 00:04:42.600] Okay, let's just sum up.
+[00:04:42.600 - 00:04:46.810] I'm going to put an hour here,
+[00:04:46.810 - 00:04:51.810] if you think I would see an hour
+[00:04:51.810 - 00:04:54.810] that is in part of his plan,
+[00:04:54.810 - 00:04:57.810] a block of limit orders like this,
+[00:04:57.810 - 00:04:59.810] that is in part of his plan,
+[00:04:59.810 - 00:05:02.810] and I would see that the one who entered the block,
+[00:05:02.810 - 00:05:05.810] I would set the limit here in the block,
+[00:05:05.810 - 00:05:07.810] and from there, we would be satisfied,
+[00:05:07.810 - 00:05:09.810] and then I would see the IWG,
+[00:05:09.810 - 00:05:11.810] and only then would I enter.
+[00:05:11.810 - 00:05:15.810] I would have a lot more value in the amount,
+[00:05:15.810 - 00:05:18.810] and I would have a lot more value in the amount.
+[00:05:18.810 - 00:05:20.810] And overall,
+[00:05:20.810 - 00:05:25.810] I can calculate my stop loss and take profit,
+[00:05:25.810 - 00:05:27.810] and I continue to use the ICT.
+[00:05:27.810 - 00:05:29.810] Why?
+[00:05:29.810 - 00:05:34.810] Because overall, if I enter the amount that was here,
+[00:05:34.810 - 00:05:37.810] okay, let's take an hour here,
+[00:05:37.810 - 00:05:40.810] and I want to take profit,
+[00:05:40.810 - 00:05:42.810] and I got the IWG,
+[00:05:42.810 - 00:05:44.810] let's say in these areas,
+[00:05:44.810 - 00:05:49.810] I don't have to put my stop loss below the limit,
+[00:05:49.810 - 00:05:51.810] because I know that this block,
+[00:05:51.810 - 00:05:53.810] we have already seen it,
+[00:05:53.810 - 00:05:56.810] I can now calculate, maybe another block,
+[00:05:56.810 - 00:05:58.810] that is created with profit,
+[00:05:58.810 - 00:06:01.810] and maybe put my stop loss below it.
+[00:06:01.810 - 00:06:04.810] So overall, I can work with a lot more profit stop,
+[00:06:04.810 - 00:06:07.810] okay, a lot more,
+[00:06:07.810 - 00:06:10.810] not profit, sorry, a lot more less.
+[00:06:10.810 - 00:06:12.810] Overall, and the most important thing,
+[00:06:12.810 - 00:06:15.810] also when I calculate the profit from the ICT,
+[00:06:15.810 - 00:06:17.810] then I will, if I am here again,
+[00:06:17.810 - 00:06:19.810] looking at the graph,
+[00:06:19.810 - 00:06:21.810] I will say that here in this area,
+[00:06:21.810 - 00:06:23.810] it was a graph that I, in Price Action,
+[00:06:23.810 - 00:06:26.810] would have decided that I want to get out of it, okay?
+[00:06:26.810 - 00:06:28.810] And here was a graph, okay?
+[00:06:28.810 - 00:06:30.810] A graph, I say,
+[00:06:30.810 - 00:06:32.810] I will make a summary, okay?
+[00:06:32.810 - 00:06:35.810] The graph was here, London High, okay?
+[00:06:35.810 - 00:06:38.810] So as we remember Price Action,
+[00:06:38.810 - 00:06:40.810] that we don't have a book map,
+[00:06:40.810 - 00:06:42.810] we would be here,
+[00:06:42.810 - 00:06:44.810] we would be here at the end,
+[00:06:44.810 - 00:06:46.810] we would be here at one to one,
+[00:06:46.810 - 00:06:48.810] maybe one to two, in the good case,
+[00:06:49.810 - 00:06:51.810] so this is London High,
+[00:06:51.810 - 00:06:53.810] stay with us,
+[00:06:53.810 - 00:06:55.810] let's see where you block,
+[00:06:55.810 - 00:06:57.810] or let's, sorry, I will talk later,
+[00:06:57.810 - 00:06:59.810] let's see where the blocks are going,
+[00:06:59.810 - 00:07:01.810] and you will go there,
+[00:07:01.810 - 00:07:03.810] so instead of going at 108,
+[00:07:03.810 - 00:07:05.810] and maybe I can see that there is a block
+[00:07:05.810 - 00:07:07.810] at 170,
+[00:07:07.810 - 00:07:09.810] and going at 170,
+[00:07:09.810 - 00:07:11.810] instead of at 108,
+[00:07:12.810 - 00:07:15.810] you are absolutely successful
+[00:07:15.810 - 00:07:17.810] to understand what I am trying to explain to you,
+[00:07:18.810 - 00:07:20.810] even without learning at all
+[00:07:20.810 - 00:07:22.810] about my book map strategy,
+[00:07:22.810 - 00:07:24.810] even without learning at all about this strategy,
+[00:07:24.810 - 00:07:27.810] enough for you to work with the same
+[00:07:27.810 - 00:07:28.810] ICT strategy,
+[00:07:28.810 - 00:07:30.810] and manage the book map together,
+[00:07:30.810 - 00:07:33.810] you will be able to go to the end,
+[00:07:33.810 - 00:07:35.810] you will be able to work with a little stop,
+[00:07:35.810 - 00:07:37.810] you will be able to assume that your
+[00:07:37.810 - 00:07:39.810] field of interest will be supported
+[00:07:39.810 - 00:07:42.810] in limits that are forbidden,
+[00:07:42.810 - 00:07:44.810] and you will be able to know
+[00:07:44.810 - 00:07:46.810] where to go, and not to go,
+[00:07:46.810 - 00:07:48.810] where to go,
+[00:07:48.810 - 00:07:49.810] ok?
+[00:07:49.810 - 00:07:51.810] And in the book I will talk about
+[00:07:51.810 - 00:07:53.810] how to manage the book,
+[00:07:53.810 - 00:07:55.810] also about stop and trail stop,
+[00:07:55.810 - 00:07:56.810] we will talk about it,
+[00:07:56.810 - 00:07:58.810] because here there is a lot to learn,
+[00:07:58.810 - 00:08:00.810] and also,
+[00:08:00.810 - 00:08:01.810] look at price action,
+[00:08:01.810 - 00:08:03.810] when you move stop,
+[00:08:03.810 - 00:08:04.810] then you move,
+[00:08:04.810 - 00:08:06.810] below the face,
+[00:08:06.810 - 00:08:08.810] below the neck,
+[00:08:08.810 - 00:08:10.810] below the neck,
+[00:08:10.810 - 00:08:12.810] you stay,
+[00:08:12.810 - 00:08:14.810] here you will be used,
+[00:08:14.810 - 00:08:16.810] you will be used,
+[00:08:16.810 - 00:08:18.810] I see where the customers
+[00:08:18.810 - 00:08:20.810] pay their bills,
+[00:08:20.810 - 00:08:22.810] their block,
+[00:08:22.810 - 00:08:24.810] and I put the stop below there,
+[00:08:24.810 - 00:08:26.810] because I know that if they did not succeed,
+[00:08:26.810 - 00:08:28.810] I will not succeed either,
+[00:08:28.810 - 00:08:30.810] and this is the method that I want to
+[00:08:30.810 - 00:08:32.810] pass on to you, so,
+[00:08:32.810 - 00:08:34.810] the first thing,
+[00:08:34.810 - 00:08:36.810] I will be able to manage the field of interest
+[00:08:36.810 - 00:08:38.810] and to go to the end in the area,
+[00:08:38.810 - 00:08:40.810] and only then I will go,
+[00:08:40.810 - 00:08:42.810] I will have to look further to the end,
+[00:08:42.810 - 00:08:44.810] the second thing that I can do,
+[00:08:44.810 - 00:08:46.810] in the ICT strategy,
+[00:08:46.810 - 00:08:48.810] I can simply simply
+[00:08:48.810 - 00:08:50.810] put a limit,
+[00:08:50.810 - 00:08:52.810] on the block,
+[00:08:52.810 - 00:08:54.810] which is located in the area of interest,
+[00:08:54.810 - 00:08:56.810] that we already know,
+[00:08:56.810 - 00:08:58.810] it can be a gap,
+[00:08:58.810 - 00:09:02.540] it can be
+[00:09:02.540 - 00:09:04.540] an area of interest,
+[00:09:04.540 - 00:09:06.540] it can be
+[00:09:06.540 - 00:09:11.350] a settlement,
+[00:09:11.350 - 00:09:13.350] a settlement,
+[00:09:13.350 - 00:09:15.350] okay,
+[00:09:15.350 - 00:09:17.350] instead
+[00:09:17.350 - 00:09:19.350] of looking for an IEVG
+[00:09:19.350 - 00:09:21.350] or
+[00:09:21.350 - 00:09:23.350] looking for an SMT,
+[00:09:23.350 - 00:09:25.350] I do not need
+[00:09:25.350 - 00:09:27.350] more looking, okay,
+[00:09:27.350 - 00:09:29.350] if I now want to take
+[00:09:29.350 - 00:09:31.350] from this situation,
+[00:09:31.350 - 00:09:39.020] non-continuation,
+[00:09:39.020 - 00:09:41.020] and again, I will go back to the same example,
+[00:09:41.020 - 00:09:43.020] because it is not relevant,
+[00:09:43.020 - 00:09:45.020] this time I will only look at
+[00:09:45.020 - 00:09:47.020] one place, it is not relevant,
+[00:09:47.020 - 00:09:49.020] I will make another example,
+[00:09:49.020 - 00:09:51.020] I am now in bullish bias,
+[00:09:51.020 - 00:09:53.020] right, I remember ICT,
+[00:09:53.020 - 00:09:55.020] I am not talking about bookmap at all,
+[00:09:55.020 - 00:09:57.020] I remember ICT, I am in bullish bias,
+[00:09:57.020 - 00:09:59.020] I have a gap of 5,
+[00:09:59.020 - 00:10:01.020] right,
+[00:10:01.020 - 00:10:03.020] for what I am
+[00:10:03.020 - 00:10:05.020] looking for in this situation,
+[00:10:05.020 - 00:10:08.520] I will give you another example,
+[00:10:08.520 - 00:10:10.520] I am looking for,
+[00:10:10.520 - 00:10:12.520] there is a gap,
+[00:10:12.520 - 00:10:14.520] and then I want to go to the graph 3,
+[00:10:14.520 - 00:10:16.520] to the graph 2, to the graph 1,
+[00:10:16.520 - 00:10:18.520] to the IEVG, right,
+[00:10:18.520 - 00:10:20.520] what would I say to you,
+[00:10:20.520 - 00:10:22.520] then,
+[00:10:22.520 - 00:10:24.520] do not look for the IEVG,
+[00:10:24.520 - 00:10:26.520] do not look for SMT,
+[00:10:26.520 - 00:10:28.520] do not look,
+[00:10:28.520 - 00:10:30.520] there is a gap here,
+[00:10:30.520 - 00:10:32.520] very simple,
+[00:10:32.520 - 00:10:37.900] which is 2.9.1.5,
+[00:10:37.900 - 00:10:39.900] I can already,
+[00:10:39.900 - 00:10:41.900] put 2.9.1.5
+[00:10:41.900 - 00:10:45.140] limit,
+[00:10:45.140 - 00:10:47.140] give to the limit this stop of 10 points,
+[00:10:47.140 - 00:10:49.140] then
+[00:10:49.140 - 00:10:51.140] 2.9.1.5,
+[00:10:51.140 - 00:10:53.140] which is also open,
+[00:10:53.140 - 00:10:55.140] also open the whole gap,
+[00:10:55.140 - 00:10:59.100] and I can continue
+[00:10:59.100 - 00:11:01.100] to block,
+[00:11:01.100 - 00:11:04.540] to
+[00:11:04.540 - 00:11:06.540] let's say 1.5,
+[00:11:06.540 - 00:11:08.540] right, 2.9.0.5,
+[00:11:08.540 - 00:11:13.030] no,
+[00:11:13.030 - 00:11:15.030] no, it is very simple,
+[00:11:15.030 - 00:11:17.030] instead, it is already 1 to 3,
+[00:11:17.030 - 00:11:20.980] that we understood,
+[00:11:20.980 - 00:11:22.980] it is simple, and it is already 1 to 3,
+[00:11:22.980 - 00:11:24.980] that we,
+[00:11:24.980 - 00:11:26.980] remember,
+[00:11:26.980 - 00:11:28.980] in our previous lessons,
+[00:11:28.980 - 00:11:30.980] 1 to 3 is something we have seen once a week,
+[00:11:30.980 - 00:11:32.980] you need to understand,
+[00:11:32.980 - 00:11:34.980] here 1 to 3 is enough,
+[00:11:34.980 - 00:11:36.980] why,
+[00:11:36.980 - 00:11:38.980] why,
+[00:11:38.980 - 00:11:40.980] to be able to say,
+[00:11:40.980 - 00:11:42.980] to go to the block that is here,
+[00:11:42.980 - 00:11:44.980] we see that we crossed it very quickly,
+[00:11:44.980 - 00:11:46.980] but also 65,
+[00:11:46.980 - 00:11:48.980] it also seems to me 100,
+[00:11:48.980 - 00:11:50.980] let's go even to the end of this,
+[00:11:50.980 - 00:11:52.980] you are talking about 1 to 10,
+[00:11:52.980 - 00:11:54.980] you will see in this course,
+[00:11:54.980 - 00:11:56.980] and I will take the 1 to 10,
+[00:11:56.980 - 00:11:58.980] ok, it is a bit difficult to see here,
+[00:11:58.980 - 00:12:00.980] because I do not know where the blocks were,
+[00:12:00.980 - 00:12:02.980] this is only something that was blocked,
+[00:12:02.980 - 00:12:04.980] and it is
+[00:12:04.980 - 00:12:06.980] in 900,
+[00:12:06.980 - 00:12:08.980] 900,
+[00:12:08.980 - 00:12:10.980] ok, 1 to 7.
+[00:12:10.980 - 00:12:15.670] Let's see what I am talking about with you,
+[00:12:17.670 - 00:12:19.670] and you will see, I do not need it,
+[00:12:19.670 - 00:12:21.670] I am telling you,
+[00:12:21.670 - 00:12:23.670] it is not because I am now in the replay,
+[00:12:23.670 - 00:12:25.670] you will see in this course,
+[00:12:25.670 - 00:12:27.670] that I did 10 stops,
+[00:12:27.670 - 00:12:29.670] 5 stops,
+[00:12:29.670 - 00:12:31.670] I did not do more than that,
+[00:12:31.670 - 00:12:33.670] 10, 12,
+[00:12:33.670 - 00:12:35.670] these are the stops that I do with them,
+[00:12:35.670 - 00:12:37.670] but how do I know how to do it,
+[00:12:37.670 - 00:12:39.670] because I know,
+[00:12:39.670 - 00:12:41.670] that I see that there is,
+[00:12:41.670 - 00:12:43.670] there is,
+[00:12:43.670 - 00:12:45.670] there is not much to keep going,
+[00:12:45.670 - 00:12:47.670] there is,
+[00:12:47.670 - 00:12:49.670] if my value gap is in this block,
+[00:12:49.670 - 00:12:51.670] I want to see where the block
+[00:12:51.670 - 00:12:53.670] that is located in the gap,
+[00:12:53.670 - 00:12:55.670] and the block that is located in the gap,
+[00:12:55.670 - 00:12:57.670] was here,
+[00:12:57.670 - 00:12:59.670] in 2015,
+[00:12:59.670 - 00:13:01.670] and where is the difference in value,
+[00:13:01.670 - 00:13:03.670] on the TIC,
+[00:13:03.670 - 00:13:05.670] on the TIC, on the TIC,
+[00:13:05.670 - 00:13:07.670] TIC, the value of the gap of 5,
+[00:13:07.670 - 00:13:09.670] I am standing on time for 5,
+[00:13:09.670 - 00:13:11.670] the value of the gap,
+[00:13:11.670 - 00:13:13.670] it is on the TIC,
+[00:13:13.670 - 00:13:15.670] ok, TIC,
+[00:13:15.670 - 00:13:17.670] maybe even not a point,
+[00:13:17.670 - 00:13:19.670] and then here we have 11 points,
+[00:13:19.670 - 00:13:21.670] if I continue with the gap,
+[00:13:21.670 - 00:13:23.670] I am going to the gap,
+[00:13:23.670 - 00:13:25.670] I am at 1 to 10,
+[00:13:25.670 - 00:13:27.670] R, R,
+[00:13:27.670 - 00:13:29.670] and all the pictures that you see,
+[00:13:29.670 - 00:13:31.670] and all the,
+[00:13:31.670 - 00:13:33.670] and in this course,
+[00:13:33.670 - 00:13:35.670] you will also see a session,
+[00:13:35.670 - 00:13:37.670] that I will not, ok, 1 to 9,
+[00:13:37.670 - 00:13:39.670] 1 to 9 and half, 1 to 10,
+[00:13:39.670 - 00:13:41.670] like water,
+[00:13:41.670 - 00:13:43.670] like water,
+[00:13:43.670 - 00:13:45.670] do these things, ok?
+[00:13:45.670 - 00:13:47.670] So,
+[00:13:47.670 - 00:13:49.670] with ICT,
+[00:13:49.670 - 00:13:51.670] and he wants to do limit points,
+[00:13:51.670 - 00:13:53.670] take into account
+[00:13:53.670 - 00:13:55.670] that you need a very clear bias,
+[00:13:55.670 - 00:13:57.670] and you need an area,
+[00:13:57.670 - 00:13:59.670] that you say, Bona, this is my area,
+[00:13:59.670 - 00:14:01.670] I want to take this area, I am ready to go here to the limit,
+[00:14:01.670 - 00:14:03.670] and even if it was,
+[00:14:03.670 - 00:14:05.670] and you put a limit and it went back to stop,
+[00:14:05.670 - 00:14:07.670] everything is good, when we work with 10 points,
+[00:14:07.670 - 00:14:09.670] excuse me, I'm sorry,
+[00:14:09.670 - 00:14:11.670] when we work with 10 points,
+[00:14:11.670 - 00:14:13.670] and I talk a lot in the archive,
+[00:14:13.670 - 00:14:15.670] you will understand that also one stop of 10 points
+[00:14:15.670 - 00:14:17.670] is not enough for you, it's just the beginning,
+[00:14:17.670 - 00:14:19.670] maybe even.
+[00:14:19.670 - 00:14:21.670] So, we realized that we can,
+[00:14:21.670 - 00:14:23.670] first of all, check that the other one
+[00:14:23.670 - 00:14:25.670] will come to a limit point,
+[00:14:25.670 - 00:14:27.670] to see an area from a block,
+[00:14:27.670 - 00:14:29.670] with a limit point,
+[00:14:29.670 - 00:14:31.670] and then from there, we can take the IVG,
+[00:14:31.670 - 00:14:33.670] to get used to it,
+[00:14:33.670 - 00:14:35.670] and to make the stop more clear,
+[00:14:35.670 - 00:14:37.670] and of course, we realized that if we have
+[00:14:37.670 - 00:14:39.670] a limit point,
+[00:14:39.670 - 00:14:41.670] especially in continuation from the beginning,
+[00:14:41.670 - 00:14:43.670] we don't need to check
+[00:14:43.670 - 00:14:45.670] the IVG and SMT,
+[00:14:45.670 - 00:14:47.670] we can simply
+[00:14:47.670 - 00:14:49.670] put a limit on the block that we see
+[00:14:49.670 - 00:14:51.670] that is in our area,
+[00:14:51.670 - 00:14:53.670] I will give another example,
+[00:14:53.670 - 00:14:55.670] which we used,
+[00:14:55.670 - 00:14:57.670] I don't know what happened here at 12.40,
+[00:14:57.670 - 00:15:02.550] but let's see,
+[00:15:02.550 - 00:15:04.550] let's give another example,
+[00:15:04.550 - 00:15:06.550] wow, take a little time,
+[00:15:06.550 - 00:15:08.550] let's see, let's do it really quickly,
+[00:15:10.550 - 00:15:12.550] okay, great, great,
+[00:15:12.550 - 00:15:14.550] let's take an example,
+[00:15:14.550 - 00:15:16.550] now, if I want to get used to
+[00:15:16.550 - 00:15:18.550] all this with the IVG,
+[00:15:18.550 - 00:15:20.550] I like the IVG sign,
+[00:15:20.550 - 00:15:22.550] I don't want to change it,
+[00:15:22.550 - 00:15:24.550] 12.40, here it is,
+[00:15:24.550 - 00:15:26.550] I don't want to change the IVG,
+[00:15:26.550 - 00:15:28.550] I want to continue working with it,
+[00:15:28.550 - 00:15:30.550] so,
+[00:15:30.550 - 00:15:32.550] let's put it together,
+[00:15:32.550 - 00:15:34.550] we need a price action
+[00:15:34.550 - 00:15:36.550] that took place here at 12.55,
+[00:15:36.550 - 00:15:38.550] right here,
+[00:15:38.550 - 00:15:40.550] and let's try to understand
+[00:15:40.550 - 00:15:42.550] how we can use it in blocks
+[00:15:42.550 - 00:15:44.550] and also in ICT,
+[00:15:44.550 - 00:15:46.550] so, at 12.55
+[00:15:46.550 - 00:15:48.550] we can see that
+[00:15:48.550 - 00:15:50.550] I
+[00:15:50.550 - 00:15:52.550] can read
+[00:15:52.550 - 00:15:54.550] this gap,
+[00:15:54.550 - 00:15:56.550] okay, we already had
+[00:15:56.550 - 00:15:58.550] this gap,
+[00:15:58.550 - 00:16:00.550] I don't know how many of you
+[00:16:00.550 - 00:16:02.550] are using it here in the area,
+[00:16:02.550 - 00:16:04.550] but again, it was even in a book map
+[00:16:04.550 - 00:16:06.550] that I had to go to a strategy
+[00:16:06.550 - 00:16:08.550] that I didn't look at at all,
+[00:16:08.550 - 00:16:10.550] that I, in the situation that I am in today,
+[00:16:10.550 - 00:16:12.550] this gap didn't interest me at all,
+[00:16:12.550 - 00:16:14.550] because I'm talking about blocks,
+[00:16:14.550 - 00:16:16.550] but,
+[00:16:16.550 - 00:16:18.550] let's take a look at the example
+[00:16:18.550 - 00:16:20.550] that the gap that I have now,
+[00:16:20.550 - 00:16:22.550] is related to long,
+[00:16:22.550 - 00:16:27.430] when it comes to gamre, okay,
+[00:16:27.430 - 00:16:29.430] we didn't see it here,
+[00:16:29.430 - 00:16:31.430] even when it comes to gamre,
+[00:16:31.430 - 00:16:33.430] let's look at the whole gap,
+[00:16:33.430 - 00:16:41.380] and let's see, what happened in lower time frame,
+[00:16:41.380 - 00:16:43.380] later on,
+[00:16:43.380 - 00:16:45.380] then,
+[00:16:45.380 - 00:16:49.020] my strategy,
+[00:16:49.020 - 00:16:51.020] my idea was to go and say,
+[00:16:51.020 - 00:16:53.020] okay,
+[00:16:53.020 - 00:16:55.020] okay, there's the YVG here,
+[00:16:55.020 - 00:16:57.020] but you know I don't like this YVG,
+[00:16:57.020 - 00:16:59.020] because it's very, very far from my area of interest,
+[00:16:59.020 - 00:17:01.020] so here it's a continuation,
+[00:17:01.020 - 00:17:03.020] but, my idea,
+[00:17:03.020 - 00:17:05.020] to remember that I only want to write a book map
+[00:17:05.020 - 00:17:07.020] in their map,
+[00:17:07.020 - 00:17:09.020] let's create an example,
+[00:17:09.020 - 00:17:11.020] an example,
+[00:17:11.020 - 00:17:14.810] just an example,
+[00:17:14.810 - 00:17:16.810] okay, same example,
+[00:17:16.810 - 00:17:18.810] this gap,
+[00:17:18.810 - 00:17:20.810] I know we've already seen it here, everything's fine,
+[00:17:20.810 - 00:17:22.810] it's only for one example,
+[00:17:22.810 - 00:17:24.810] let's say this is my manipulation,
+[00:17:24.810 - 00:17:26.810] I have high, I have low, I have gap,
+[00:17:26.810 - 00:17:28.810] I'm from the area of interest,
+[00:17:28.810 - 00:17:33.460] and I want to take this map,
+[00:17:33.460 - 00:17:35.460] how dangerous was it for you,
+[00:17:35.460 - 00:17:37.460] in the end,
+[00:17:37.460 - 00:17:39.460] to get here,
+[00:17:39.460 - 00:17:41.460] in 814,
+[00:17:41.460 - 00:17:45.290] it's
+[00:17:45.290 - 00:17:47.290] 1 o'clock already,
+[00:17:47.290 - 00:17:49.290] 03, it's a bit late,
+[00:17:49.290 - 00:17:51.290] it's here,
+[00:17:51.290 - 00:17:53.290] how dangerous was it for you, in the end,
+[00:17:53.290 - 00:17:55.290] 28,818,
+[00:17:55.290 - 00:17:57.290] 28,818,
+[00:17:57.290 - 00:17:59.290] 28,818,
+[00:17:59.290 - 00:18:01.290] why are the numbers not showing up here,
+[00:18:01.290 - 00:18:08.700] 20,818,
+[00:18:08.700 - 00:18:10.700] 28,818,
+[00:18:10.700 - 00:18:12.700] ah, okay, because it's here,
+[00:18:12.700 - 00:18:14.700] it's in the range of TIC,
+[00:18:14.700 - 00:18:16.700] and here I'm in 3 minutes,
+[00:18:16.700 - 00:18:18.700] it's very large,
+[00:18:18.700 - 00:18:20.700] 1,0,3,
+[00:18:20.700 - 00:18:22.700] here, in the area of interest,
+[00:18:22.700 - 00:18:24.700] 814, it's the YVG,
+[00:18:24.700 - 00:18:26.700] how dangerous was it for you in the end,
+[00:18:26.700 - 00:18:28.700] to get the end,
+[00:18:28.700 - 00:18:30.700] that looks like this,
+[00:18:30.700 - 00:18:32.700] here,
+[00:18:32.700 - 00:18:34.700] 818,
+[00:18:34.700 - 00:18:36.700] 14, it's the YVG,
+[00:18:36.700 - 00:18:38.700] and let's see the blocks that were here,
+[00:18:38.700 - 00:18:40.700] good, in real time it was much more difficult for me,
+[00:18:40.700 - 00:18:42.700] but I think there's a very interesting block here,
+[00:18:42.700 - 00:18:44.700] and let's stop at 818,
+[00:18:44.700 - 00:18:51.660] there's no danger,
+[00:18:51.660 - 00:18:53.660] right, you were saying to me, I'm tired of doing such a thing,
+[00:18:53.660 - 00:18:55.660] what's the problem, Liel,
+[00:18:55.660 - 00:18:57.660] what's the problem,
+[00:18:57.660 - 00:18:59.660] how can I get to the YVG,
+[00:18:59.660 - 00:19:01.660] and do,
+[00:19:01.660 - 00:19:03.660] do,
+[00:19:03.660 - 00:19:05.660] stop,
+[00:19:05.660 - 00:19:07.660] in the YVG,
+[00:19:07.660 - 00:19:09.660] but we realized that in this situation,
+[00:19:09.660 - 00:19:11.660] you're already in the break even,
+[00:19:11.660 - 00:19:13.660] why,
+[00:19:13.660 - 00:19:15.660] because you don't need to
+[00:19:15.660 - 00:19:17.660] stop here,
+[00:19:17.660 - 00:19:19.660] and hide,
+[00:19:19.660 - 00:19:21.660] you see that there's a block of blocks,
+[00:19:21.660 - 00:19:23.660] in 818,
+[00:19:23.660 - 00:19:25.660] that if it breaks,
+[00:19:25.660 - 00:19:27.660] the block is no longer good,
+[00:19:27.660 - 00:19:29.660] and what was with this block later,
+[00:19:29.660 - 00:19:31.660] smash to take profit,
+[00:19:31.660 - 00:19:33.660] where it was at 800,
+[00:19:33.660 - 00:19:35.660] stop,
+[00:19:35.660 - 00:19:37.660] this block is already 1 to 5,
+[00:19:37.660 - 00:19:39.660] let's say the block is here,
+[00:19:39.660 - 00:19:41.660] 1 to 6, 7,
+[00:19:41.660 - 00:19:43.660] so again,
+[00:19:43.660 - 00:19:45.660] I think that with the ICT,
+[00:19:45.660 - 00:19:47.660] I think it came to an end,
+[00:19:47.660 - 00:19:49.660] I think that I'm no longer at the YVG,
+[00:19:49.660 - 00:19:51.660] like I'm going now to the YVG,
+[00:19:51.660 - 00:19:53.660] to my strategy,
+[00:19:53.660 - 00:19:55.660] with the
+[00:19:55.660 - 00:19:57.660] bookmap,
+[00:19:57.660 - 00:19:59.660] which I'm not really familiar with,
+[00:19:59.660 - 00:20:01.660] and I only remember the bookmap,
+[00:20:01.660 - 00:20:03.660] but again,
+[00:20:03.660 - 00:20:05.660] take the concepts that I taught you in this lesson,
+[00:20:05.660 - 00:20:07.660] anyone who still chooses to play with bookmaps
+[00:20:07.660 - 00:20:09.660] and play before the bookmap,
+[00:20:09.660 - 00:20:11.660] that's what you need to do.
+[00:20:11.660 - 00:20:13.660] You need
+[00:20:13.660 - 00:20:15.660] thousands of things,
+[00:20:15.660 - 00:20:17.660] to find a block that is in your interest,
+[00:20:17.660 - 00:20:19.660] you want to see
+[00:20:19.660 - 00:20:21.660] that the price of the block breaks,
+[00:20:21.660 - 00:20:23.660] you need to find a block that
+[00:20:23.660 - 00:20:25.660] I will give you a lot of examples of blocks
+[00:20:25.660 - 00:20:27.660] when I go to look at the graph
+[00:20:27.660 - 00:20:29.660] like this,
+[00:20:29.660 - 00:20:31.660] and we want of course,
+[00:20:31.660 - 00:20:33.660] of course
+[00:20:33.660 - 00:20:35.660] to work with stop
+[00:20:35.660 - 00:20:37.660] much shorter,
+[00:20:37.660 - 00:20:39.660] listen, I know that in the beginning
+[00:20:39.660 - 00:20:41.660] it looks like you are confused,
+[00:20:41.660 - 00:20:43.660] I know that in the beginning you said
+[00:20:43.660 - 00:20:45.660] Liel, it can't be,
+[00:20:45.660 - 00:20:47.660] it can't be that, what a difficult stop
+[00:20:47.660 - 00:20:49.660] here at all, okay?
+[00:20:49.660 - 00:20:51.660] But also if I go with you,
+[00:20:51.660 - 00:20:53.660] and if you want to make a stop
+[00:20:53.660 - 00:20:55.660] from below the graph,
+[00:20:55.660 - 00:20:57.660] it's still much better than what you would have
+[00:20:57.660 - 00:20:59.660] if we went all the way to the end,
+[00:20:59.660 - 00:21:01.660] that's why I'm telling you
+[00:21:01.660 - 00:21:03.660] the ICT employees
+[00:21:03.660 - 00:21:05.660] who are asking me to stay in ICT
+[00:21:05.660 - 00:21:07.660] and see, and they don't want to do
+[00:21:07.660 - 00:21:09.660] the whole thing full time, only to the bookmap,
+[00:21:09.660 - 00:21:11.660] it's okay anyway, I don't have any problem with that,
+[00:21:11.660 - 00:21:13.660] but notice that
+[00:21:13.660 - 00:21:15.660] when you play big, you have to know
+[00:21:15.660 - 00:21:17.660] how to use the bookmap.
+[00:21:17.660 - 00:21:19.660] The second thing, as I said
+[00:21:19.660 - 00:21:21.660] and I'm going back to it again, it's just
+[00:21:21.660 - 00:21:23.660] to put a limit, it's just to see
+[00:21:23.660 - 00:21:25.660] an area that interests me,
+[00:21:25.660 - 00:21:27.660] and just put a limit on a full level,
+[00:21:27.660 - 00:21:29.660] okay? So here too,
+[00:21:29.660 - 00:21:31.660] if I go to 1.25 an hour,
+[00:21:31.660 - 00:21:33.660] I know that I have a long continuation here
+[00:21:33.660 - 00:21:35.660] that I want to take from below the graph,
+[00:21:35.660 - 00:21:37.660] so I don't need to worry about the IWG
+[00:21:37.660 - 00:21:39.660] and everything, let's see what happened
+[00:21:39.660 - 00:21:41.660] in 8.66,
+[00:21:43.660 - 00:21:45.660] it's a little bigger,
+[00:21:45.660 - 00:21:47.660] and it was at
+[00:21:47.660 - 00:21:49.660] 1.25 an hour,
+[00:21:49.660 - 00:21:51.660] so it happened here,
+[00:21:51.660 - 00:21:53.660] ah, that's what I wanted to do first
+[00:21:53.660 - 00:21:55.660] of all, okay, that's it, that's it,
+[00:21:55.660 - 00:21:58.970] so again, you see,
+[00:21:58.970 - 00:22:00.970] 8.7,
+[00:22:00.970 - 00:22:02.970] 8.63, that was the limit,
+[00:22:02.970 - 00:22:10.220] I mean,
+[00:22:10.220 - 00:22:12.220] I want to put a limit here,
+[00:22:12.220 - 00:22:14.220] so that you can see it clearly,
+[00:22:16.220 - 00:22:18.220] it happened at 1.38,
+[00:22:18.220 - 00:22:20.220] and it happened at 1.25,
+[00:22:20.220 - 00:22:22.220] so it's a little later,
+[00:22:22.220 - 00:22:24.220] I think that, oh, we're talking about it,
+[00:22:24.220 - 00:22:26.220] in theory, so it's going,
+[00:22:26.220 - 00:22:28.220] so here too, you can see
+[00:22:28.220 - 00:22:30.220] that it was here, it broke,
+[00:22:30.220 - 00:22:32.220] but it was here, it broke,
+[00:22:32.220 - 00:22:34.220] okay? What is this break?
+[00:22:34.220 - 00:22:36.220] I'll explain it much more
+[00:22:36.220 - 00:22:38.220] about this graph, it's not a joke,
+[00:22:38.220 - 00:22:40.220] you see market points that they sell,
+[00:22:40.220 - 00:22:42.220] big, big, big,
+[00:22:42.220 - 00:22:44.220] that are closer to the block,
+[00:22:44.220 - 00:22:46.220] they want to break the block of the stock,
+[00:22:46.220 - 00:22:48.220] but they don't succeed, the price goes to
+[00:22:48.220 - 00:22:50.220] the other direction, and we even got
+[00:22:50.220 - 00:22:52.220] a much higher price,
+[00:22:52.220 - 00:22:54.220] that are used here,
+[00:22:54.220 - 00:22:56.220] market points, here is the market point,
+[00:22:56.220 - 00:22:58.220] the high price, so
+[00:22:58.220 - 00:23:00.220] it's a price that not only
+[00:23:00.220 - 00:23:02.220] the investors don't have to break the block that was
+[00:23:02.220 - 00:23:04.220] in the stock, it's also a price
+[00:23:04.220 - 00:23:06.220] that there are points that are worth this price,
+[00:23:06.220 - 00:23:08.220] and there were also blocks of investors
+[00:23:08.220 - 00:23:10.220] that broke them, wow,
+[00:23:10.220 - 00:23:12.220] great, great, great, great,
+[00:23:12.220 - 00:23:14.220] so, for example, if I know that there is
+[00:23:14.220 - 00:23:16.220] a block in 67, let's say,
+[00:23:16.220 - 00:23:18.220] it can be
+[00:23:18.220 - 00:23:20.220] limit, limit point
+[00:23:20.220 - 00:23:22.220] in 67,
+[00:23:22.220 - 00:23:24.220] okay, and again,
+[00:23:24.220 - 00:23:26.220] to work with the stock of 10 points,
+[00:23:26.220 - 00:23:28.220] then 57,
+[00:23:28.220 - 00:23:30.220] okay, and here too,
+[00:23:30.220 - 00:23:32.220] you see that we are safe,
+[00:23:32.220 - 00:23:34.220] and again,
+[00:23:34.220 - 00:23:36.220] not to say,
+[00:23:36.220 - 00:23:38.220] ah, it's now in the replay mode,
+[00:23:38.220 - 00:23:40.220] it looks,
+[00:23:40.220 - 00:23:42.220] friends, I'm not an expert,
+[00:23:42.220 - 00:23:44.220] I'm an expert, and you see
+[00:23:44.220 - 00:23:46.220] in a live session with my life,
+[00:23:46.220 - 00:23:48.220] uh,
+[00:23:48.220 - 00:23:50.220] live session, not my life,
+[00:23:50.220 - 00:23:52.220] live session with my life,
+[00:23:52.220 - 00:23:54.220] I heard that you said that you are my life,
+[00:23:54.220 - 00:23:56.220] you see in a live session
+[00:23:56.220 - 00:23:58.220] with my life, that's what I'm doing,
+[00:23:58.220 - 00:24:00.220] I'm not even talking about guppies, okay,
+[00:24:00.220 - 00:24:02.220] I know that it sounds like a joke,
+[00:24:02.220 - 00:24:04.220] I know that it was, this price
+[00:24:04.220 - 00:24:06.220] was only one to eight and a half,
+[00:24:06.220 - 00:24:08.220] and if I move forward, we're talking
+[00:24:08.220 - 00:24:10.220] from one to one, it's the RR,
+[00:24:10.220 - 00:24:12.220] friends, but again,
+[00:24:12.220 - 00:24:14.220] the limit points that you put
+[00:24:14.220 - 00:24:16.220] in the field of interest,
+[00:24:16.220 - 00:24:18.220] are always points that
+[00:24:18.220 - 00:24:20.220] don't have to do a limit test,
+[00:24:20.220 - 00:24:22.220] always at higher levels, okay,
+[00:24:22.220 - 00:24:24.220] always at higher levels,
+[00:24:24.220 - 00:24:26.220] so look, I would see that there is a block
+[00:24:26.220 - 00:24:28.220] that is located in 860,
+[00:24:28.220 - 00:24:30.220] ah, the truth is that the stock here
+[00:24:30.220 - 00:24:32.220] in 857,
+[00:24:32.220 - 00:24:34.220] it's cool,
+[00:24:34.220 - 00:24:36.220] who had the limit here and put the stock
+[00:24:36.220 - 00:24:38.220] in 857, it's cool, why?
+[00:24:38.220 - 00:24:40.220] Because there is a block in 860,
+[00:24:40.220 - 00:24:42.220] and if this block is in 860,
+[00:24:42.220 - 00:24:44.220] it's cool, because it seems that others
+[00:24:44.220 - 00:24:46.220] want to bring us to the top,
+[00:24:46.220 - 00:24:48.220] to a more luxurious block,
+[00:24:48.220 - 00:24:50.220] in 840, okay?
+[00:24:50.220 - 00:24:52.220] That's it for now,
+[00:24:52.220 - 00:24:54.220] how do we send the bookmap with ICT?
+[00:24:54.220 - 00:24:56.220] Now, in your opinion, I will
+[00:24:56.220 - 00:24:58.220] add the replay mode
+[00:24:58.220 - 00:25:00.220] and I want to
+[00:25:00.220 - 00:25:02.220] um,
+[00:25:02.220 - 00:25:04.220] okay, let's do it
+[00:25:04.220 - 00:25:06.220] for a moment, and next, I will add
+[00:25:06.220 - 00:25:09.560] the bookmap in the replay mode
+[00:25:09.560 - 00:25:11.560] and we
+[00:25:11.560 - 00:25:13.560] talk about my strategy,
+[00:25:13.560 - 00:25:15.560] which is all over the bookmap, again
+[00:25:15.560 - 00:25:17.560] um,
+[00:25:17.560 - 00:25:19.560] this time, really, right, right, right, that I'm going back to this,
+[00:25:19.560 - 00:25:21.560] remember ICT
+[00:25:21.560 - 00:25:23.560] that they want to continue to search for graphs
+[00:25:23.560 - 00:25:25.560] and they want to continue ICT,
+[00:25:25.560 - 00:25:27.560] there is no problem with that,
+[00:25:27.560 - 00:25:29.560] the bookmap doesn't have to fix you,
+[00:25:29.560 - 00:25:31.560] the bookmap doesn't have to give you a hand,
+[00:25:31.560 - 00:25:33.560] it doesn't have to give you a hand,
+[00:25:33.560 - 00:25:35.560] you want to see that the areas that you enter
+[00:25:35.560 - 00:25:37.560] they have blocks, they have limits,
+[00:25:37.560 - 00:25:39.560] they have the limits of the blocks and the others,
+[00:25:39.560 - 00:25:41.560] you want to search for a reference
+[00:25:41.560 - 00:25:43.560] from this block, and then
+[00:25:43.560 - 00:25:45.560] maybe you can also make your stop
+[00:25:45.560 - 00:25:47.560] in a better place, and
+[00:25:47.560 - 00:25:49.560] in the case of really, really, really,
+[00:25:49.560 - 00:25:51.560] you are in your setup, and you want to
+[00:25:51.560 - 00:25:53.560] search for what is called
+[00:25:53.560 - 00:25:55.560] and search for the continuation,
+[00:25:55.560 - 00:25:57.560] you can always work with limit orders,
+[00:25:57.560 - 00:25:59.560] put the limit on your block
+[00:25:59.560 - 00:26:01.560] and from there
+[00:26:01.560 - 00:26:03.560] search for real numbers, with 10
+[00:26:03.560 - 00:26:05.560] stop, 12 stop,
+[00:26:05.560 - 00:26:07.560] it doesn't go beyond that, and then
+[00:26:07.560 - 00:26:09.560] the R is the same as the rest of them,
+[00:26:09.560 - 00:26:11.560] I will talk about the continuation,
+[00:26:11.560 - 00:26:13.560] let's go
+[00:26:13.560 - 00:26:15.560] in this way I passed you the time,
+[00:26:15.560 - 00:26:17.560] so the RIP is very good,
+[00:26:17.560 - 00:26:19.560] so in the RIP is very good,
+[00:26:19.560 - 00:26:21.560] I told you, you have an option to turn on the data,
+[00:26:21.560 - 00:26:23.560] so let's do a data test,
+[00:26:23.560 - 00:26:25.560] and we will try the bookmap,
+[00:26:25.560 - 00:26:27.560] it is very good,
+[00:26:27.560 - 00:26:29.560] by the way, this strategy that I
+[00:26:29.560 - 00:26:31.560] now explain and learn,
+[00:26:31.560 - 00:26:33.560] whoever chooses not to take it,
+[00:26:33.560 - 00:26:35.560] and continue working with graphs,
+[00:26:35.560 - 00:26:37.560] it looks very, very important,
+[00:26:37.560 - 00:26:39.560] that you will also listen to this strategy,
+[00:26:39.560 - 00:26:41.560] because I am going to talk here about a lot of things
+[00:26:41.560 - 00:26:43.560] that you need to put together,
+[00:26:43.560 - 00:26:45.560] it doesn't matter what strategy you choose,
+[00:26:45.560 - 00:26:47.560] I will show you a little data,
+[00:26:49.560 - 00:26:51.560] let's see,
+[00:26:51.560 - 00:26:53.560] okay, it's not there, you can see if there is an image there,
+[00:26:53.560 - 00:26:57.000] okay,
+[00:26:57.000 - 00:26:59.000] until the book is open to us,
+[00:26:59.000 - 00:27:01.000] data,
+[00:27:01.000 - 00:27:03.000] I will do you well
+[00:27:03.000 - 00:27:05.000] with all my strategy,
+[00:27:05.000 - 00:27:08.980] okay, that's it,
+[00:27:08.980 - 00:27:10.980] my strategy
+[00:27:10.980 - 00:27:12.980] for a bookmap,
+[00:27:12.980 - 00:27:14.980] all the
+[00:27:14.980 - 00:27:16.980] image
+[00:27:16.980 - 00:27:18.980] in
+[00:27:18.980 - 00:27:20.980] to understand
+[00:27:20.980 - 00:27:22.980] who is currently in it,
+[00:27:22.980 - 00:27:24.980] who is writing the text,
+[00:27:24.980 - 00:27:26.980] the points or the others,
+[00:27:26.980 - 00:27:28.980] and my goal
+[00:27:28.980 - 00:27:30.980] is to understand
+[00:27:30.980 - 00:27:32.980] what is the liquidity drone,
+[00:27:32.980 - 00:27:34.980] just as there is a liquidity drone in ICT,
+[00:27:34.980 - 00:27:36.980] here too, there is a liquidity drone,
+[00:27:36.980 - 00:27:38.980] okay,
+[00:27:38.980 - 00:27:40.980] for example,
+[00:27:40.980 - 00:27:42.980] I can say that this block,
+[00:27:42.980 - 00:27:44.980] which is located at 283,
+[00:27:44.980 - 00:27:46.980] as it looks,
+[00:27:46.980 - 00:27:48.980] you can see 52 points,
+[00:27:48.980 - 00:27:50.980] which is 283,
+[00:27:50.980 - 00:27:52.980] I can say that this block
+[00:27:52.980 - 00:27:54.980] which is located here at Mata,
+[00:27:54.980 - 00:27:56.980] okay, I can come and say
+[00:27:56.980 - 00:27:58.980] that if I want to take the charts,
+[00:27:58.980 - 00:28:00.980] that can be my tip,
+[00:28:00.980 - 00:28:02.980] 283, because I want to understand
+[00:28:02.980 - 00:28:04.980] this block here at Mata,
+[00:28:04.980 - 00:28:06.980] it works the same as ICT,
+[00:28:06.980 - 00:28:08.980] exactly the same thing,
+[00:28:08.980 - 00:28:10.980] but what is different is that
+[00:28:10.980 - 00:28:12.980] instead of working with it in Tokyo,
+[00:28:12.980 - 00:28:14.980] or in London, or in Zegab,
+[00:28:14.980 - 00:28:16.980] between 15, between 15, between 15,
+[00:28:16.980 - 00:28:18.980] there is no opening, I see the block,
+[00:28:18.980 - 00:28:20.980] this is the take,
+[00:28:20.980 - 00:28:22.980] you understand, this is what I really like
+[00:28:22.980 - 00:28:24.980] in my work with Bookmap,
+[00:28:24.980 - 00:28:26.980] it opens up all the openings,
+[00:28:26.980 - 00:28:28.980] it opens up all the
+[00:28:28.980 - 00:28:30.980] openings and openings, it opens up all the openings,
+[00:28:30.980 - 00:28:32.980] there are no openings, there is no opening,
+[00:28:32.980 - 00:28:34.980] there is no, I see the block,
+[00:28:34.980 - 00:28:36.980] that's where I need to
+[00:28:36.980 - 00:28:38.980] take the take, okay?
+[00:28:38.980 - 00:28:40.980] So, my strategy with Bookmap
+[00:28:40.980 - 00:28:42.980] is super simple,
+[00:28:42.980 - 00:28:44.980] it's a very large size,
+[00:28:44.980 - 00:28:46.980] and the
+[00:28:46.980 - 00:28:48.980] let's say the goal
+[00:28:48.980 - 00:28:50.980] to do my strategy
+[00:28:50.980 - 00:28:52.980] is that ALEF, in New York Session,
+[00:28:52.980 - 00:28:54.980] it happens very, very fast,
+[00:28:54.980 - 00:28:56.980] and you need a lot of effort,
+[00:28:56.980 - 00:28:58.980] it's also, it's scalping,
+[00:28:58.980 - 00:29:00.980] it's scalping for everything,
+[00:29:00.980 - 00:29:02.980] when you enter New York Session
+[00:29:02.980 - 00:29:04.980] with a stop of 10 points,
+[00:29:04.980 - 00:29:06.980] it's very, very fast,
+[00:29:06.980 - 00:29:08.980] it's very, very scalping, so I said
+[00:29:08.980 - 00:29:10.980] I understand, I understand people
+[00:29:10.980 - 00:29:12.980] who still choose to stay in ICT
+[00:29:12.980 - 00:29:14.980] and just use Bookmap, but
+[00:29:14.980 - 00:29:16.980] whoever does want to do the best
+[00:29:16.980 - 00:29:18.980] and be like me, and be a scalper,
+[00:29:18.980 - 00:29:20.980] that we do 1 to 10, 1 to 1,
+[00:29:20.980 - 00:29:22.980] 1 to 8, 1 to 6, 1 to 7, like water,
+[00:29:22.980 - 00:29:24.980] not at all,
+[00:29:24.980 - 00:29:26.980] you need to understand
+[00:29:26.980 - 00:29:28.980] that you need to open
+[00:29:28.980 - 00:29:30.980] my skill,
+[00:29:30.980 - 00:29:32.980] what my skill is, I
+[00:29:32.980 - 00:29:34.980] know how to understand
+[00:29:34.980 - 00:29:36.980] who is currently in ICT,
+[00:29:36.980 - 00:29:38.980] the customers or the customers, not always I'm right,
+[00:29:38.980 - 00:29:40.980] most of the time I'm right, because I'm angry,
+[00:29:40.980 - 00:29:42.980] because most of the time I'm right,
+[00:29:42.980 - 00:29:44.980] how do we understand
+[00:29:44.980 - 00:29:46.980] who is currently in SLEETA,
+[00:29:46.980 - 00:29:48.980] okay? One of the
+[00:29:48.980 - 00:29:50.980] the most useful tools
+[00:29:50.980 - 00:29:52.980] to understand us is
+[00:29:52.980 - 00:29:54.980] the CVD,
+[00:29:54.980 - 00:29:56.980] so I told you how to open the CVD
+[00:29:56.980 - 00:29:58.980] you see my skill, I'm going to
+[00:29:58.980 - 00:30:00.980] right, left, left, left,
+[00:30:00.980 - 00:30:02.980] what I have left is a map,
+[00:30:02.980 - 00:30:04.980] it's on the map, it opens this graph
+[00:30:04.980 - 00:30:06.980] and on the side there is also a map, okay?
+[00:30:06.980 - 00:30:08.980] The CVD, as I told you
+[00:30:08.980 - 00:30:10.980] in the previous part,
+[00:30:10.980 - 00:30:12.980] it's actually a graph that came
+[00:30:12.980 - 00:30:14.980] in full, to make us think
+[00:30:14.980 - 00:30:16.980] about the amount of points
+[00:30:16.980 - 00:30:18.980] that there is in the market, or other,
+[00:30:18.980 - 00:30:20.980] sorry, the amount of points and the amount of points that there is in the market
+[00:30:20.980 - 00:30:22.980] it takes the total and makes us think
+[00:30:22.980 - 00:30:24.980] about who is the most aggressive
+[00:30:24.980 - 00:30:26.980] in the market, but
+[00:30:26.980 - 00:30:28.980] the CVD
+[00:30:28.980 - 00:30:30.980] is not
+[00:30:30.980 - 00:30:32.980] a prophet
+[00:30:32.980 - 00:30:34.980] that the CVD is a hero
+[00:30:34.980 - 00:30:36.980] it doesn't say, that's it, I'm in a foolish
+[00:30:36.980 - 00:30:38.980] way, really, really not
+[00:30:38.980 - 00:30:40.980] but we always
+[00:30:40.980 - 00:30:42.980] always want to save
+[00:30:42.980 - 00:30:44.980] to save profits
+[00:30:44.980 - 00:30:46.980] from the CVD
+[00:30:46.980 - 00:30:48.980] now, because the CVD is the largest
+[00:30:48.980 - 00:30:50.980] 1,000, 2,000, 3,000, 4,000, 5,000
+[00:30:50.980 - 00:30:52.980] and above
+[00:30:52.980 - 00:30:54.980] it means that the aggressive side
+[00:30:54.980 - 00:30:56.980] of the market is much more aggressive
+[00:30:56.980 - 00:30:58.980] for example, if the CVD is a hero
+[00:30:58.980 - 00:31:00.980] 1,000, there is no point
+[00:31:00.980 - 00:31:02.980] in the world that I save profits
+[00:31:02.980 - 00:31:04.980] okay, because the CVD is
+[00:31:04.980 - 00:31:06.980] a hero, my friend,
+[00:31:06.980 - 00:31:08.980] foolish, very aggressive, there is no way to save profits
+[00:31:08.980 - 00:31:10.980] in the same way
+[00:31:10.980 - 00:31:12.980] with the CVD, 1,000
+[00:31:12.980 - 00:31:14.980] I don't save long
+[00:31:14.980 - 00:31:16.980] but it doesn't only
+[00:31:16.980 - 00:31:18.980] save there, okay
+[00:31:18.980 - 00:31:20.980] when I
+[00:31:20.980 - 00:31:22.980] save and save
+[00:31:22.980 - 00:31:24.980] it doesn't matter if it's not an aggressive
+[00:31:24.980 - 00:31:26.980] it doesn't matter if it's not an aggressive
+[00:31:26.980 - 00:31:30.300] I want to see
+[00:31:30.300 - 00:31:32.300] 1,000
+[00:31:32.300 - 00:31:34.300] what happened before
+[00:31:34.300 - 00:31:36.300] I got to my session
+[00:31:36.300 - 00:31:38.300] that means, I want to see
+[00:31:38.300 - 00:31:40.300] if I can find
+[00:31:40.300 - 00:31:42.300] aggressive blocks
+[00:31:42.300 - 00:31:44.300] that are aggressive
+[00:31:44.300 - 00:31:46.300] if I can see that there are
+[00:31:46.300 - 00:31:48.300] aggressive blocks
+[00:31:48.300 - 00:31:50.300] aggressive blocks
+[00:31:50.300 - 00:31:52.300] if I am here now
+[00:31:52.300 - 00:31:54.300] and I am going to the mall
+[00:31:54.300 - 00:31:56.300] and I see that
+[00:31:56.300 - 00:31:58.300] then I can understand
+[00:31:58.300 - 00:32:00.300] that there are 600
+[00:32:00.300 - 00:32:02.300] and 4 f**king blocks
+[00:32:02.300 - 00:32:04.300] only 362
+[00:32:04.300 - 00:32:06.300] I can understand that in the end
+[00:32:06.300 - 00:32:08.300] it doesn't look like that
+[00:32:08.300 - 00:32:10.300] 60 points from me
+[00:32:10.300 - 00:32:12.300] 60 points in Nasdaq
+[00:32:12.300 - 00:32:14.300] there is not much
+[00:32:14.300 - 00:32:16.300] aggressive block
+[00:32:16.300 - 00:32:18.300] so once again, if I connect all the points
+[00:32:18.300 - 00:32:20.300] and I say, okay
+[00:32:20.300 - 00:32:22.300] the trend is aggressive
+[00:32:22.300 - 00:32:24.300] I see that there are aggressive blocks
+[00:32:24.300 - 00:32:26.300] the CVD is aggressive
+[00:32:26.300 - 00:32:28.300] I understand that the side I need to choose
+[00:32:28.300 - 00:32:30.300] is aggressive
+[00:32:30.300 - 00:32:32.300] and maybe now it will be a little more difficult for you to understand
+[00:32:32.300 - 00:32:34.300] you understood it in the session
+[00:32:34.300 - 00:32:36.300] with the life that you see if you use it
+[00:32:36.300 - 00:32:38.300] just like that it will be easy for you to understand
+[00:32:38.300 - 00:32:40.300] there is nothing to do
+[00:32:40.300 - 00:32:42.300] so let's go back to the book map
+[00:32:42.300 - 00:32:44.300] together with the strategy
+[00:32:44.300 - 00:32:46.300] we will start with the Ritz
+[00:32:46.300 - 00:32:48.300] the only thing that I want
+[00:32:48.300 - 00:32:50.300] to focus on for a moment
+[00:32:50.300 - 00:32:52.300] is the CVD
+[00:32:52.300 - 00:32:54.300] and the aggressive blocks that were in the session
+[00:32:54.300 - 00:33:01.770] I think this is more aggressive
+[00:33:01.770 - 00:33:03.770] aggressive, aggressive, aggressive
+[00:33:03.770 - 00:33:05.770] yes, I remember that it is a Tokyo session
+[00:33:05.770 - 00:33:07.770] yes, it is 8 p.m. in New York
+[00:33:07.770 - 00:33:09.770] we are talking about Tokyo
+[00:33:09.770 - 00:33:11.770] even though if the book map
+[00:33:11.770 - 00:33:13.770] can work every hour of the day
+[00:33:13.770 - 00:33:15.770] it doesn't change
+[00:33:15.770 - 00:33:17.770] the actions and actions
+[00:33:17.770 - 00:33:19.770] and all these things don't change
+[00:33:19.770 - 00:33:21.770] it can work every hour of the day
+[00:33:21.770 - 00:33:23.770] I just want you to understand
+[00:33:23.770 - 00:33:36.100] what I am talking about
+[00:33:36.100 - 00:33:38.100] I really don't know what to say
+[00:33:38.100 - 00:33:40.100] I don't know what to say until you trust me
+[00:33:40.100 - 00:33:42.100] what I said that we were here
+[00:33:42.100 - 00:33:44.100] I don't even know what is this data
+[00:33:44.100 - 00:33:46.100] I didn't see it in my life
+[00:33:46.100 - 00:33:48.100] what I said that we were here
+[00:33:48.100 - 00:33:50.100] what day is it? can you show me the day
+[00:33:50.100 - 00:33:52.100] ah, 10 p.m.
+[00:33:52.100 - 00:33:54.100] again
+[00:33:54.100 - 00:33:56.100] let me tell you
+[00:33:56.100 - 00:33:58.100] it is very, very, very easy
+[00:33:58.100 - 00:34:00.100] yes, you are not always honest
+[00:34:00.100 - 00:34:02.100] sometimes it is possible to be honest
+[00:34:02.100 - 00:34:04.100] but you will see
+[00:34:04.100 - 00:34:06.100] that in most cases
+[00:34:06.100 - 00:34:08.100] when you look at the CVD
+[00:34:08.100 - 00:34:10.100] and where the aggressive blocks are located
+[00:34:10.100 - 00:34:12.100] you will understand that you are on the right side
+[00:34:12.100 - 00:34:14.100] let's continue
+[00:34:14.100 - 00:34:16.100] let's continue to give it to the root
+[00:34:16.100 - 00:34:18.100] I don't even want to tell you
+[00:34:18.100 - 00:34:20.100] my strategy, I only want two
+[00:34:20.100 - 00:34:22.100] really, I remember
+[00:34:22.100 - 00:34:24.100] when I saw it
+[00:34:24.100 - 00:34:26.100] no, it was crazy
+[00:34:26.100 - 00:34:28.100] it was crazy to suddenly understand where the root is located
+[00:34:28.100 - 00:34:30.100] it was just crazy
+[00:34:30.100 - 00:34:32.100] you have to understand that I only
+[00:34:32.100 - 00:34:34.100] I just sat down and made a limit on the blocks
+[00:34:34.100 - 00:34:36.100] and I succeeded
+[00:34:36.100 - 00:34:38.100] and that's why I have to understand
+[00:34:38.100 - 00:34:40.100] that I have to learn this book
+[00:34:40.100 - 00:34:42.100] ok, what do we see, another block in 400
+[00:34:42.100 - 00:34:44.100] let's say the CVD is still in stock
+[00:34:44.100 - 00:34:46.100] it says that the customers are still in stock
+[00:34:46.100 - 00:34:48.100] it is still very, very strong
+[00:34:48.100 - 00:34:50.100] let's see if we can do 400
+[00:34:50.100 - 00:34:56.230] we can move on to the strategy
+[00:34:56.230 - 00:34:58.230] a little bit more
+[00:34:58.230 - 00:35:00.230] I forgot to mention this
+[00:35:00.230 - 00:35:02.230] it is Tokyo Session
+[00:35:02.230 - 00:35:04.230] boom, it came to the block
+[00:35:04.230 - 00:35:06.230] great
+[00:35:06.230 - 00:35:08.230] it didn't come to the big block yet
+[00:35:08.230 - 00:35:10.230] but it's a shame that it didn't come
+[00:35:10.230 - 00:35:12.230] it came
+[00:35:12.230 - 00:35:14.230] look at it, it came to the block
+[00:35:14.230 - 00:35:16.230] it doesn't always have to be in stock
+[00:35:16.230 - 00:35:18.230] we will talk about it later
+[00:35:18.230 - 00:35:20.230] sometimes you have to do 2-3 points
+[00:35:20.230 - 00:35:22.230] below the block
+[00:35:22.230 - 00:35:24.230] because sometimes it takes a lot of time
+[00:35:24.230 - 00:35:26.230] but you saw it once
+[00:35:26.230 - 00:35:28.230] 2 blocks left
+[00:35:28.230 - 00:35:30.230] I just sat down on the CVD
+[00:35:30.230 - 00:35:32.230] without any problems
+[00:35:32.230 - 00:35:34.230] I haven't seen any graph yet
+[00:35:34.230 - 00:35:36.230] yes
+[00:35:36.230 - 00:35:38.230] I haven't seen any graph yet
+[00:35:38.230 - 00:35:40.230] I was enough to connect here
+[00:35:40.230 - 00:35:42.230] and really here
+[00:35:42.230 - 00:35:44.230] we are talking about 300
+[00:35:44.230 - 00:35:46.230] 100 points
+[00:35:46.230 - 00:35:48.230] 100 freaking points without any graph
+[00:35:48.230 - 00:35:50.230] that's what I'm talking about
+[00:35:50.230 - 00:35:52.230] now, why does it work?
+[00:35:52.230 - 00:35:54.230] why does it work?
+[00:35:54.230 - 00:35:56.230] it doesn't work because it's some kind of
+[00:35:56.230 - 00:35:58.230] a conspiracy, it doesn't work because it's some
+[00:35:58.230 - 00:36:00.230] you know
+[00:36:00.230 - 00:36:02.230] some cheat code, it's not a cheat code
+[00:36:02.230 - 00:36:04.230] it's a number of points
+[00:36:04.230 - 00:36:06.230] this block that you see here
+[00:36:06.230 - 00:36:08.230] it's just a corner
+[00:36:08.230 - 00:36:10.230] that they want to connect
+[00:36:10.230 - 00:36:12.230] but why do they have a corner
+[00:36:12.230 - 00:36:14.230] that they want to connect
+[00:36:14.230 - 00:36:16.230] so it's a shame
+[00:36:16.230 - 00:36:18.230] let's see, let's move on
+[00:36:18.230 - 00:36:20.230] I don't understand the reason
+[00:36:20.230 - 00:36:22.230] and don't worry about the reason
+[00:36:22.230 - 00:36:24.230] I want you to understand what you see
+[00:36:24.230 - 00:36:26.230] okay?
+[00:36:26.230 - 00:36:28.230] these blocks can also be
+[00:36:28.230 - 00:36:30.230] limit points of a corner
+[00:36:30.230 - 00:36:32.230] it can be a mouse that came here
+[00:36:32.230 - 00:36:34.230] in this big market
+[00:36:34.230 - 00:36:36.230] and it's really here
+[00:36:36.230 - 00:36:38.230] it can be really here
+[00:36:38.230 - 00:36:40.230] so it's also a limit
+[00:36:40.230 - 00:36:42.230] it's also a passive point
+[00:36:42.230 - 00:36:44.230] that you make a profit, it's a limit friends
+[00:36:44.230 - 00:36:46.230] it can also be a corner
+[00:36:46.230 - 00:36:48.230] that you understand
+[00:36:48.230 - 00:36:50.230] in the most simple way
+[00:36:50.230 - 00:36:52.230] that we need to understand
+[00:36:52.230 - 00:36:54.230] in any case
+[00:36:54.230 - 00:36:56.230] first of all, we always always
+[00:36:56.230 - 00:36:58.230] hesitate to take the keys with the cvd
+[00:36:58.230 - 00:37:00.230] and not against the cvd
+[00:37:00.230 - 00:37:02.230] and we always always want to look
+[00:37:02.230 - 00:37:04.230] first of all, the big blocks
+[00:37:04.230 - 00:37:06.230] the big blocks that are hard
+[00:37:06.230 - 00:37:08.230] that there are many points
+[00:37:08.230 - 00:37:10.230] I can understand that the graph can be saved
+[00:37:10.230 - 00:37:12.230] so when I do this one by one
+[00:37:12.230 - 00:37:14.230] with the cvd and with the points
+[00:37:14.230 - 00:37:16.230] boom!
+[00:37:16.230 - 00:37:18.230] I can understand that the graph can be saved
+[00:37:18.230 - 00:37:20.230] now, let's go and ask me
+[00:37:20.230 - 00:37:22.230] what happens if the cvd is like this
+[00:37:22.230 - 00:37:24.230] doesn't look like a real person
+[00:37:24.230 - 00:37:26.230] and I don't see any blocks
+[00:37:26.230 - 00:37:28.230] all good, do you see the difference in life?
+[00:37:28.230 - 00:37:30.230] doesn't it need to be changed?
+[00:37:30.230 - 00:37:32.230] once again, the bookmap
+[00:37:32.230 - 00:37:34.230] doesn't come to solve all the things that I already told you
+[00:37:34.230 - 00:37:36.230] and you already know
+[00:37:36.230 - 00:37:38.230] if I come with a problem that I already know
+[00:37:38.230 - 00:37:40.230] and I don't know, the cvd is a bit of a mess
+[00:37:40.230 - 00:37:42.230] and there are no big blocks
+[00:37:42.230 - 00:37:44.230] I think on the side, I see price action
+[00:37:44.230 - 00:37:46.230] I do it, it's coffee, I do it
+[00:37:46.230 - 00:37:48.230] it's a bit of a mess
+[00:37:48.230 - 00:37:50.230] it gives me the cvd to solve the problem
+[00:37:50.230 - 00:37:52.230] and it starts to run
+[00:37:52.230 - 00:37:54.230] now let's talk about the strategy
+[00:37:54.230 - 00:37:56.230] my strategy in the bookmap
+[00:37:56.230 - 00:37:58.230] is very very very
+[00:37:58.230 - 00:38:00.230] this is my strategy in ICT
+[00:38:00.230 - 00:38:02.230] I actually have
+[00:38:02.230 - 00:38:04.230] two types of blocks
+[00:38:04.230 - 00:38:06.230] the first type of blocks
+[00:38:06.230 - 00:38:08.230] is more aggressive, it's funny
+[00:38:08.230 - 00:38:10.230] because it's a bull like in ICT
+[00:38:10.230 - 00:38:12.230] and that's the reversal
+[00:38:12.230 - 00:38:14.230] that they're more aggressive, it's always more aggressive
+[00:38:14.230 - 00:38:16.230] and we have a continuation
+[00:38:16.230 - 00:38:18.230] now, if you're smart
+[00:38:18.230 - 00:38:20.230] I'll tell you
+[00:38:20.230 - 00:38:22.230] to take only a continuation
+[00:38:22.230 - 00:38:24.230] in the bookmap
+[00:38:24.230 - 00:38:26.230] why? because when you take only
+[00:38:26.230 - 00:38:28.230] a continuation
+[00:38:28.230 - 00:38:30.230] it's setups that are a thousand
+[00:38:30.230 - 00:38:32.230] faster and I'll show you
+[00:38:32.230 - 00:38:34.230] how to do it
+[00:38:34.230 - 00:38:36.230] I'll show you the continuation
+[00:38:36.230 - 00:38:38.230] here it's not what you think
+[00:38:38.230 - 00:38:40.230] it needs to be 7
+[00:38:40.230 - 00:38:42.230] and it can take
+[00:38:42.230 - 00:38:44.230] 40 minutes to open
+[00:38:44.230 - 00:38:46.230] we're talking about seconds
+[00:38:46.230 - 00:38:48.230] but unlike the reversal
+[00:38:48.230 - 00:38:50.230] that I'll tell you now
+[00:38:50.230 - 00:38:52.230] what is the reversal and then I'll show you
+[00:38:52.230 - 00:38:54.230] the continuation
+[00:38:54.230 - 00:38:56.230] it's a lot of setups that you'll see in my session
+[00:38:56.230 - 00:38:58.230] if I live in the next steps
+[00:38:58.230 - 00:39:00.230] the strategy is
+[00:39:00.230 - 00:39:02.230] like this
+[00:39:02.230 - 00:39:04.230] if I take a reversal
+[00:39:04.230 - 00:39:06.230] it means
+[00:39:06.230 - 00:39:08.230] that I want to find a block
+[00:39:08.230 - 00:39:10.230] with my bias
+[00:39:10.230 - 00:39:12.230] that doesn't care
+[00:39:12.230 - 00:39:14.230] what happens, my limit
+[00:39:14.230 - 00:39:16.230] is already determined in the same block
+[00:39:16.230 - 00:39:18.230] what's the reason?
+[00:39:18.230 - 00:39:20.230] let's take the point
+[00:39:20.230 - 00:39:22.230] that I'm a bearish bias
+[00:39:22.230 - 00:39:27.590] here, let's go and the cvd was a man
+[00:39:29.590 - 00:39:31.590] I can go back a little
+[00:39:36.340 - 00:39:38.340] let's go and for a new example
+[00:39:38.340 - 00:39:40.340] cvd was a man
+[00:39:40.340 - 00:39:42.340] and I'm a bearish bias
+[00:39:42.340 - 00:39:44.340] and I'm looking
+[00:39:44.340 - 00:39:46.340] for a break today
+[00:39:46.340 - 00:39:48.340] I'm looking for shorts
+[00:39:48.340 - 00:39:50.340] me
+[00:39:50.340 - 00:39:52.340] and again
+[00:39:52.340 - 00:39:54.340] these setups that you really need
+[00:39:54.340 - 00:39:56.340] really really really really
+[00:39:56.340 - 00:39:58.340] bias
+[00:39:58.340 - 00:40:00.340] you have to be a little careful and be careful
+[00:40:00.340 - 00:40:02.340] I have my own
+[00:40:02.340 - 00:40:04.340] I almost never take this setup
+[00:40:04.340 - 00:40:06.340] but it's important that you know it
+[00:40:06.340 - 00:40:08.340] you choose a block
+[00:40:08.340 - 00:40:10.340] the advantage
+[00:40:10.340 - 00:40:12.340] for any psychological measure
+[00:40:12.340 - 00:40:14.340] is
+[00:40:14.340 - 00:40:16.340] it can be a peaceful measure
+[00:40:16.340 - 00:40:18.340] let's say, 400
+[00:40:18.340 - 00:40:20.340] 600, 800
+[00:40:20.340 - 00:40:22.340] 100, 150
+[00:40:22.340 - 00:40:24.340] 350
+[00:40:24.340 - 00:40:26.340] you'll notice that the 80
+[00:40:26.340 - 00:40:28.340] the good ones
+[00:40:28.340 - 00:40:30.340] in psychological measures
+[00:40:30.340 - 00:40:32.340] 4 times they're the ones
+[00:40:32.340 - 00:40:34.340] because 4 times they're just
+[00:40:34.340 - 00:40:36.340] going to a peaceful measure
+[00:40:36.340 - 00:40:38.340] if I'm a bearish bias
+[00:40:38.340 - 00:40:40.340] my cvd is a man
+[00:40:40.340 - 00:40:42.340] and I want to take the advantage
+[00:40:42.340 - 00:40:44.340] that I really really believe in my block
+[00:40:44.340 - 00:40:46.340] I really really see
+[00:40:46.340 - 00:40:48.340] that it's a huge gap
+[00:40:48.340 - 00:40:50.340] with 604 points and I want to do a portrait
+[00:40:50.340 - 00:40:52.340] I can already
+[00:40:52.340 - 00:40:54.340] to a limit
+[00:40:54.340 - 00:40:56.340] put the stop on 10 points
+[00:40:56.340 - 00:40:58.340] let's say if I put 400
+[00:40:58.340 - 00:41:00.340] then the stop can go to 410
+[00:41:00.340 - 00:41:02.340] or even if I want
+[00:41:02.340 - 00:41:04.340] really hardcore
+[00:41:04.340 - 00:41:06.340] I can put 5 stops here
+[00:41:06.340 - 00:41:08.340] 410 and 5 times it's Tokyo
+[00:41:08.340 - 00:41:10.340] 5 stops here is fine in Tokyo
+[00:41:10.340 - 00:41:12.340] because it's not like in New York
+[00:41:12.340 - 00:41:14.340] where you need to go a little bit more
+[00:41:14.340 - 00:41:16.340] and I'm just looking at the limit in the block
+[00:41:16.340 - 00:41:18.340] I want to see the difference
+[00:41:18.340 - 00:41:21.940] it goes to my block
+[00:41:21.940 - 00:41:23.940] again it's the same illustration
+[00:41:23.940 - 00:41:25.940] I don't know what the next step is
+[00:41:25.940 - 00:41:27.940] I don't know what's happening here
+[00:41:27.940 - 00:41:29.940] I want to explain
+[00:41:29.940 - 00:41:31.940] that's it and I'm already at this point
+[00:41:31.940 - 00:41:33.940] in the end
+[00:41:33.940 - 00:41:35.940] when I start the trail
+[00:41:35.940 - 00:41:37.940] when I start to go to the break
+[00:41:37.940 - 00:41:39.940] but I'm already looking at the limit in the block
+[00:41:39.940 - 00:41:41.940] and my take profit
+[00:41:41.940 - 00:41:43.940] goes to blocks for
+[00:41:43.940 - 00:41:45.940] for what? 250
+[00:41:45.940 - 00:41:47.940] once again it's a symbol
+[00:41:47.940 - 00:41:49.940] a symbol
+[00:41:49.940 - 00:41:51.940] psychological measure
+[00:41:51.940 - 00:41:53.940] when you see that the numbers are changing
+[00:41:53.940 - 00:41:55.940] 250, 200, 150
+[00:41:55.940 - 00:41:57.940] those of the 50s and the 100
+[00:41:57.940 - 00:41:59.940] the numbers are low
+[00:41:59.940 - 00:42:01.940] the residents are looking at these numbers
+[00:42:01.940 - 00:42:03.940] my next step
+[00:42:03.940 - 00:42:05.940] but I'll take a look
+[00:42:05.940 - 00:42:07.940] when I get into this church
+[00:42:07.940 - 00:42:09.940] I want to go to
+[00:42:09.940 - 00:42:11.940] wow this is crazy
+[00:42:11.940 - 00:42:13.940] I want to go to
+[00:42:13.940 - 00:42:15.940] here we can say wow
+[00:42:15.940 - 00:42:17.940] you were with us
+[00:42:17.940 - 00:42:19.940] you can see these pictures
+[00:42:19.940 - 00:42:21.940] but this is one of the most exciting steps
+[00:42:21.940 - 00:42:23.940] why?
+[00:42:23.940 - 00:42:25.940] because we met a block
+[00:42:25.940 - 00:42:27.940] we went to this market
+[00:42:27.940 - 00:42:29.940] because we came to this market
+[00:42:29.940 - 00:42:31.940] in a short market
+[00:42:31.940 - 00:42:33.940] and there's a sign here
+[00:42:33.940 - 00:42:35.940] what's a sign?
+[00:42:35.940 - 00:42:37.940] it's a block that they put in live
+[00:42:37.940 - 00:42:39.940] it means that the residents
+[00:42:39.940 - 00:42:41.940] really want to stop this conversation
+[00:42:41.940 - 00:42:43.940] so
+[00:42:43.940 - 00:42:45.940] so it's a really good setup
+[00:42:45.940 - 00:42:47.940] and the person who comes in here
+[00:42:47.940 - 00:42:49.940] you see he's already in profit
+[00:42:49.940 - 00:42:51.940] 14 points
+[00:42:51.940 - 00:42:53.940] he's already in 1 to 2
+[00:42:53.940 - 00:42:55.940] 1 to 3 for milliseconds
+[00:42:55.940 - 00:42:57.940] ok
+[00:42:57.940 - 00:42:59.940] and you can understand why this is a success
+[00:42:59.940 - 00:43:01.940] because this block is really good
+[00:43:01.940 - 00:43:05.450] let's see what happens
+[00:43:05.450 - 00:43:07.450] ok so
+[00:43:07.450 - 00:43:09.450] the person who goes back to retest
+[00:43:09.450 - 00:43:11.450] in this block
+[00:43:11.450 - 00:43:13.450] doesn't
+[00:43:13.450 - 00:43:15.450] go back to retest
+[00:43:15.450 - 00:43:17.450] who took this profit
+[00:43:17.450 - 00:43:19.450] gg
+[00:43:19.450 - 00:43:21.450] you see that it's already a take profit
+[00:43:21.450 - 00:43:23.450] it's a profit of maybe a few minutes
+[00:43:23.450 - 00:43:25.450] we went here at a limit of 400
+[00:43:25.450 - 00:43:27.450] we're already at 30 points
+[00:43:27.450 - 00:43:29.450] with a stop of 10 points
+[00:43:29.450 - 00:43:31.450] it's 1 to 3 here
+[00:43:31.450 - 00:43:33.450] you understand what I'm talking to you about
+[00:43:33.450 - 00:43:35.450] and you see in live
+[00:43:35.450 - 00:43:37.450] you see in live
+[00:43:37.450 - 00:43:39.450] that it just happens
+[00:43:39.450 - 00:43:41.450] let's continue
+[00:43:43.450 - 00:43:48.100] let's continue
+[00:43:48.100 - 00:43:50.100] ok I love this price action
+[00:43:50.100 - 00:43:52.100] because this was my continuation setup
+[00:43:52.100 - 00:43:54.100] just see what I'm talking to you about
+[00:43:54.100 - 00:43:56.100] just see what I'm talking to you about
+[00:43:56.100 - 00:43:58.100] whoever comes in here
+[00:43:58.100 - 00:44:00.100] he goes back to a limit
+[00:44:00.100 - 00:44:02.100] with a stop of 5 points
+[00:44:02.100 - 00:44:04.100] you understand what I'm talking to you about
+[00:44:04.100 - 00:44:06.100] it just happens at 400
+[00:44:06.100 - 00:44:08.100] he doesn't go to 400
+[00:44:08.100 - 00:44:10.100] it's a stop of 5 points
+[00:44:10.100 - 00:44:12.100] 10 points stop
+[00:44:12.100 - 00:44:14.100] I'm going with you, not 5
+[00:44:14.100 - 00:44:16.100] 10
+[00:44:16.100 - 00:44:18.100] whoever comes in here
+[00:44:18.100 - 00:44:20.100] to make a stop of 10
+[00:44:20.100 - 00:44:22.100] who doesn't know
+[00:44:22.100 - 00:44:24.100] wow
+[00:44:24.100 - 00:44:26.100] I love it
+[00:44:26.100 - 00:44:28.100] but why
+[00:44:28.100 - 00:44:30.100] why do I have a limit to make 10 points
+[00:44:30.100 - 00:44:32.100] why do I have a limit
+[00:44:32.100 - 00:44:34.100] because I see that there are 600 points
+[00:44:34.100 - 00:44:36.100] between 400 and 410
+[00:44:36.100 - 00:44:38.100] so why do I need to go there
+[00:44:38.100 - 00:44:40.100] if he goes there then it's a stop
+[00:44:40.100 - 00:44:42.100] I don't need to go any further
+[00:44:42.100 - 00:44:44.100] I need to get out of the trade
+[00:44:44.100 - 00:44:46.100] that's what I'm trying to explain to you
+[00:44:46.100 - 00:44:48.100] wow I feel it
+[00:44:48.100 - 00:44:50.100] I see it every time I see the set that works
+[00:44:50.100 - 00:44:52.100] came to take it out of the basket
+[00:44:52.100 - 00:44:54.100] now
+[00:44:54.100 - 00:44:56.100] ok let's move on
+[00:44:56.100 - 00:44:58.100] whoever comes in here to limit
+[00:44:58.100 - 00:45:00.100] all the GGs
+[00:45:00.100 - 00:45:02.100] it's very hard to explain to you
+[00:45:02.100 - 00:45:04.100] but as you can see
+[00:45:04.100 - 00:45:06.100] you know what you're doing
+[00:45:06.100 - 00:45:08.100] and the block is full of tricks
+[00:45:08.100 - 00:45:10.100] sometimes I don't say that
+[00:45:10.100 - 00:45:12.100] sometimes you can limit it to a block
+[00:45:12.100 - 00:45:14.100] what can it be
+[00:45:14.100 - 00:45:16.100] what do I care
+[00:45:16.100 - 00:45:18.100] to use some kind of mini or 2
+[00:45:18.100 - 00:45:20.100] with a stop of 5 points
+[00:45:20.100 - 00:45:22.100] it's a $2 discount
+[00:45:22.100 - 00:45:24.100] do you understand what I'm talking to you about
+[00:45:24.100 - 00:45:26.100] that's what I'm talking to you about
+[00:45:26.100 - 00:45:28.100] the person who comes in here
+[00:45:28.100 - 00:45:30.100] has over 200 points in a row
+[00:45:30.100 - 00:45:32.100] 29,300,29,400
+[00:45:32.100 - 00:45:34.100] 200 points in a row
+[00:45:34.100 - 00:45:36.100] like that in 10 minutes
+[00:45:36.100 - 00:45:38.100] in an hour
+[00:45:38.100 - 00:45:40.100] ok this is the reversal
+[00:45:40.100 - 00:45:42.100] it's really really
+[00:45:42.100 - 00:45:44.100] really really hard to understand
+[00:45:44.100 - 00:45:46.100] ok see
+[00:45:46.100 - 00:45:48.100] all the strategy and all my strategy
+[00:45:48.100 - 00:45:50.100] we work with 3
+[00:45:50.100 - 00:45:52.100] the main things
+[00:45:52.100 - 00:45:54.100] the first is
+[00:45:54.100 - 00:45:56.100] blocks
+[00:45:56.100 - 00:45:58.100] the second is CVD
+[00:45:58.100 - 00:46:00.100] and the third is tricks
+[00:46:00.100 - 00:46:02.100] absorption
+[00:46:02.100 - 00:46:04.100] to know some tricks
+[00:46:04.100 - 00:46:06.100] it's one of the most important things
+[00:46:06.100 - 00:46:08.100] that you need to learn
+[00:46:08.100 - 00:46:10.100] to understand how to do the continuation
+[00:46:10.100 - 00:46:12.100] that I'm going to teach you
+[00:46:12.100 - 00:46:14.100] so
+[00:46:14.100 - 00:46:16.100] what is actually a trick
+[00:46:16.100 - 00:46:18.100] I'm going back to the previous lesson
+[00:46:18.100 - 00:46:20.100] let's look at the blocks
+[00:46:20.100 - 00:46:22.100] there's nothing to understand
+[00:46:22.100 - 00:46:24.100] it's just a passive order
+[00:46:24.100 - 00:46:26.100] there are limits here
+[00:46:26.100 - 00:46:28.100] you can see their power and their range
+[00:46:28.100 - 00:46:30.100] because it's more people and it's harder
+[00:46:30.100 - 00:46:32.100] the tricks
+[00:46:32.100 - 00:46:34.100] market tricks
+[00:46:34.100 - 00:46:36.100] that's what I'm talking about
+[00:46:36.100 - 00:46:38.100] what is actually a trick
+[00:46:38.100 - 00:46:40.100] it's a trick of tricks
+[00:46:40.100 - 00:46:42.100] why
+[00:46:42.100 - 00:46:44.100] because it was here Konemos D
+[00:46:44.100 - 00:46:46.100] you see a big trick
+[00:46:46.100 - 00:46:48.100] because it's a trick
+[00:46:48.100 - 00:46:50.100] it was a big trick
+[00:46:50.100 - 00:46:52.100] that they tried to break
+[00:46:52.100 - 00:46:54.100] the block of 29400
+[00:46:54.100 - 00:46:56.100] why did he take that there
+[00:46:56.100 - 00:46:58.100] because he wanted to save the price
+[00:46:58.100 - 00:47:00.100] but he found a block
+[00:47:00.100 - 00:47:02.100] that was in the market
+[00:47:02.100 - 00:47:04.100] that's called a trick
+[00:47:04.100 - 00:47:06.100] that's called a trick
+[00:47:06.100 - 00:47:08.100] that's called absorption
+[00:47:08.100 - 00:47:10.100] that the block is a trick
+[00:47:10.100 - 00:47:12.100] the others stole the points
+[00:47:12.100 - 00:47:14.100] that's literally
+[00:47:14.100 - 00:47:16.100] that's called a trick
+[00:47:16.100 - 00:47:18.100] or the same thing
+[00:47:18.100 - 00:47:20.100] who did you
+[00:47:20.100 - 00:47:22.100] the same thing who did you
+[00:47:22.100 - 00:47:24.100] let's look for one
+[00:47:24.100 - 00:47:26.100] and here
+[00:47:26.100 - 00:47:28.100] it's a block of tricks
+[00:47:28.100 - 00:47:30.100] how do I know that it's a block of tricks
+[00:47:30.100 - 00:47:32.100] because it's below the market
+[00:47:32.100 - 00:47:34.100] every block below the market
+[00:47:34.100 - 00:47:36.100] it's a block that they want to buy
+[00:47:36.100 - 00:47:38.100] a case of 29500
+[00:47:38.100 - 00:47:40.100] it's a block of tricks
+[00:47:40.100 - 00:47:42.100] it's also a very big block
+[00:47:42.100 - 00:47:44.100] so if there's a block of tricks
+[00:47:44.100 - 00:47:46.100] and there's a very big trick here
+[00:47:46.100 - 00:47:48.100] what does it mean
+[00:47:48.100 - 00:47:50.100] that there's a trick
+[00:47:50.100 - 00:47:52.100] that he wanted to break
+[00:47:52.100 - 00:47:54.100] this block and move it
+[00:47:54.100 - 00:47:56.100] more to the market, more below the market
+[00:47:56.100 - 00:47:58.100] all this trick, right?
+[00:47:58.100 - 00:48:00.100] all these tricks, all these blocks
+[00:48:00.100 - 00:48:02.100] great, as soon as it doesn't happen
+[00:48:02.100 - 00:48:04.100] and this block is a trick
+[00:48:04.100 - 00:48:06.100] it automatically becomes a trick
+[00:48:06.100 - 00:48:08.100] that's all
+[00:48:08.100 - 00:48:10.100] it becomes a trick
+[00:48:10.100 - 00:48:12.100] there's a trick
+[00:48:12.100 - 00:48:14.100] there's a trick
+[00:48:14.100 - 00:48:16.100] that a block hit
+[00:48:16.100 - 00:48:18.100] it doesn't succeed in breaking it
+[00:48:18.100 - 00:48:20.100] it will turn to the other side
+[00:48:20.100 - 00:48:22.100] around the other side
+[00:48:22.100 - 00:48:24.100] that's it, here
+[00:48:24.100 - 00:48:27.380] this trick is a trick
+[00:48:27.380 - 00:48:29.380] a trick to break it
+[00:48:29.380 - 00:48:31.380] so how am I in my strategy
+[00:48:31.380 - 00:48:33.380] that it's really the strategy
+[00:48:33.380 - 00:48:35.380] more of a trick
+[00:48:35.380 - 00:48:37.380] because you see
+[00:48:37.380 - 00:48:39.380] it's a trick here, it's great
+[00:48:39.380 - 00:48:41.380] it's a trick
+[00:48:41.380 - 00:48:43.380] it's a trick that a block
+[00:48:43.380 - 00:48:45.380] and to say, I'm going to break it
+[00:48:45.380 - 00:48:47.380] if I have 10 points
+[00:48:47.380 - 00:48:49.380] it's a trick, here's what I'm saying
+[00:48:49.380 - 00:48:51.380] it's a trick, but the trick
+[00:48:51.380 - 00:48:53.380] is really a trick
+[00:48:53.380 - 00:48:55.380] the good trick is what I'm going to teach you now
+[00:48:55.380 - 00:48:57.380] this is my strategy
+[00:48:57.380 - 00:48:59.380] this is the trick that I want to see
+[00:48:59.380 - 00:49:01.380] all day long
+[00:49:01.380 - 00:49:03.380] the trick is a trick
+[00:49:03.380 - 00:49:05.380] the trick is a trick
+[00:49:05.380 - 00:49:07.380] a trick with a CVD
+[00:49:07.380 - 00:49:09.380] a block
+[00:49:09.380 - 00:49:11.380] a CVD
+[00:49:11.380 - 00:49:13.380] and a limit
+[00:49:13.380 - 00:49:15.380] and a block in real time
+[00:49:15.380 - 00:49:17.380] this is the game changer
+[00:49:17.380 - 00:49:19.380] what is this limit
+[00:49:19.380 - 00:49:21.380] in real time
+[00:49:21.380 - 00:49:23.380] a block in real time
+[00:49:23.380 - 00:49:25.380] you see
+[00:49:25.380 - 00:49:27.380] that there's a CVD and we're going to break it
+[00:49:27.380 - 00:49:29.380] and start breaking it
+[00:49:29.380 - 00:49:31.380] you see a lot of blocks
+[00:49:31.380 - 00:49:33.380] that break
+[00:49:33.380 - 00:49:35.380] in real time
+[00:49:35.380 - 00:49:37.380] what are these blocks
+[00:49:37.380 - 00:49:39.380] they're blocks that break the limit
+[00:49:39.380 - 00:49:41.380] they want to break the limit
+[00:49:41.380 - 00:49:43.380] and we
+[00:49:43.380 - 00:49:45.380] want to take this continuation
+[00:49:45.380 - 00:49:47.380] for those of you who don't understand it
+[00:49:47.380 - 00:49:49.380] we also want to break
+[00:49:49.380 - 00:49:51.380] the limit together
+[00:49:51.380 - 00:49:53.380] so
+[00:49:53.380 - 00:49:55.380] this is my ultimate strategy
+[00:49:55.380 - 00:49:57.380] I want to see a trick
+[00:49:57.380 - 00:49:59.380] on a block, a CVD
+[00:49:59.380 - 00:50:01.380] that goes in the direction
+[00:50:01.380 - 00:50:03.380] and after the trick
+[00:50:03.380 - 00:50:05.380] there's a lot of market tricks
+[00:50:05.380 - 00:50:07.380] and they break the block
+[00:50:07.380 - 00:50:09.380] that breaks
+[00:50:09.380 - 00:50:11.380] automatically, you see how I live
+[00:50:11.380 - 00:50:13.380] you see that I make a limit
+[00:50:13.380 - 00:50:15.380] and if they make a limit
+[00:50:15.380 - 00:50:17.380] I make a limit too
+[00:50:17.380 - 00:50:19.380] I'm a hero, I don't need a hero
+[00:50:19.380 - 00:50:21.380] I'm a villain
+[00:50:21.380 - 00:50:23.380] I'm not a hero, I'm not a hero
+[00:50:23.380 - 00:50:25.380] I'm a hero, I'm a hero
+[00:50:25.380 - 00:50:27.380] let's see how it works here
+[00:50:27.380 - 00:50:29.380] because I saw that it works
+[00:50:29.380 - 00:50:31.380] let's see
+[00:50:31.380 - 00:50:33.380] we met here the block in 400
+[00:50:33.380 - 00:50:35.380] they break it, break it
+[00:50:35.380 - 00:50:37.380] I think it's better
+[00:50:37.380 - 00:50:39.380] break it, break it
+[00:50:39.380 - 00:50:41.380] what is it
+[00:50:41.380 - 00:50:43.380] what is it
+[00:50:43.380 - 00:50:45.380] they break the market
+[00:50:45.380 - 00:50:47.380] after we broke it
+[00:50:47.380 - 00:50:49.380] it breaks
+[00:50:49.380 - 00:50:51.380] it means that there are rules
+[00:50:51.380 - 00:50:53.380] that now they want to break the limit
+[00:50:53.380 - 00:50:55.380] but it's not enough for us
+[00:50:55.380 - 00:50:57.380] we want to see a trick of blocks
+[00:50:57.380 - 00:50:59.380] so there was a trick here
+[00:50:59.380 - 00:51:01.380] do you remember the big block that suddenly breaks
+[00:51:01.380 - 00:51:03.380] this guy was there
+[00:51:03.380 - 00:51:05.380] this is live, this is live
+[00:51:05.380 - 00:51:07.380] this is live, this is live
+[00:51:07.380 - 00:51:09.380] these are rules that want to prevent
+[00:51:09.380 - 00:51:11.380] look at these blocks
+[00:51:11.380 - 00:51:13.380] I'm talking about this
+[00:51:13.380 - 00:51:15.380] you see the error of the blocks
+[00:51:15.380 - 00:51:17.380] you see the error of the blocks
+[00:51:17.380 - 00:51:19.380] load, load, load, load
+[00:51:19.380 - 00:51:21.380] they break, they break
+[00:51:21.380 - 00:51:23.380] they don't break, they don't break
+[00:51:23.380 - 00:51:25.380] look at this error, hysterical
+[00:51:25.380 - 00:51:27.380] hysterical of the blocks
+[00:51:27.380 - 00:51:29.380] so it doesn't let them break
+[00:51:29.380 - 00:51:31.380] here I would have entered the limit
+[00:51:31.380 - 00:51:33.380] here, here, here and there
+[00:51:33.380 - 00:51:35.380] 10 stops
+[00:51:35.380 - 00:51:37.380] up to 403
+[00:51:37.380 - 00:51:39.380] they break it
+[00:51:39.380 - 00:51:41.380] what happens, they continue
+[00:51:41.380 - 00:51:43.380] they continue
+[00:51:43.380 - 00:51:45.380] they break the stop, they break the limit
+[00:51:45.380 - 00:51:47.380] more than you
+[00:51:47.380 - 00:51:49.380] they break the limit more, more, more
+[00:51:49.380 - 00:51:51.380] look at how they broke it
+[00:51:51.380 - 00:51:53.380] did you see how they broke it here
+[00:51:53.380 - 00:51:55.380] they broke it here
+[00:51:55.380 - 00:51:57.380] stop, stop, stop
+[00:51:57.380 - 00:51:59.380] they break it
+[00:51:59.380 - 00:52:01.380] they break it, they break it
+[00:52:01.380 - 00:52:03.380] what do they do
+[00:52:03.380 - 00:52:05.380] they break it, they break it
+[00:52:05.380 - 00:52:07.380] they take more string
+[00:52:07.380 - 00:52:09.380] why, because I told you
+[00:52:09.380 - 00:52:11.380] muscle
+[00:52:11.380 - 00:52:13.380] it can't break
+[00:52:13.380 - 00:52:15.380] 1500 minis at once
+[00:52:15.380 - 00:52:17.380] or a few hundred minis at once
+[00:52:17.380 - 00:52:19.380] why
+[00:52:19.380 - 00:52:21.380] because it takes more string
+[00:52:21.380 - 00:52:23.380] so what do they do
+[00:52:23.380 - 00:52:25.380] they break it, now they don't do it
+[00:52:25.380 - 00:52:27.380] the algorithm does it
+[00:52:27.380 - 00:52:29.380] the bot does it
+[00:52:29.380 - 00:52:31.380] because it happens in seconds
+[00:52:31.380 - 00:52:33.380] so the bot, that he breaks it
+[00:52:33.380 - 00:52:35.380] he breaks it, the market enters here
+[00:52:35.380 - 00:52:37.380] and starts to break the limit
+[00:52:37.380 - 00:52:39.380] look, he does it in seconds
+[00:52:39.380 - 00:52:41.380] so we need to understand the error
+[00:52:41.380 - 00:52:43.380] and also limit in 380
+[00:52:43.380 - 00:52:45.380] yes, to increase the amount
+[00:52:45.380 - 00:52:47.380] they break it
+[00:52:47.380 - 00:52:49.380] they break some blocks
+[00:52:49.380 - 00:52:51.380] let's see what happened in 380
+[00:52:51.380 - 00:52:53.380] ok, but if I put the limit in 380
+[00:52:53.380 - 00:52:55.380] my stop will be
+[00:52:55.380 - 00:52:57.380] in 390
+[00:52:57.380 - 00:52:59.380] 10 points, not more, because there are many blocks
+[00:52:59.380 - 00:53:01.380] that they break here
+[00:53:01.380 - 00:53:03.380] do you understand what I'm saying
+[00:53:03.380 - 00:53:05.380] let's put it in CVD, let's see what happens
+[00:53:05.380 - 00:53:07.380] ok, CVD is still an error
+[00:53:07.380 - 00:53:09.380] it can be some kind of error
+[00:53:09.380 - 00:53:11.380] so I don't know if I really would
+[00:53:11.380 - 00:53:13.380] I would break it here, but it's still a mistake
+[00:53:13.380 - 00:53:15.380] ok, they break it
+[00:53:15.380 - 00:53:17.380] they break it
+[00:53:17.380 - 00:53:19.380] you remember
+[00:53:19.380 - 00:53:21.380] you break the block in 29.400
+[00:53:21.380 - 00:53:23.380] yes, where did it come from
+[00:53:23.380 - 00:53:25.380] who broke the limit yesterday
+[00:53:25.380 - 00:53:27.380] ok
+[00:53:27.380 - 00:53:29.380] but, why does it last?
+[00:53:29.380 - 00:53:31.380] because there are a lot of markets
+[00:53:31.380 - 00:53:33.380] that break to the limit
+[00:53:33.380 - 00:53:35.380] a lot, a lot, a lot of markets
+[00:53:35.380 - 00:53:37.380] ok, so
+[00:53:37.380 - 00:53:39.380] now let's see what happens
+[00:53:39.380 - 00:53:41.380] to these limits
+[00:53:41.380 - 00:53:43.380] all of these limits
+[00:53:43.380 - 00:53:45.380] are lost in 1 minute
+[00:53:45.380 - 00:53:47.380] to break the limit to the limit
+[00:53:47.380 - 00:53:49.380] to break the blocks to the limit
+[00:53:49.380 - 00:53:52.730] let's see
+[00:53:52.730 - 00:53:54.730] if the markets succeed
+[00:53:54.730 - 00:53:58.460] to break
+[00:53:58.460 - 00:54:00.460] and break the limit to the limit
+[00:54:00.460 - 00:54:02.460] boom, they break this limit from the block
+[00:54:02.460 - 00:54:06.250] break the limit
+[00:54:06.250 - 00:54:08.250] this limit
+[00:54:08.250 - 00:54:10.250] the markets break the limit to the limit
+[00:54:10.250 - 00:54:12.250] even though CVD is still an error
+[00:54:12.250 - 00:54:14.250] but CVD is also an error
+[00:54:14.250 - 00:54:16.250] we are already at 300
+[00:54:16.250 - 00:54:18.250] CVD
+[00:54:18.250 - 00:54:20.250] there is a situation where the markets
+[00:54:20.250 - 00:54:22.250] break the limit to the limit
+[00:54:22.250 - 00:54:24.250] or even to 160
+[00:54:24.250 - 00:54:26.250] who knows when you are going to break the limit
+[00:54:26.250 - 00:54:30.260] you never know
+[00:54:30.260 - 00:54:32.260] but again, I will tell you
+[00:54:32.260 - 00:54:34.260] if we took the trade
+[00:54:34.260 - 00:54:36.260] we would break it
+[00:54:36.260 - 00:54:38.260] if these blocks
+[00:54:38.260 - 00:54:40.260] break the limit from the limit
+[00:54:40.260 - 00:54:42.260] even in this block
+[00:54:42.260 - 00:54:44.260] or here
+[00:54:44.260 - 00:54:46.260] this is the take profit, this is what you see me taking
+[00:54:46.260 - 00:54:48.260] and you see, even though I'm alive
+[00:54:48.260 - 00:54:50.260] I'm going back to this situation
+[00:54:50.260 - 00:54:52.260] I'm not just talking, I'm also going to show you
+[00:54:52.260 - 00:54:54.260] that I'm alive and doing it
+[00:54:54.260 - 00:54:56.260] again
+[00:54:56.260 - 00:54:58.260] when it happens and we continue to talk
+[00:54:58.260 - 00:55:00.260] I say again
+[00:55:00.260 - 00:55:02.260] I personally
+[00:55:02.260 - 00:55:04.260] it speaks to me
+[00:55:04.260 - 00:55:06.260] it really makes me understand
+[00:55:06.260 - 00:55:08.260] this style of the trade
+[00:55:08.260 - 00:55:10.260] it speaks to me very much
+[00:55:10.260 - 00:55:12.260] I feel much more confidence
+[00:55:12.260 - 00:55:14.260] in this trade
+[00:55:14.260 - 00:55:16.260] I will tell you that it's been 4 years
+[00:55:16.260 - 00:55:18.260] doing ICT
+[00:55:18.260 - 00:55:20.260] and it's clear that I would remember
+[00:55:20.260 - 00:55:22.260] and it went very well
+[00:55:22.260 - 00:55:24.260] in prices
+[00:55:24.260 - 00:55:26.260] in price action
+[00:55:26.260 - 00:55:28.260] I think it's just not
+[00:55:28.260 - 00:55:30.260] it's just a piece of paper
+[00:55:30.260 - 00:55:32.260] this work that I know
+[00:55:32.260 - 00:55:34.260] to say from the head where things are
+[00:55:34.260 - 00:55:36.260] to where it's going
+[00:55:36.260 - 00:55:38.260] and above all
+[00:55:38.260 - 00:55:40.260] the small stoppies
+[00:55:40.260 - 00:55:42.260] and the big tippies
+[00:55:42.260 - 00:55:44.260] gives me a lot of support
+[00:55:44.260 - 00:55:46.260] to receive investments
+[00:55:46.260 - 00:55:48.260] to receive stoppies
+[00:55:48.260 - 00:55:50.260] because I know in my head that it's enough
+[00:55:50.260 - 00:55:52.260] for me to be able to do this
+[00:55:52.260 - 00:55:54.260] because I was 29 or 400
+[00:55:54.260 - 00:55:56.260] thank you very much, I'm going to the sea
+[00:55:56.260 - 00:55:58.260] I figured out the plan
+[00:55:58.260 - 00:56:00.260] so
+[00:56:00.260 - 00:56:02.260] I want to do something that is related
+[00:56:02.260 - 00:56:04.260] to all my
+[00:56:04.260 - 00:56:06.260] strategy in Bookmap
+[00:56:06.260 - 00:56:08.260] and of course
+[00:56:08.260 - 00:56:10.260] it won't end here
+[00:56:10.260 - 00:56:12.260] I think you learned much better
+[00:56:12.260 - 00:56:14.260] how I use my strategy
+[00:56:14.260 - 00:56:16.260] in the coming months
+[00:56:16.260 - 00:56:18.260] the strategy in Bookmap
+[00:56:18.260 - 00:56:20.260] is very very simple
+[00:56:20.260 - 00:56:22.260] I want to see
+[00:56:22.260 - 00:56:24.260] CVD
+[00:56:24.260 - 00:56:26.260] I want to see the overall direction
+[00:56:26.260 - 00:56:28.260] where the big tippies are
+[00:56:28.260 - 00:56:30.260] if I'm a bullish
+[00:56:30.260 - 00:56:32.260] and there are big tippies
+[00:56:32.260 - 00:56:34.260] if I'm a bearish in CVD
+[00:56:34.260 - 00:56:36.260] and there are tippies under the tippies
+[00:56:36.260 - 00:56:38.260] I'll tell you more than that
+[00:56:38.260 - 00:56:40.260] I can create a graph of tippies
+[00:56:40.260 - 00:56:42.260] and see if there's a problem
+[00:56:42.260 - 00:56:44.260] that helps me to look at what I see in Bookmap
+[00:56:44.260 - 00:56:46.260] it's also an issue
+[00:56:46.260 - 00:56:48.260] after I got the idea
+[00:56:48.260 - 00:56:50.260] what I want to do to get it to happen
+[00:56:50.260 - 00:56:52.260] I want to see a graph
+[00:56:52.260 - 00:56:54.260] that happens in
+[00:56:54.260 - 00:56:56.260] a block
+[00:56:56.260 - 00:56:58.260] a block with a lot of passives
+[00:56:58.260 - 00:57:00.260] why? because I know
+[00:57:00.260 - 00:57:02.260] there will be a very big tippies
+[00:57:02.260 - 00:57:04.260] from this block to continue
+[00:57:04.260 - 00:57:06.260] a very very dramatic process
+[00:57:06.260 - 00:57:08.260] after I got
+[00:57:08.260 - 00:57:10.260] the graph from the block
+[00:57:10.260 - 00:57:12.260] I want to start to see a graph
+[00:57:12.260 - 00:57:14.260] as we saw
+[00:57:14.260 - 00:57:16.260] I want to start to see them
+[00:57:16.260 - 00:57:18.260] passives
+[00:57:18.260 - 00:57:20.260] as well as here
+[00:57:20.260 - 00:57:22.260] as well as here
+[00:57:22.260 - 00:57:24.260] now the tippies are these that are sterile
+[00:57:24.260 - 00:57:26.260] you see that the tippies are sterile
+[00:57:26.260 - 00:57:28.260] here we are also on this block
+[00:57:28.260 - 00:57:30.260] so for example
+[00:57:30.260 - 00:57:32.260] for example if I was
+[00:57:32.260 - 00:57:34.260] with CVD, a rock, a bullish bias
+[00:57:34.260 - 00:57:36.260] and I wanted to buy
+[00:57:36.260 - 00:57:38.260] I could do a limit
+[00:57:38.260 - 00:57:40.260] stop B
+[00:57:40.260 - 00:57:42.260] 285
+[00:57:42.260 - 00:57:44.260] 10 points from below all these blocks
+[00:57:44.260 - 00:57:46.260] and to the root
+[00:57:46.260 - 00:57:48.260] and to the root
+[00:57:48.260 - 00:57:50.260] now I don't know if it's a success
+[00:57:50.260 - 00:57:52.260] I'm just saying
+[00:57:52.260 - 00:57:54.260] it seems that the customers here are all
+[00:57:54.260 - 00:57:56.260] selling at the moment
+[00:57:56.260 - 00:57:58.260] but also at the right time
+[00:57:58.260 - 00:58:00.260] the price with a stop B285
+[00:58:00.260 - 00:58:02.260] is still not enough
+[00:58:02.260 - 00:58:04.260] you see I'm talking about 10 stops in Nasdaq
+[00:58:04.260 - 00:58:06.260] ok it's not a success
+[00:58:06.260 - 00:58:08.260] now we have 400
+[00:58:08.260 - 00:58:10.260] the customers at the moment are giving
+[00:58:10.260 - 00:58:12.260] so
+[00:58:12.260 - 00:58:14.260] I'm going to stop here
+[00:58:14.260 - 00:58:16.260] so I'm telling you that the CVD
+[00:58:16.260 - 00:58:18.260] is not always a bullish bias
+[00:58:18.260 - 00:58:20.260] ok
+[00:58:20.260 - 00:58:22.260] I also need to understand
+[00:58:22.260 - 00:58:24.260] who is the most aggressive side
+[00:58:24.260 - 00:58:26.260] and that's why I told you
+[00:58:26.260 - 00:58:28.260] that sometimes I need to go back to the root
+[00:58:28.260 - 00:58:30.260] and a little bit to see
+[00:58:30.260 - 00:58:32.260] ok it's cool
+[00:58:32.260 - 00:58:34.260] see what happened here not for a long time
+[00:58:34.260 - 00:58:36.260] we have a lot of customers
+[00:58:36.260 - 00:58:38.260] with a 7000 billion points
+[00:58:38.260 - 00:58:40.260] there's no point in the CVD
+[00:58:40.260 - 00:58:42.260] not with us
+[00:58:42.260 - 00:58:44.260] I need to focus more on the root
+[00:58:44.260 - 00:58:46.260] I see a very big market
+[00:58:46.260 - 00:58:48.260] very very big market
+[00:58:48.260 - 00:58:50.260] and from there
+[00:58:50.260 - 00:58:52.260] after I got my direction
+[00:58:52.260 - 00:58:54.260] and I noticed a bigger block
+[00:58:54.260 - 00:58:56.260] I just want to turn off the gig
+[00:58:56.260 - 00:58:58.260] I want to turn off the gig
+[00:58:58.260 - 00:59:00.260] in a certain block
+[00:59:00.260 - 00:59:02.260] a stop of 10 points
+[00:59:02.260 - 00:59:04.260] below the block I entered
+[00:59:04.260 - 00:59:06.260] from it
+[00:59:06.260 - 00:59:08.260] and that's it
+[00:59:08.260 - 00:59:10.260] I just want to turn off the gig
+[00:59:10.260 - 00:59:12.260] let's do
+[00:59:12.260 - 00:59:14.260] maybe
+[00:59:14.260 - 00:59:16.260] together
+[00:59:16.260 - 00:59:18.260] to turn off the gig
+[00:59:18.260 - 00:59:20.260] let's go to London
+[00:59:20.260 - 00:59:24.730] here is the London Session
+[00:59:24.730 - 00:59:26.730] 2 am in New York
+[00:59:26.730 - 00:59:28.730] London sorry
+[00:59:28.730 - 00:59:30.730] New York, what do I have
+[00:59:30.730 - 00:59:32.730] 2 am in New York
+[00:59:32.730 - 00:59:34.730] let's turn off the gig
+[00:59:36.730 - 00:59:38.730] oh wow
+[00:59:38.730 - 00:59:40.730] amazing, the CVD here at 1100
+[00:59:40.730 - 00:59:42.730] 1100
+[00:59:42.730 - 00:59:44.730] it's very very big, it's a huge rock
+[00:59:44.730 - 00:59:46.730] it means that even if I'm behind
+[00:59:46.730 - 00:59:48.730] the CVD is already pretty big
+[00:59:48.730 - 00:59:50.730] let's turn it off
+[00:59:50.730 - 00:59:52.730] here
+[00:59:52.730 - 00:59:54.730] 3
+[00:59:54.730 - 00:59:56.730] strong waves
+[00:59:56.730 - 00:59:58.730] of steel
+[00:59:58.730 - 01:00:00.730] that from there we just turned to the other side
+[01:00:00.730 - 01:00:02.730] so it seems that the current waves
+[01:00:02.730 - 01:00:04.730] are these waves
+[01:00:04.730 - 01:00:06.730] there is
+[01:00:06.730 - 01:00:08.730] here this wave
+[01:00:08.730 - 01:00:10.730] again it's not a wave
+[01:00:10.730 - 01:00:12.730] it's just a block that we encountered
+[01:00:12.730 - 01:00:14.730] and from there
+[01:00:14.730 - 01:00:16.730] there are waves
+[01:00:16.730 - 01:00:18.730] but I will continue to look at the CVD
+[01:00:18.730 - 01:00:20.730] which is a wave at 1100
+[01:00:20.730 - 01:00:22.730] and I want to see
+[01:00:22.730 - 01:00:24.730] this London Session
+[01:00:24.730 - 01:00:26.730] so how do I want to see the London
+[01:00:26.730 - 01:00:28.730] we said we want to see a block
+[01:00:28.730 - 01:00:30.730] that we encountered
+[01:00:30.730 - 01:00:36.860] this could be very interesting
+[01:00:36.860 - 01:00:38.860] I want to see a block that we encountered
+[01:00:38.860 - 01:00:40.860] let's turn it off
+[01:00:40.860 - 01:00:44.230] what do you think
+[01:00:44.230 - 01:00:49.240] and now
+[01:00:49.240 - 01:00:52.780] it's good
+[01:00:52.780 - 01:00:54.780] did you see it?
+[01:00:54.780 - 01:00:56.780] it was also from the block
+[01:00:56.780 - 01:00:58.780] to be honest but did we manage to break the blocks
+[01:00:58.780 - 01:01:00.780] of the waves
+[01:01:00.780 - 01:01:02.780] no, did we see that there is the CVD
+[01:01:02.780 - 01:01:04.780] of the waves with big waves
+[01:01:04.780 - 01:01:06.780] no, did we see
+[01:01:06.780 - 01:01:08.780] the wave wave and the wave of waves
+[01:01:08.780 - 01:01:10.780] from below
+[01:01:10.780 - 01:01:12.780] no, so I don't know what to do
+[01:01:12.780 - 01:01:14.780] I need to fix it
+[01:01:14.780 - 01:01:16.780] I need to fix it
+[01:01:16.780 - 01:01:18.780] or
+[01:01:18.780 - 01:01:20.780] it seems
+[01:01:20.780 - 01:01:26.710] it started well
+[01:01:26.710 - 01:01:28.710] or
+[01:01:28.710 - 01:01:30.710] that's what I want to see
+[01:01:30.710 - 01:01:32.710] did you see it?
+[01:01:32.710 - 01:01:34.710] you encountered the block
+[01:01:34.710 - 01:01:36.710] the wave wave
+[01:01:36.710 - 01:01:38.710] with big waves
+[01:01:38.710 - 01:01:40.710] and with big waves
+[01:01:40.710 - 01:01:42.710] we could break this block
+[01:01:42.710 - 01:01:44.710] and it looks like a wave wave
+[01:01:44.710 - 01:01:51.060] maybe it's time to turn it off
+[01:01:51.060 - 01:01:53.060] really
+[01:01:53.060 - 01:01:55.060] really
+[01:01:55.060 - 01:01:57.060] the most important thing that can be seen
+[01:01:57.060 - 01:01:59.060] is that the waves start breaking the blocks
+[01:01:59.060 - 01:02:01.060] from the market and there is a wave wave
+[01:02:01.060 - 01:02:03.060] of waves
+[01:02:03.060 - 01:02:06.570] so let's see what happened there
+[01:02:06.570 - 01:02:08.570] here is the wave wave
+[01:02:08.570 - 01:02:10.570] we entered this block
+[01:02:10.570 - 01:02:27.350] and here
+[01:02:27.350 - 01:02:29.350] it didn't happen to me
+[01:02:29.350 - 01:02:31.350] I didn't see anything that needs to be fixed
+[01:02:31.350 - 01:02:33.350] again, you see
+[01:02:33.350 - 01:02:35.350] that it happens
+[01:02:35.350 - 01:02:37.350] we see it together
+[01:02:37.350 - 01:02:39.350] you suddenly see this wave wave
+[01:02:39.350 - 01:02:41.350] and the CVD wave of waves
+[01:02:41.350 - 01:02:43.350] that's what we're looking for
+[01:02:43.350 - 01:02:45.350] just a moment
+[01:02:45.350 - 01:02:47.350] it's going to break here
+[01:02:47.350 - 01:02:56.840] again it's going to be a wave wave
+[01:02:56.840 - 01:02:58.840] again we encountered a block
+[01:02:58.840 - 01:03:00.840] but still I don't see the wave wave
+[01:03:00.840 - 01:03:02.840] or
+[01:03:02.840 - 01:03:04.840] wave wave
+[01:03:04.840 - 01:03:06.840] now I would have a limit of 3.5
+[01:03:06.840 - 01:03:11.820] it could be a great setup
+[01:03:11.820 - 01:03:13.820] you see, it didn't even get to my limit
+[01:03:13.820 - 01:03:15.820] oh, it got to the limit
+[01:03:15.820 - 01:03:17.820] boom
+[01:03:17.820 - 01:03:19.820] 3.5, we're already at 3.15
+[01:03:19.820 - 01:03:21.820] it means that we're already
+[01:03:21.820 - 01:03:23.820] at a level of 10 points
+[01:03:23.820 - 01:03:25.820] with a lot of market points
+[01:03:25.820 - 01:03:27.820] it's possible to move forward here to break even
+[01:03:27.820 - 01:03:29.820] let's continue with this
+[01:03:29.820 - 01:03:37.770] let's continue with this
+[01:03:37.770 - 01:03:49.370] let's continue with this
+[01:03:49.370 - 01:03:51.370] non-don't session, it's a shorter session
+[01:03:51.370 - 01:03:53.370] but it's difficult
+[01:03:53.370 - 01:03:55.370] so we entered 3.5
+[01:03:55.370 - 01:03:57.370] let's say a stop of 10 points
+[01:03:57.370 - 01:03:59.370] so at 9.5
+[01:03:59.370 - 01:04:01.370] you see that we weren't even close
+[01:04:01.370 - 01:04:03.370] to 9.5
+[01:04:03.370 - 01:04:05.370] and we already reached 9.30
+[01:04:05.370 - 01:04:07.370] it means that we were already at
+[01:04:07.370 - 01:04:09.370] 25 points in profit
+[01:04:09.370 - 01:04:11.370] there are a lot of market points here
+[01:04:11.370 - 01:04:13.370] let's see if we really have to
+[01:04:13.370 - 01:04:15.370] reach a big block at 3.60
+[01:04:15.370 - 01:04:17.370] and this setup would have been a full take
+[01:04:17.370 - 01:04:19.370] last time I mentioned
+[01:04:19.370 - 01:04:21.370] it's a non-don't session
+[01:04:21.370 - 01:04:23.370] it's a session that we need to work with
+[01:04:23.370 - 01:04:25.370] in the New York area
+[01:04:25.370 - 01:04:29.100] and especially in the Scalp area
+[01:04:29.100 - 01:04:31.100] like this one
+[01:04:31.100 - 01:04:33.100] we're already at a break even
+[01:04:33.100 - 01:04:35.100] at 3.5
+[01:04:35.100 - 01:04:37.100] if we move to the end of the line
+[01:04:37.100 - 01:04:39.100] at the end of the line
+[01:04:39.100 - 01:04:41.100] it looks really good
+[01:04:41.100 - 01:04:43.100] look at the end here
+[01:04:43.100 - 01:04:50.630] look at the end of the line
+[01:04:50.630 - 01:04:52.630] it's still not reaching 3.5
+[01:04:52.630 - 01:04:57.930] our break is still at 3.5
+[01:04:57.930 - 01:05:01.560] we still haven't done it
+[01:05:01.560 - 01:05:03.560] last time it reached
+[01:05:03.560 - 01:05:05.560] 3.5
+[01:05:05.560 - 01:05:07.560] ok, we were at a break even
+[01:05:07.560 - 01:05:09.560] another time it's a London session
+[01:05:09.560 - 01:05:11.560] we don't have a lot of chips from London
+[01:05:11.560 - 01:05:13.560] even though I'm telling you again
+[01:05:13.560 - 01:05:15.560] you can choose it every hour of the day
+[01:05:15.560 - 01:05:17.560] the favorite is New York Minastem
+[01:05:17.560 - 01:05:19.560] let's understand what happened
+[01:05:19.560 - 01:05:21.560] so we met another block at 3.30
+[01:05:21.560 - 01:05:23.560] that the customers
+[01:05:23.560 - 01:05:25.560] went crazy for their money
+[01:05:25.560 - 01:05:27.560] the CVD is still a rock
+[01:05:27.560 - 01:05:29.560] so it means that it can be very useful
+[01:05:29.560 - 01:05:31.560] that we really look at your situation
+[01:05:31.560 - 01:05:33.560] again, this is the reason why you're
+[01:05:33.560 - 01:05:35.560] in a break even if you're in a hurry
+[01:05:35.560 - 01:05:37.560] and you understand that everything is fine
+[01:05:37.560 - 01:05:39.560] you're at a break, even if you were
+[01:05:39.560 - 01:05:41.560] at a stop for about $500
+[01:05:41.560 - 01:05:43.560] I'm telling you, the good thing is that
+[01:05:43.560 - 01:05:45.560] you're in a hurry
+[01:05:45.560 - 01:05:47.560] which is 1 to 10
+[01:05:47.560 - 01:05:49.560] and you understand
+[01:05:49.560 - 01:05:51.560] you understand the value of this strategy
+[01:05:51.560 - 01:05:53.560] so here too
+[01:05:53.560 - 01:05:55.560] it's live
+[01:05:55.560 - 01:05:57.560] it can also be a great try
+[01:05:57.560 - 01:05:59.560] to use these places
+[01:05:59.560 - 01:06:01.560] again, I didn't notice
+[01:06:01.560 - 01:06:03.560] what happened in this area
+[01:06:03.560 - 01:06:05.560] I didn't notice if there was a loud block
+[01:06:05.560 - 01:06:07.560] but in general
+[01:06:07.560 - 01:06:09.560] I would continue to look
+[01:06:09.560 - 01:06:11.560] for a 360 area
+[01:06:11.560 - 01:06:13.560] here too, in this area
+[01:06:13.560 - 01:06:15.560] even though
+[01:06:15.560 - 01:06:17.560] the customers here are very busy
+[01:06:17.560 - 01:06:23.340] we want to see
+[01:06:23.340 - 01:06:25.340] as I told you
+[01:06:25.340 - 01:06:27.340] the feeling of the block
+[01:06:27.340 - 01:06:29.340] here wasn't a block
+[01:06:29.340 - 01:06:31.340] I think the block is here
+[01:06:31.340 - 01:06:33.340] these are the areas that we want to see
+[01:06:33.340 - 01:06:35.340] in these areas
+[01:06:35.340 - 01:06:42.490] 260
+[01:06:42.490 - 01:06:44.490] you see your customers live
+[01:06:44.490 - 01:06:46.490] that's what I want you to look at
+[01:06:46.490 - 01:06:48.490] in your accounts and you see me taking
+[01:06:48.490 - 01:06:50.490] a live session
+[01:06:50.490 - 01:06:52.490] that's what I want you to see
+[01:06:52.490 - 01:06:54.490] happening
+[01:06:54.490 - 01:06:56.490] live meetings, it's the best
+[01:06:56.490 - 01:06:58.490] it means that they really want
+[01:06:58.490 - 01:07:00.490] to stop this area
+[01:07:00.490 - 01:07:02.490] and not let it pass
+[01:07:02.490 - 01:07:04.490] they want to save it
+[01:07:04.490 - 01:07:06.490] for 360, I remind you
+[01:07:06.490 - 01:07:10.540] our block
+[01:07:10.540 - 01:07:14.040] let's see if it works
+[01:07:14.040 - 01:07:16.040] in the end
+[01:07:16.040 - 01:07:18.040] so if we want to continue
+[01:07:18.040 - 01:07:20.040] we could go here
+[01:07:20.040 - 01:07:24.280] here
+[01:07:24.280 - 01:07:26.280] again, it was in London
+[01:07:26.280 - 01:07:28.280] that this session would end
+[01:07:28.280 - 01:07:30.280] so you see that the momentum here
+[01:07:30.280 - 01:07:32.280] would end for two seconds
+[01:07:32.280 - 01:07:34.280] up and down
+[01:07:34.280 - 01:07:36.280] in New York
+[01:07:36.280 - 01:07:38.280] when you do this
+[01:07:38.280 - 01:07:40.280] the setup that you took here
+[01:07:40.280 - 01:07:42.280] would go to heaven
+[01:07:42.280 - 01:07:44.280] this is the reason I work with New York
+[01:07:44.280 - 01:07:46.280] because it's a session with a volume
+[01:07:48.280 - 01:07:50.280] ok, it looks simple
+[01:07:50.280 - 01:07:52.280] let's do it
+[01:07:52.280 - 01:07:54.280] I think
+[01:07:54.280 - 01:07:56.280] in the end
+[01:07:56.280 - 01:07:58.280] they managed to get to 360
+[01:07:58.280 - 01:08:00.280] here is a new area
+[01:08:00.280 - 01:08:02.280] maybe it was built in 45
+[01:08:02.280 - 01:08:14.940] times
+[01:08:14.940 - 01:08:16.940] wow, it goes up to 45
+[01:08:16.940 - 01:08:18.940] 682
+[01:08:18.940 - 01:08:20.940] points
+[01:08:20.940 - 01:08:22.940] let's see what happens
+[01:08:22.940 - 01:08:24.940] from 345
+[01:08:24.940 - 01:08:28.500] here is the block
+[01:08:28.500 - 01:08:33.060] we met this block
+[01:08:33.060 - 01:08:44.760] we also met 360
+[01:08:44.760 - 01:08:46.760] by the way
+[01:08:46.760 - 01:08:48.760] it's not a big deal
+[01:08:48.760 - 01:08:50.760] let's go back to the photo
+[01:08:50.760 - 01:08:52.760] I want to see it come here
+[01:08:52.760 - 01:08:54.760] it will continue to break
+[01:08:54.760 - 01:08:58.140] wow
+[01:08:58.140 - 01:09:07.240] ok, very good
+[01:09:07.240 - 01:09:09.240] I think I will go here to New York
+[01:09:09.240 - 01:09:11.240] that you can see a little bit in New York
+[01:09:11.240 - 01:09:13.240] the momentum and the momentum together
+[01:09:13.240 - 01:09:15.240] but you turn left again
+[01:09:15.240 - 01:09:17.240] you turn left to the right
+[01:09:17.240 - 01:09:19.240] we know exactly where the wave
+[01:09:19.240 - 01:09:21.240] is going
+[01:09:21.240 - 01:09:23.240] it's a little bit of a mess here
+[01:09:23.240 - 01:09:25.240] and we know exactly where
+[01:09:25.240 - 01:09:27.240] the wave is going
+[01:09:27.240 - 01:09:29.240] a little bit from 360
+[01:09:29.240 - 01:09:31.240] 360
+[01:09:31.240 - 01:09:33.240] ok, here is a sweep
+[01:09:33.240 - 01:09:35.240] it's a sweep that you can see in the graphics
+[01:09:35.240 - 01:09:37.240] that's how you see it now
+[01:09:37.240 - 01:09:39.240] so this is the sweep
+[01:09:39.240 - 01:09:41.240] let's go to the SuperMayer area
+[01:09:41.240 - 01:09:43.240] to New York
+[01:09:43.240 - 01:09:45.240] there is even more of it
+[01:09:45.240 - 01:09:51.430] wait, I have an idea
+[01:09:51.430 - 01:09:53.430] I have an idea
+[01:09:53.430 - 01:09:55.430] and I will go
+[01:09:55.430 - 01:09:57.430] ok, it's 8.30
+[01:09:57.430 - 01:09:59.430] 3.30 in Israel
+[01:09:59.430 - 01:10:01.430] it's already good hours
+[01:10:01.430 - 01:10:05.000] also good hours
+[01:10:05.000 - 01:10:07.000] as I said
+[01:10:07.000 - 01:10:09.000] you can use it in every session
+[01:10:09.000 - 01:10:11.000] the session is a little bit different
+[01:10:11.000 - 01:10:13.000] but like every mention
+[01:10:13.000 - 01:10:15.000] that it is
+[01:10:15.000 - 01:10:17.000] let's say that New York
+[01:10:17.000 - 01:10:19.000] is much, much better
+[01:10:19.000 - 01:10:21.000] ok, I passed a little bit of a sweep
+[01:10:21.000 - 01:10:23.000] but if I
+[01:10:23.000 - 01:10:25.000] without any connection to what I passed
+[01:10:25.000 - 01:10:27.000] put it in front of New York
+[01:10:27.000 - 01:10:29.000] we broke the sweep
+[01:10:29.000 - 01:10:31.000] CVD
+[01:10:31.000 - 01:10:33.000] 3,700
+[01:10:33.000 - 01:10:35.000] so what do I need to save
+[01:10:35.000 - 01:10:37.000] Long
+[01:10:37.000 - 01:10:39.000] I want to use
+[01:10:39.000 - 01:10:41.000] Long
+[01:10:41.000 - 01:10:43.000] so let's see if I can use
+[01:10:43.000 - 01:10:48.300] some block here
+[01:10:48.300 - 01:10:50.300] some block here
+[01:10:50.300 - 01:10:52.300] that you can
+[01:10:52.300 - 01:10:54.300] use
+[01:10:54.300 - 01:10:56.300] for Long
+[01:10:56.300 - 01:10:58.300] ok, we broke this block
+[01:10:58.300 - 01:11:00.300] of the sweep, it's also pretty good
+[01:11:00.300 - 01:11:04.300] put some
+[01:11:04.300 - 01:11:10.870] sweep
+[01:11:10.870 - 01:11:12.870] put it in the sweep
+[01:11:12.870 - 01:11:14.870] and it's a live session
+[01:11:14.870 - 01:11:16.870] what happened from there
+[01:11:16.870 - 01:11:21.110] it's bad
+[01:11:21.110 - 01:11:23.110] but it's really
+[01:11:23.110 - 01:11:25.110] the first 10 minutes of the session
+[01:11:25.110 - 01:11:27.110] so it's very, very, very bad
+[01:11:27.110 - 01:11:29.110] ok, so don't worry
+[01:11:29.110 - 01:11:31.110] you won't succeed in breaking the sweep
+[01:11:31.110 - 01:11:33.110] let's see
+[01:11:33.110 - 01:11:39.210] we're close to the right side
+[01:11:39.210 - 01:11:41.210] put some block here
+[01:11:41.210 - 01:11:44.840] let's see what goes here
+[01:11:44.840 - 01:11:46.840] it's a good help
+[01:11:46.840 - 01:11:48.840] a good help, also this block
+[01:11:48.840 - 01:11:50.840] for long sweep
+[01:11:50.840 - 01:11:52.840] and it's pretty good
+[01:11:52.840 - 01:11:54.840] ok, let's put it in the CVD
+[01:11:54.840 - 01:11:56.840] then the CVD
+[01:11:56.840 - 01:11:58.840] the long sweep, 3,300
+[01:11:58.840 - 01:12:00.840] we just need to
+[01:12:00.840 - 01:12:02.840] put it in this way
+[01:12:02.840 - 01:12:04.840] nothing else
+[01:12:04.840 - 01:12:06.840] boom, put the sweep
+[01:12:06.840 - 01:12:08.840] that was here
+[01:12:08.840 - 01:12:10.840] and we want to see the beginning
+[01:12:10.840 - 01:12:12.840] of the sweep
+[01:12:12.840 - 01:12:14.840] great
+[01:12:14.840 - 01:12:16.840] great, put it in the sweep
+[01:12:16.840 - 01:12:18.840] it's better
+[01:12:18.840 - 01:12:20.840] that's great
+[01:12:20.840 - 01:12:22.840] this is great
+[01:12:22.840 - 01:12:24.840] 35, with a stop
+[01:12:24.840 - 01:12:29.270] 25
+[01:12:29.270 - 01:12:33.860] great, 35 here
+[01:12:33.860 - 01:12:35.860] if it breaks these two blocks
+[01:12:35.860 - 01:12:37.860] wow, it could be more annoying
+[01:12:37.860 - 01:12:39.860] for long sweep
+[01:12:39.860 - 01:12:47.690] great, stop here
+[01:12:47.690 - 01:12:49.690] in the break
+[01:12:49.690 - 01:12:51.690] 35
+[01:12:51.690 - 01:12:53.690] 35 blocks
+[01:12:53.690 - 01:12:55.690] it's already 1 to 3
+[01:12:55.690 - 01:12:57.690] and
+[01:12:57.690 - 01:12:59.690] we can
+[01:12:59.690 - 01:13:01.690] think about these areas
+[01:13:01.690 - 01:13:03.690] or maybe go to a smaller area
+[01:13:03.690 - 01:13:07.450] but
+[01:13:07.450 - 01:13:09.450] that's the story
+[01:13:09.450 - 01:13:11.450] that's the drill, did you see where we are
+[01:13:11.450 - 01:13:13.450] 35
+[01:13:13.450 - 01:13:15.450] for us it's 85
+[01:13:15.450 - 01:13:17.450] it's 50 blocks, with a stop of 10
+[01:13:17.450 - 01:13:19.450] it's 1 to 5
+[01:13:19.450 - 01:13:21.450] 35 is our limit
+[01:13:21.450 - 01:13:23.450] stop of 25
+[01:13:23.450 - 01:13:25.450] I'm already at 400
+[01:13:25.450 - 01:13:27.450] yes
+[01:13:27.450 - 01:13:29.450] do you understand the R?
+[01:13:29.450 - 01:13:34.490] and from there
+[01:13:34.490 - 01:13:36.490] again
+[01:13:36.490 - 01:13:38.490] the sky is huge
+[01:13:38.490 - 01:13:40.490] really the sky is huge
+[01:13:40.490 - 01:13:42.490] in most of the time
+[01:13:42.490 - 01:13:44.490] I will explain more about this
+[01:13:44.490 - 01:13:46.490] how I really like these blocks
+[01:13:46.490 - 01:13:48.490] these are friends
+[01:13:48.490 - 01:13:50.490] this is all about the strategy
+[01:13:50.490 - 01:13:52.490] I might
+[01:13:52.490 - 01:13:54.490] make one more video
+[01:13:54.490 - 01:13:56.490] but really
+[01:13:56.490 - 01:13:58.490] great
+[01:13:58.490 - 01:14:00.490] I think you will learn the best
+[01:14:00.490 - 01:14:02.490] of my life
+[01:14:02.490 - 01:14:04.490] and you will see
+[01:14:04.490 - 01:14:06.490] that it's really easy
+[01:14:06.490 - 01:14:08.490] right? because
+[01:14:08.490 - 01:14:10.490] here the set up is more
+[01:14:10.490 - 01:14:12.490] with a stop
+[01:14:12.490 - 01:14:14.490] so what to do
+[01:14:14.490 - 01:14:16.490] sometimes it's a break even
+[01:14:16.490 - 01:14:18.490] but it doesn't change
+[01:14:18.490 - 01:14:20.490] once a week
+[01:14:20.490 - 01:14:22.490] a break
+[01:14:22.490 - 01:14:24.490] 1 to 8, 1 to 9, 1 to 10
+[01:14:24.490 - 01:14:27.930] you always need the same week
+[01:14:27.930 - 01:14:29.930] you always need
+[01:14:29.930 - 01:14:31.930] you know how many blocks you need to break
+[01:14:31.930 - 01:14:33.930] you know how many blocks you need to break
+[01:14:33.930 - 01:14:35.930] after you take
+[01:14:35.930 - 01:14:37.930] 1 to 10
+[01:14:37.930 - 01:14:39.930] ok
+[01:14:39.930 - 01:14:41.930] you need 10 times to break
+[01:14:41.930 - 01:14:45.690] to break is the same
+[01:14:45.690 - 01:14:47.690] friends
+[01:14:47.690 - 01:14:49.690] it wasn't easy
+[01:14:49.690 - 01:14:51.690] I'm sure it will be easy
+[01:14:51.690 - 01:14:53.690] I know that at the beginning
+[01:14:53.690 - 01:14:55.690] I was there too
+[01:14:55.690 - 01:14:57.690] one of the reasons I didn't go to this world
+[01:14:57.690 - 01:14:59.690] is because of this
+[01:14:59.690 - 01:15:01.690] I didn't understand what was happening here
+[01:15:01.690 - 01:15:03.690] see this video again
+[01:15:03.690 - 01:15:05.690] and again, listen to what I said
+[01:15:05.690 - 01:15:07.690] what I did here
+[01:15:07.690 - 01:15:09.690] and as I said before
+[01:15:09.690 - 01:15:11.690] in the next session
+[01:15:11.690 - 01:15:13.690] it will be much easier
+[01:15:13.690 - 01:15:15.690] see you in the next videos

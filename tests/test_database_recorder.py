@@ -202,6 +202,7 @@ def test_session_recorder_writes_unique_session_manifest_events_and_parquet(tmp_
     )
     recorder.record_control_event({"type": "realtime_started", "timestamp_ns": timestamp_ns + 2})
     recorder.record_control_event({"type": "session_ended", "timestamp_ns": timestamp_ns + 3})
+    recorder.flush()
 
     session_dir = tmp_path / "2026-07-10" / "session_20260710T143000Z"
     assert recorder.session_dir == session_dir
@@ -288,3 +289,56 @@ def _timestamp_ns(year: int, month: int, day: int, hour: int, minute: int) -> in
 
 def _rows(path: Path) -> list[dict[str, object]]:
     return pq.read_table(path).to_pylist()
+
+
+def test_session_recorder_flush_makes_buffered_rows_readable(tmp_path: Path) -> None:
+    """Buffered rows are not on disk until flush; flush writes them all."""
+    start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
+    recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    base_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+
+    for index in range(50):
+        recorder.record(
+            {
+                "type": "depth_update",
+                "timestamp": base_ns + index,
+                "symbol": "MNQ",
+                "side": "bid",
+                "price": "100.00",
+                "previous_size": "0",
+                "new_size": str(index + 1),
+            },
+        )
+
+    # Below the flush threshold: nothing written yet.
+    assert not recorder.depth_path.exists()
+
+    recorder.flush()
+    assert len(_rows(recorder.depth_path)) == 50
+
+
+def test_session_recorder_batches_large_streams_without_reread(tmp_path: Path) -> None:
+    """A large stream records all rows and auto-flushes past the threshold."""
+    from app.database.recorder import PARQUET_FLUSH_THRESHOLD
+
+    start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
+    recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    base_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+
+    total = PARQUET_FLUSH_THRESHOLD * 3 + 7
+    for index in range(total):
+        recorder.record(
+            {
+                "type": "depth_update",
+                "timestamp": base_ns + index,
+                "symbol": "MNQ",
+                "side": "bid",
+                "price": "100.00",
+                "previous_size": "0",
+                "new_size": str((index % 90) + 1),
+            },
+        )
+    recorder.finalize(clean_shutdown=True)
+
+    assert recorder.depth_updates == total
+    assert len(_rows(recorder.depth_path)) == total

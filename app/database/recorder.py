@@ -21,6 +21,9 @@ from bookmap_addon.events import (
 
 NANOSECONDS_PER_SECOND = 1_000_000_000
 RECEIVER_VERSION = "0.1.0"
+# Buffered rows per Parquet partition before a batched flush. Batching turns
+# the recorder's per-event whole-file rewrite from O(n^2) into amortized O(n).
+PARQUET_FLUSH_THRESHOLD = 500
 
 DEPTH_SCHEMA = pa.schema(
     [
@@ -115,6 +118,8 @@ class MarketSessionRecorder:
     continuity_status: str = field(init=False, default="continuous")
     clean_shutdown: bool = field(init=False, default=False)
     finalized: bool = field(init=False, default=False)
+    _depth_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
+    _trade_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
     utc_end: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
@@ -127,6 +132,10 @@ class MarketSessionRecorder:
         session_dir.mkdir(parents=True, exist_ok=False)
         self.session_dir = session_dir
         self.session_id = session_dir.name
+        # Pending rows are buffered and flushed in batches (see the buffer
+        # fields above). Rewriting the whole parquet on every event was O(n^2)
+        # and dropped ~97% of a live MNQ feed once the file grew large;
+        # batching makes recording keep up.
         self._write_manifest()
 
     @property
@@ -150,21 +159,47 @@ class MarketSessionRecorder:
         return self.session_dir / "session_manifest.json"
 
     def record(self, event: Mapping[str, object]) -> Path:
-        """Append one raw market event into this session and update the manifest."""
+        """Buffer one raw market event; flushed to Parquet in batches.
+
+        Rows land on disk when a buffer reaches ``PARQUET_FLUSH_THRESHOLD``
+        or on :meth:`flush`/:meth:`finalize`. Call :meth:`flush` before
+        reading a partition mid-session.
+        """
         normalized_event = normalize_market_event(event)
         event_kind = market_event_kind(normalized_event)
         if event_kind == "depth":
-            _append_parquet(self.depth_path, DEPTH_SCHEMA, [_depth_row(normalized_event)])
+            self._depth_buffer.append(_depth_row(normalized_event))
             self.depth_updates += 1
             self.symbol = str(normalized_event["symbol"])
             output_path = self.depth_path
+            if len(self._depth_buffer) >= PARQUET_FLUSH_THRESHOLD:
+                self._flush_depth()
+                self._write_manifest()
         else:
-            _append_parquet(self.trades_path, TRADE_SCHEMA, [_trade_row(normalized_event)])
+            self._trade_buffer.append(_trade_row(normalized_event))
             self.trades += 1
             self.symbol = str(normalized_event["instrument"])
             output_path = self.trades_path
-        self._write_manifest()
+            if len(self._trade_buffer) >= PARQUET_FLUSH_THRESHOLD:
+                self._flush_trades()
+                self._write_manifest()
         return output_path
+
+    def flush(self) -> None:
+        """Write all buffered rows to their Parquet partitions."""
+        self._flush_depth()
+        self._flush_trades()
+        self._write_manifest()
+
+    def _flush_depth(self) -> None:
+        if self._depth_buffer:
+            _append_parquet(self.depth_path, DEPTH_SCHEMA, self._depth_buffer)
+            self._depth_buffer = []
+
+    def _flush_trades(self) -> None:
+        if self._trade_buffer:
+            _append_parquet(self.trades_path, TRADE_SCHEMA, self._trade_buffer)
+            self._trade_buffer = []
 
     def record_control_event(self, event: Mapping[str, object]) -> Path:
         """Append one Java bridge control event and update session metadata."""
@@ -183,6 +218,8 @@ class MarketSessionRecorder:
         """Finalize the session manifest after the WebSocket stream ends."""
         if self.finalized:
             return
+        self._flush_depth()
+        self._flush_trades()
         self.clean_shutdown = clean_shutdown
         if not clean_shutdown:
             self.continuity_status = reason or "incomplete"
