@@ -80,9 +80,18 @@ class MarketState:
         if side == "bid":
             bid_depth = _update_depth_side(self.bid_depth, price, new_size, reverse=True)
             ask_depth = self.ask_depth
+            # A live bid at this price proves no ask can rest strictly below
+            # it. Lossy feeds (dropped removal events) leave ghost levels that
+            # would otherwise produce an impossible negative-spread book;
+            # purge strictly-crossed levels while tolerating a briefly locked
+            # (bid == ask) market, which is real.
+            if new_size > Decimal("0"):
+                ask_depth = tuple(level for level in ask_depth if level.price >= price)
         else:
             bid_depth = self.bid_depth
             ask_depth = _update_depth_side(self.ask_depth, price, new_size, reverse=False)
+            if new_size > Decimal("0"):
+                bid_depth = tuple(level for level in bid_depth if level.price <= price)
 
         return _with_recalculated_book(
             replace(

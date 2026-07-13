@@ -184,3 +184,44 @@ def _depth_event(
         "previous_size": previous_size,
         "new_size": new_size,
     }
+
+
+def test_crossed_book_from_lossy_feed_self_heals() -> None:
+    """Ghost levels left by dropped removals are purged; spread never negative."""
+    state = MarketState()
+    for event in (
+        {"type": "depth_update", "timestamp": 1, "symbol": "MNQ", "side": "ask", "price": "29558.50", "previous_size": "0", "new_size": "5"},
+        {"type": "depth_update", "timestamp": 2, "symbol": "MNQ", "side": "bid", "price": "29557.00", "previous_size": "0", "new_size": "7"},
+        # Feed drops the ask removal, then a real bid arrives ABOVE the stale ask.
+        {"type": "depth_update", "timestamp": 3, "symbol": "MNQ", "side": "bid", "price": "29565.75", "previous_size": "0", "new_size": "3"},
+    ):
+        state = state.update(event)
+
+    assert state.best_bid == Decimal("29565.75")
+    assert state.best_ask is None or state.best_ask > state.best_bid
+    assert state.spread is None or state.spread > 0
+
+
+def test_crossed_book_repair_works_in_both_directions() -> None:
+    """A fresh ask below a stale bid purges the crossed bid levels too."""
+    state = MarketState()
+    for event in (
+        {"type": "depth_update", "timestamp": 1, "symbol": "MNQ", "side": "bid", "price": "29570.00", "previous_size": "0", "new_size": "5"},
+        {"type": "depth_update", "timestamp": 2, "symbol": "MNQ", "side": "ask", "price": "29560.00", "previous_size": "0", "new_size": "4"},
+    ):
+        state = state.update(event)
+
+    assert state.best_ask == Decimal("29560.00")
+    assert state.best_bid is None or state.best_bid < state.best_ask
+
+
+def test_zero_size_updates_do_not_trigger_book_repair() -> None:
+    """Removal events never purge the opposite side."""
+    state = MarketState()
+    for event in (
+        {"type": "depth_update", "timestamp": 1, "symbol": "MNQ", "side": "ask", "price": "29560.00", "previous_size": "0", "new_size": "4"},
+        {"type": "depth_update", "timestamp": 2, "symbol": "MNQ", "side": "bid", "price": "29565.00", "previous_size": "5", "new_size": "0"},
+    ):
+        state = state.update(event)
+
+    assert state.best_ask == Decimal("29560.00")

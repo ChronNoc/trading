@@ -22,7 +22,7 @@ public final class ForwarderSettings {
     public boolean allowAnySymbol = false;
 
     @Parameter(name = "Queue capacity", minimum = 100, maximum = 100000, step = 100)
-    public int queueCapacity = 10_000;
+    public int queueCapacity = 50_000;
 
     public ForwarderSettings() {
     }
