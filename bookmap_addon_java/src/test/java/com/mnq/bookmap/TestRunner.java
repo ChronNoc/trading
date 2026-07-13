@@ -229,7 +229,7 @@ public final class TestRunner {
         assertEquals(BridgeConfig.DEFAULT_ALLOWED_SYMBOL, settings.allowedSymbol, "default allowed symbol");
         assertFalse(settings.allowNonLoopback, "non-loopback default");
         assertFalse(settings.allowAnySymbol, "allow-any-symbol default");
-        assertEquals(10_000, settings.queueCapacity, "default queue capacity");
+        assertEquals(50_000, settings.queueCapacity, "default queue capacity");
         testsRun++;
     }
 
