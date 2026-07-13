@@ -1,0 +1,50 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-13T12:08:09.576724+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T12:08:09.576784+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T12:08:52.415859+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T12:08:52.431647+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-13T12:08:52.431666+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T12:08:52.433685+00:00"}
+{"component":"bookmap","message":"Bookmap replay stream detected","status":"replay_started","timestamp_utc":"2026-07-13T12:08:52.433704+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 630","status":"data_gap","timestamp_utc":"2026-07-13T12:09:39.688000+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:09:39.688013+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 630","status":"data_gap","timestamp_utc":"2026-07-13T12:09:40.198963+00:00"}
+{"component":"bookmap","message":"Bookmap live stream detected","status":"realtime_started","timestamp_utc":"2026-07-13T12:09:40.198973+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 630","status":"data_gap","timestamp_utc":"2026-07-13T12:09:43.259058+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 2071","status":"data_gap","timestamp_utc":"2026-07-13T12:09:44.898972+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:09:44.898990+00:00"}
+{"component":"learning","message":"daily learning summary written: data\\reports\\daily_learning\\2026-07-13\\daily_learning.md","status":"daily_summary","timestamp_utc":"2026-07-13T12:09:49.046875+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T12:09:49.051338+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 7480","status":"data_gap","timestamp_utc":"2026-07-13T12:09:49.052433+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:09:49.052443+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 7480","status":"data_gap","timestamp_utc":"2026-07-13T12:10:03.027924+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 7480","status":"data_gap","timestamp_utc":"2026-07-13T12:10:17.352955+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 7480","status":"data_gap","timestamp_utc":"2026-07-13T12:10:23.626984+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 8105","status":"data_gap","timestamp_utc":"2026-07-13T12:10:27.382292+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:27.382304+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 10389","status":"data_gap","timestamp_utc":"2026-07-13T12:10:32.230617+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:32.230627+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 10389","status":"data_gap","timestamp_utc":"2026-07-13T12:10:34.070912+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 12334","status":"data_gap","timestamp_utc":"2026-07-13T12:10:37.139963+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:37.139974+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 12334","status":"data_gap","timestamp_utc":"2026-07-13T12:10:41.576664+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 14153","status":"data_gap","timestamp_utc":"2026-07-13T12:10:42.283811+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:42.283822+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 15895","status":"data_gap","timestamp_utc":"2026-07-13T12:10:47.489389+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:47.489399+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 15895","status":"data_gap","timestamp_utc":"2026-07-13T12:10:50.329341+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 15895","status":"data_gap","timestamp_utc":"2026-07-13T12:10:52.231913+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 17145","status":"data_gap","timestamp_utc":"2026-07-13T12:10:52.508592+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:52.508602+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 18096","status":"data_gap","timestamp_utc":"2026-07-13T12:10:57.540233+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:10:57.540242+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 18299","status":"data_gap","timestamp_utc":"2026-07-13T12:11:02.967786+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:11:02.967796+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 18299","status":"data_gap","timestamp_utc":"2026-07-13T12:11:04.728326+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 18299","status":"data_gap","timestamp_utc":"2026-07-13T12:11:07.841284+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 21984","status":"data_gap","timestamp_utc":"2026-07-13T12:11:08.045312+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:11:08.045322+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 21984","status":"data_gap","timestamp_utc":"2026-07-13T12:11:11.111469+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 23769","status":"data_gap","timestamp_utc":"2026-07-13T12:11:13.349681+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:11:13.349690+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 24417","status":"data_gap","timestamp_utc":"2026-07-13T12:11:18.736342+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-13T12:11:18.736353+00:00"}

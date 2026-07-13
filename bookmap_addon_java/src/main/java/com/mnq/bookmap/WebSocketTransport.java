@@ -25,6 +25,34 @@ public final class WebSocketTransport implements JsonTransport {
                             webSocket.request(1);
                         }
 
+                        // Keep inbound demand alive: without re-requesting after
+                        // every received frame, the JDK client stops processing
+                        // server pings and the connection dies at ping-timeout.
+                        @Override
+                        public java.util.concurrent.CompletionStage<?> onPing(
+                                WebSocket webSocket,
+                                java.nio.ByteBuffer message) {
+                            webSocket.request(1);
+                            return null;
+                        }
+
+                        @Override
+                        public java.util.concurrent.CompletionStage<?> onPong(
+                                WebSocket webSocket,
+                                java.nio.ByteBuffer message) {
+                            webSocket.request(1);
+                            return null;
+                        }
+
+                        @Override
+                        public java.util.concurrent.CompletionStage<?> onText(
+                                WebSocket webSocket,
+                                CharSequence data,
+                                boolean last) {
+                            webSocket.request(1);
+                            return null;
+                        }
+
                         @Override
                         public java.util.concurrent.CompletionStage<?> onClose(
                                 WebSocket webSocket,

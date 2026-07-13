@@ -151,7 +151,12 @@ async def start_receiver_websocket_server(
             if on_session_finalized is not None:
                 on_session_finalized(recorder)
 
-    server = await serve(handler, config.host, config.port)
+    # Protocol-level keepalive pings are disabled: liveness is monitored by
+    # the add-on's application heartbeats plus the feed guard's staleness
+    # window. Requiring pongs killed real sessions at exactly ping-timeout
+    # ("sent 1011 keepalive ping timeout") when the client starved inbound
+    # demand, and a one-way data feed must never die for a missing pong.
+    server = await serve(handler, config.host, config.port, ping_interval=None)
     actual_port = _actual_server_port(server, config.port)
     return RunningReceiverServer(
         server=server,

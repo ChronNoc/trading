@@ -1,23 +1,23 @@
 {
   "auto_retraining_enabled": false,
   "blockers": [
-    "140 session(s) were not analysis-clean.",
-    "139 delayed/free-data session(s) cannot be used for live decisions."
+    "142 session(s) were not analysis-clean.",
+    "140 delayed/free-data session(s) cannot be used for live decisions."
   ],
-  "consistency_score": "30.96",
-  "delayed_session_count": 139,
-  "generated_at_utc": "2026-07-13T11:54:34.823013+00:00",
+  "consistency_score": "31.16",
+  "delayed_session_count": 140,
+  "generated_at_utc": "2026-07-13T12:11:21.874368+00:00",
   "live_decision_ready": false,
   "mode": "observe_only",
   "recurring_patterns": [
-    "Price and CVD aligned in 107 session(s)."
+    "Price and CVD aligned in 109 session(s)."
   ],
   "safety_notes": [
     "Observe-only learning report. It records market behavior and consistency, but it does not retrain a live model or authorize trading.",
     "Bookmap delayed/free data is valid for review and threshold research only.",
     "Manual labels or replay outcomes are required before any supervised model training."
   ],
-  "session_count": 140,
+  "session_count": 142,
   "sessions": [
     {
       "aggressive_buy_volume": "34",
@@ -5510,10 +5510,87 @@
       "valid_for_analysis": false,
       "valid_for_live_decisions": false,
       "valid_for_real_training": false
+    },
+    {
+      "aggressive_buy_volume": "25",
+      "aggressive_sell_volume": "45",
+      "analysis_scope": "real_or_replay",
+      "ask_reload_count": 0,
+      "bid_reload_count": 0,
+      "book_imbalance": "-0.01036269430051813471502590674",
+      "cvd_delta": "-20",
+      "cvd_direction": "down",
+      "depth_updates": 4597,
+      "dominant_side": "sellers",
+      "end_timestamp_ns": 1783944535153333400,
+      "first_price": "29758.625",
+      "high_price": "29760.25",
+      "large_ask_blocks": 11,
+      "large_bid_blocks": 8,
+      "last_price": "29757.50",
+      "liquidity_added": "1326",
+      "liquidity_cancelled": "947",
+      "low_price": "29757.25",
+      "notes": [
+        "not analysis-clean",
+        "sellers controlled tape"
+      ],
+      "possible_long_absorption": false,
+      "possible_short_absorption": false,
+      "price_cvd_aligned": true,
+      "price_direction": "down",
+      "session_label": "2026-07-13/session_20260713T120852Z",
+      "short_term_volatility": "0.3778669973870055058355851003",
+      "source_mode": "live",
+      "start_timestamp_ns": 1783944525650000000,
+      "trade_velocity": "7.365836496907495637267656000",
+      "trades": 63,
+      "valid_for_analysis": false,
+      "valid_for_live_decisions": false,
+      "valid_for_real_training": false
+    },
+    {
+      "aggressive_buy_volume": "156",
+      "aggressive_sell_volume": "274",
+      "analysis_scope": "delayed_market_data",
+      "ask_reload_count": 0,
+      "bid_reload_count": 0,
+      "book_imbalance": "-0.1283582089552238805970149254",
+      "cvd_delta": "-118",
+      "cvd_direction": "down",
+      "depth_updates": 7467,
+      "dominant_side": "sellers",
+      "end_timestamp_ns": 1783944562339978800,
+      "first_price": "29754.125",
+      "high_price": "29755",
+      "large_ask_blocks": 2,
+      "large_bid_blocks": 0,
+      "last_price": "29746.875",
+      "liquidity_added": "8549",
+      "liquidity_cancelled": "8221",
+      "low_price": "29745.5",
+      "notes": [
+        "delayed data: review only",
+        "not analysis-clean",
+        "sellers controlled tape"
+      ],
+      "possible_long_absorption": false,
+      "possible_short_absorption": false,
+      "price_cvd_aligned": true,
+      "price_direction": "down",
+      "session_label": "2026-07-13/session_20260713T120949Z",
+      "short_term_volatility": "2.011620588616462893395722792",
+      "source_mode": "delayed",
+      "start_timestamp_ns": 1783944538068891000,
+      "trade_velocity": "17.71655244887705445159322443",
+      "trades": 367,
+      "valid_for_analysis": false,
+      "valid_for_live_decisions": false,
+      "valid_for_real_training": false
     }
   ],
-  "total_depth_updates": 8679,
-  "total_trades": 153,
+  "total_depth_updates": 20743,
+  "total_trades": 583,
   "trading_date": "2026-07-13",
   "valid_session_count": 0
 }
