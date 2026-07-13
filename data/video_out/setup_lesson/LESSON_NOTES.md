@@ -58,3 +58,27 @@ against the video by a human before entering any config.**
 - CVD flip magnitude that counts as confirmation (−800→0 was an example, not
   a rule).
 - How long a wall must persist to count as "solid."
+
+## Live session #1 confirmations (video 2)
+
+Transcript: `data/video_out/live_session_1/`. Rougher translation, but the
+repeated hard numbers agree with the lesson:
+
+- **Stop = 10 points** — stated FOUR separate times (38:15 he mentions 30 for
+  a wider-context trade, but 10 is the setup rule: 40:12, 40:22, 66:42,
+  81:38). This strongly confirms `exit.stop_method`.
+- **Targets are R-multiple based** (26:58–41:57): typical target **1:6**,
+  ideal **1:10**, and he scales out / takes partials at **1:2** and **1:3**.
+  With a 10-point stop, 1:6 ⇒ ~60-point target, 1:10 ⇒ ~100-point. Needs
+  human confirmation — translation of these passages is noisy.
+- **Break-even management**: he moves the stop to break-even after the trade
+  works ("there is no limit / break even ... I can always hide it", 27:20),
+  matching the spec's `exit.break_even_rule` field.
+- **CVD referenced constantly** as live confirmation (throughout), consistent
+  with the lesson's rule #4.
+- **Walls ("big blocks") + aggression + absorption** described repeatedly,
+  consistent with rules #1–#3.
+
+Still unconfirmed after two videos: exact wall-size number, CVD-flip
+magnitude, wall-solidity duration. Worth targeting these in the remaining
+Bookmap videos (אסטרטגיות_מסחר_בוקמאפ, ניהול_סיכונים).
