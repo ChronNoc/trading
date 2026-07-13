@@ -662,18 +662,30 @@ class MainWindow(QMainWindow):
             speed_selector.setCurrentText(str(snapshot.playback_speed))
             speed_selector.blockSignals(False)
 
+    @property
+    def _is_live_recording_mode(self) -> bool:
+        """True when driven by a live runtime with no prototype feed.
+
+        In this mode strategy decisions are disabled (delayed/recording-only
+        data), so the decision tab must not show fabricated placeholder
+        conditions as if a real decision occurred.
+        """
+        return self._prototype_snapshot_provider is None and self._runtime_snapshot_provider is not None
+
     def _build_decision_explanation_tab(self) -> QWidget:
         prototype = self._current_prototype_snapshot() if self._prototype_snapshot_provider is not None else None
         result = self._mock_data.decision
+        live_recording = self._is_live_recording_mode
         tab = QWidget()
         tab.setObjectName("decision_explanation_tab")
         layout = QVBoxLayout(tab)
 
-        heading_text = (
-            f"{prototype.current_setup}: {prototype.decision}"
-            if prototype is not None
-            else f"{result.setup_name}: {result.status}"
-        )
+        if live_recording:
+            heading_text = "No strategy decision - recording only"
+        elif prototype is not None:
+            heading_text = f"{prototype.current_setup}: {prototype.decision}"
+        else:
+            heading_text = f"{result.setup_name}: {result.status}"
         heading = QLabel(heading_text)
         heading.setObjectName("decision_status")
         heading.setStyleSheet("font-size: 16px; font-weight: 600;")
@@ -681,7 +693,14 @@ class MainWindow(QMainWindow):
 
         conditions = QListWidget()
         conditions.setObjectName("decision_condition_list")
-        if prototype is not None:
+        if live_recording:
+            conditions.addItem(
+                "Shadow decisions are disabled on delayed Bookmap data - the assistant is recording only.",
+            )
+            conditions.addItem(
+                "Decisions appear here on real-time data, or in Prototype mode against synthetic setups.",
+            )
+        elif prototype is not None:
             conditions.addItems(prototype.explanations)
         else:
             for condition in result.conditions:
@@ -699,7 +718,13 @@ class MainWindow(QMainWindow):
         narrator.setObjectName("ai_narrator_text")
         narrator.setReadOnly(True)
         narrator.setMaximumHeight(96)
-        if prototype is not None:
+        if live_recording:
+            narrator.setPlainText(
+                "Recording live order flow only. No entry or exit decision is being made - "
+                "delayed data cannot drive a scalping decision, so the assistant just records. "
+                "Decisions and narration appear on real-time data or in Prototype mode.",
+            )
+        elif prototype is not None:
             narrator.setPlainText(
                 narrate_decision(prototype.current_setup, prototype.decision, prototype.explanations),
             )

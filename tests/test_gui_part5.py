@@ -12,7 +12,7 @@ from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
-from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QTableWidget, QTextEdit
+from PySide6.QtWidgets import QComboBox, QLabel, QListWidget, QPushButton, QTableWidget, QTextEdit
 
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.main_window import MainWindow
@@ -355,3 +355,37 @@ def test_watchdog_flags_stalled_feed_despite_connected_socket(qtbot: object, tmp
     frozen_price[0] = Decimal("29527.00")  # price moves again -> recovers
     window.refresh_live_dashboard()
     assert "STALLED" not in watchdog.text()
+
+
+def test_decision_tab_honest_in_live_recording_mode(qtbot: object, tmp_path: Path) -> None:
+    """Live recording (no prototype feed) shows recording-only, not mock decisions."""
+    from app.runtime.controller import RuntimeSnapshot
+
+    runtime = RuntimeSnapshot(
+        state="RECORDING_ONLY", mode="SHADOW", bookmap_status="connected", recording=True,
+        exact_contract="MNQU6", contract_reason="current", source_mode="delayed",
+        session_name="Asia", session_date="2026-07-13", minutes_since_open=15,
+        minutes_until_close=524, regime="normal/thin/unstable", profile_id="global_observe_only",
+        profile_fallback="fell back to the global profile", profile_validation="unavailable",
+        historical_sample_count=0, decisions_allowed=False, warmup_complete=True, sample_count=240,
+        data_age_ms=None, dropped_message_count=409307, threshold_summary="DELAYED",
+        shadow_decisions=0, report_root="data/reports", data_delay_minutes=15,
+    )
+    window = MainWindow(
+        runtime_snapshot_provider=lambda: runtime,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+    )
+    qtbot.addWidget(window)
+
+    heading = window.findChild(QLabel, "decision_status")
+    conditions = window.findChild(QListWidget, "decision_condition_list")
+    narrator = window.findChild(QTextEdit, "ai_narrator_text")
+
+    assert heading is not None
+    assert "recording only" in heading.text().lower()
+    assert conditions is not None
+    condition_text = " ".join(conditions.item(i).text() for i in range(conditions.count()))
+    assert "disabled" in condition_text.lower()
+    assert "412 contracts" not in condition_text  # no fabricated mock decision
+    assert narrator is not None
+    assert "Recording live order flow only" in narrator.toPlainText()

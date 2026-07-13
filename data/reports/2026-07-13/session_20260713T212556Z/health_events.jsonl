@@ -1,0 +1,14 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-13T21:25:29.624194+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T21:25:29.624261+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T21:25:56.161096+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:25:56.171944+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-13T21:25:56.171964+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:25:56.173383+00:00"}
+{"component":"bookmap","message":"Bookmap replay stream detected","status":"replay_started","timestamp_utc":"2026-07-13T21:25:56.173400+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:25:57.387332+00:00"}
+{"component":"bookmap","message":"Bookmap live stream detected","status":"realtime_started","timestamp_utc":"2026-07-13T21:25:57.387347+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:25:58.152439+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:26:00.152823+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T21:26:02.152861+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T21:26:08.987825+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T21:26:10.990065+00:00"}
