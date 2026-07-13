@@ -1,21 +1,14 @@
 {
-  "recorded_at": "23:52:48",
-  "setup_name": "watching prototype setup stream",
+  "recorded_at": "11:27:13",
+  "setup_name": "Clean long absorption reclaim",
   "decision": "ACCEPTED",
   "explanations": [
-    "LONG SETUP: ACCEPTED",
-    "[pass] Price at overnight_low",
-    "[pass] 420 contracts sold aggressively",
-    "[pass] Price moved only 0 ticks lower",
-    "[pass] Bid liquidity reloaded 1 times",
-    "[pass] Ask cancellation ratio 0.5 met threshold",
-    "[pass] Reclaim confirmation completed",
-    "[pass] Not in a news lockout window"
+    "[pass] Reclaim confirmation completed"
   ],
-  "session": "New York open",
-  "regime": "unknown/unknown/unknown",
-  "depth_events": 123,
-  "trade_events": 25,
-  "last_trade_price": "100.00",
+  "session": "New York open synthetic session",
+  "regime": "warming",
+  "depth_events": 0,
+  "trade_events": 0,
+  "last_trade_price": "100.50",
   "synthetic": true
 }

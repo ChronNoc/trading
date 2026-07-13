@@ -1,21 +1,16 @@
 {
-  "recorded_at": "23:52:53",
-  "setup_name": "watching prototype setup stream",
+  "recorded_at": "11:27:06",
+  "setup_name": "Rejected lookalike",
   "decision": "REJECTED",
   "explanations": [
-    "LONG SETUP: REJECTED",
     "[pass] Price at overnight_low",
-    "[pass] 420 contracts sold aggressively",
-    "[pass] Price moved only 0 ticks lower",
-    "[fail] Bid liquidity reloaded 0 times; needed 1",
-    "[fail] Ask cancellation ratio 0.4736842105263157894736842105 is below required 0.50",
-    "[fail] Reclaim confirmation not completed",
-    "[pass] Not in a news lockout window"
+    "[fail] Bid liquidity did not reload",
+    "[fail] Reclaim confirmation not completed"
   ],
-  "session": "New York open",
-  "regime": "normal/normal/unknown",
-  "depth_events": 129,
-  "trade_events": 27,
-  "last_trade_price": "101.25",
+  "session": "New York open synthetic session",
+  "regime": "warming",
+  "depth_events": 10,
+  "trade_events": 4,
+  "last_trade_price": "",
   "synthetic": true
 }
