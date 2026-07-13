@@ -88,7 +88,7 @@ class PriceChartWidget(QWidget):
             painter.drawText(
                 self.rect(),
                 Qt.AlignmentFlag.AlignCenter,
-                "Waiting for synthetic trades...",
+                "Waiting for trades...",
             )
             painter.end()
             return

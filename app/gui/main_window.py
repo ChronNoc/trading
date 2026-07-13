@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         self.price_chart = PriceChartWidget()
         self.price_chart.setObjectName("price_chart_widget")
         layout.addWidget(
-            _group("Price path (synthetic, green=accepted / red=rejected)", self.price_chart),
+            _group("Price path (green=accepted / red=rejected)", self.price_chart),
             4,
             0,
             1,
@@ -540,15 +540,18 @@ class MainWindow(QMainWindow):
         self._run_automations()
 
     def _refresh_price_chart(self) -> None:
-        """Feed the price-path chart from the current prototype snapshot."""
-        if self._prototype_snapshot_provider is None:
-            return
+        """Feed the price-path chart from prototype or live market prices."""
         chart = getattr(self, "price_chart", None)
         if chart is None:
             return
-        snapshot = self._current_prototype_snapshot()
-        if snapshot.last_trade_price:
-            chart.add_price(snapshot.last_trade_price)
+        if self._prototype_snapshot_provider is not None:
+            snapshot = self._current_prototype_snapshot()
+            if snapshot.last_trade_price:
+                chart.add_price(snapshot.last_trade_price)
+            return
+        # Live assistant mode: plot the dashboard market price so the chart
+        # is never a dead panel while real data flows.
+        chart.add_price(self._current_dashboard_snapshot().market_price)
 
     def _build_prototype_panel(self) -> QWidget:
         snapshot = self._current_prototype_snapshot()

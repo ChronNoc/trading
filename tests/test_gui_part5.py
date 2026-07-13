@@ -250,3 +250,49 @@ def test_watchdog_reports_live_runtime_in_assistant_mode(qtbot: object, tmp_path
     assert "Bookmap connected" in watchdog.text()
     assert "recording yes" in watchdog.text()
     assert "dropped 24407" in watchdog.text()
+
+
+def test_price_chart_plots_live_market_price_in_assistant_mode(qtbot: object, tmp_path: Path) -> None:
+    """Without a prototype feed, the chart follows the live dashboard price."""
+    from decimal import Decimal
+
+    from app.market.state import MarketState
+
+    prices = [Decimal("29526.25")]
+
+    def market_state() -> MarketState:
+        state = MarketState()
+        state = state.update(
+            {
+                "type": "depth_update",
+                "timestamp": 1,
+                "symbol": "MNQ",
+                "side": "bid",
+                "price": str(prices[0]),
+                "previous_size": "0",
+                "new_size": "10",
+            },
+        )
+        return state.update(
+            {
+                "type": "depth_update",
+                "timestamp": 2,
+                "symbol": "MNQ",
+                "side": "ask",
+                "price": str(prices[0] + Decimal("0.50")),
+                "previous_size": "0",
+                "new_size": "8",
+            },
+        )
+
+    window = MainWindow(
+        market_state_provider=market_state,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+    )
+    qtbot.addWidget(window)
+
+    window.refresh_live_dashboard()
+    prices[0] = Decimal("29530.00")
+    window.refresh_live_dashboard()
+
+    assert window.price_chart.point_count() == 2
