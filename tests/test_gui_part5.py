@@ -9,6 +9,7 @@ os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QTableWidget, QTextEdit
@@ -296,3 +297,61 @@ def test_price_chart_plots_live_market_price_in_assistant_mode(qtbot: object, tm
     window.refresh_live_dashboard()
 
     assert window.price_chart.point_count() == 2
+
+
+def test_watchdog_flags_stalled_feed_despite_connected_socket(qtbot: object, tmp_path: Path) -> None:
+    """A frozen price while the socket says connected turns the watchdog red."""
+    from app.runtime.controller import RuntimeSnapshot
+
+    clock = [1000.0]
+
+    def stall_clock() -> float:
+        return clock[0]
+
+    frozen_price = [Decimal("29526.25")]
+
+    def market_state():
+        from app.market.state import MarketState
+
+        state = MarketState()
+        state = state.update(
+            {"type": "depth_update", "timestamp": 1, "symbol": "MNQ", "side": "bid",
+             "price": str(frozen_price[0]), "previous_size": "0", "new_size": "10"},
+        )
+        return state.update(
+            {"type": "depth_update", "timestamp": 2, "symbol": "MNQ", "side": "ask",
+             "price": str(frozen_price[0] + Decimal("0.50")), "previous_size": "0", "new_size": "8"},
+        )
+
+    runtime = RuntimeSnapshot(
+        state="RECORDING_ONLY", mode="SHADOW", bookmap_status="connected", recording=True,
+        exact_contract="MNQU6", contract_reason="current", source_mode="delayed",
+        session_name="New York midday", session_date="2026-07-13", minutes_since_open=138,
+        minutes_until_close=11, regime="normal/thin/rotational", profile_id="global_observe_only",
+        profile_fallback="fell back to the global profile", profile_validation="unavailable",
+        historical_sample_count=0, decisions_allowed=False, warmup_complete=True, sample_count=240,
+        data_age_ms=None, dropped_message_count=8621, threshold_summary="DELAYED",
+        shadow_decisions=0, report_root="data/reports", data_delay_minutes=15,
+    )
+    window = MainWindow(
+        runtime_snapshot_provider=lambda: runtime,
+        market_state_provider=market_state,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+        stall_clock=stall_clock,
+        stall_after_seconds=20.0,
+    )
+    qtbot.addWidget(window)
+
+    window.refresh_live_dashboard()  # establishes baseline, price "changed"
+    watchdog = window.findChild(QLabel, "watchdog_status_label")
+    assert watchdog is not None
+    assert "STALLED" not in watchdog.text()
+
+    clock[0] += 25.0  # 25s pass with no price change
+    window.refresh_live_dashboard()
+    assert "STALLED" in watchdog.text()
+    assert "no price change in 25s" in watchdog.text()
+
+    frozen_price[0] = Decimal("29527.00")  # price moves again -> recovers
+    window.refresh_live_dashboard()
+    assert "STALLED" not in watchdog.text()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -210,6 +211,8 @@ class MainWindow(QMainWindow):
         automation_output_root: str | Path = Path("data/prototype"),
         discovery_root: str | Path = Path("data/discovery"),
         mode_supervisor: ModeSupervisor | None = None,
+        stall_clock: Callable[[], float] | None = None,
+        stall_after_seconds: float = 20.0,
     ) -> None:
         """Initialize the main window with live data providers and mode controls."""
         super().__init__()
@@ -230,6 +233,10 @@ class MainWindow(QMainWindow):
         self._decision_history: list[DecisionRecord] = []
         self._watchdog = Watchdog()
         self._last_watchdog_report: WatchdogReport | None = None
+        self._stall_clock = stall_clock or time.monotonic
+        self._stall_after_seconds = stall_after_seconds
+        self._last_live_price: str | None = None
+        self._last_live_price_change_ts: float | None = None
         self._automation_engine = AutomationEngine(output_root=Path(automation_output_root))
         self._discovery_root = Path(discovery_root)
         self._mode_supervisor = mode_supervisor or ModeSupervisor()
@@ -803,6 +810,27 @@ class MainWindow(QMainWindow):
                 item.setForeground(QColor(220, 252, 231) if record.accepted else QColor(254, 226, 226))
                 timeline.addItem(item)
 
+    def _live_feed_stall_seconds(self) -> float | None:
+        """Seconds since the live market price last changed, or None if unknown.
+
+        The runtime socket can read "connected" long after data stops
+        arriving (e.g. Bookmap paused, session ended upstream). Tracking the
+        dashboard market price across refresh ticks catches that freeze even
+        when the socket flag lies.
+        """
+        price = self._current_dashboard_snapshot().market_price
+        now = self._stall_clock()
+        if price in ("", "waiting", "unknown"):
+            return None
+        if price != self._last_live_price:
+            self._last_live_price = price
+            self._last_live_price_change_ts = now
+            return 0.0
+        if self._last_live_price_change_ts is None:
+            self._last_live_price_change_ts = now
+            return 0.0
+        return now - self._last_live_price_change_ts
+
     def _refresh_watchdog(self) -> None:
         """Update the header watchdog line from prototype or live runtime state."""
         label = self.findChild(QLabel, "watchdog_status_label")
@@ -812,12 +840,21 @@ class MainWindow(QMainWindow):
             runtime = self._current_runtime_snapshot()
             if runtime is not None:
                 connected = runtime.bookmap_status == "connected"
-                label.setText(
+                stalled_seconds = self._live_feed_stall_seconds()
+                base = (
                     f"Watchdog: Bookmap {runtime.bookmap_status}; "
                     f"recording {'yes' if runtime.recording else 'no'}; "
-                    f"dropped {runtime.dropped_message_count}",
+                    f"dropped {runtime.dropped_message_count}"
                 )
-                label.setStyleSheet(WATCHDOG_OK_STYLE if connected else WATCHDOG_WARNING_STYLE)
+                if connected and stalled_seconds is not None and stalled_seconds >= self._stall_after_seconds:
+                    label.setText(
+                        f"{base} - STALLED: no price change in {int(stalled_seconds)}s "
+                        "(socket looks connected but no data is arriving)",
+                    )
+                    label.setStyleSheet(WATCHDOG_WARNING_STYLE)
+                else:
+                    label.setText(base)
+                    label.setStyleSheet(WATCHDOG_OK_STYLE if connected else WATCHDOG_WARNING_STYLE)
                 return
         report = self._watchdog.evaluate(self._current_prototype_snapshot())
         self._last_watchdog_report = report

@@ -1,0 +1,2760 @@
+[00:00:01.140 - 00:00:06.140] Ok, so let's go to the first session of A-Pump
+[00:00:06.140 - 00:00:09.140] that I recorded myself with Bookmap
+[00:00:09.140 - 00:00:11.140] and as you can see, you know the drill
+[00:00:11.140 - 00:00:14.140] I'm opening a monster here, the second one
+[00:00:14.140 - 00:00:17.820] that we asked for
+[00:00:17.820 - 00:00:24.240] and I have a video with you
+[00:00:24.240 - 00:00:26.240] which is half an hour long
+[00:00:26.240 - 00:00:30.240] I'm going to do a live session with you
+[00:00:30.240 - 00:00:33.240] that you'll see, and we'll do a few of these
+[00:00:33.240 - 00:00:35.240] that you'll see how I record
+[00:00:35.240 - 00:00:37.240] the drill, I'm not interested at all
+[00:00:37.240 - 00:00:40.240] to break all the records today
+[00:00:40.240 - 00:00:41.240] it's not the drill
+[00:00:41.240 - 00:00:44.240] in the end, my drill is to work with you
+[00:00:44.240 - 00:00:47.240] together and explain to you what I want to see
+[00:00:47.240 - 00:00:50.240] first of all, as you know, I usually
+[00:00:50.240 - 00:00:52.240] when I work with Bookmap, I have here
+[00:00:52.240 - 00:00:53.240] the three words
+[00:00:53.240 - 00:00:55.240] so I have to do the full trading
+[00:00:55.240 - 00:00:58.240] and the Bookmap on the side
+[00:00:58.240 - 00:01:01.240] but as you can see, even with me
+[00:01:01.240 - 00:01:03.240] today, with the technology, I don't need
+[00:01:03.240 - 00:01:05.240] two words to work with Bookmap
+[00:01:05.240 - 00:01:07.240] ok, you have an option in Windows
+[00:01:07.240 - 00:01:09.240] put two, actually
+[00:01:09.240 - 00:01:11.240] two open plans
+[00:01:11.240 - 00:01:13.240] and I'm going to split you into two
+[00:01:13.240 - 00:01:15.240] because of me, it's also much more fun
+[00:01:15.240 - 00:01:18.240] and in the end, really
+[00:01:18.240 - 00:01:20.240] if I see that I'm doing the transition
+[00:01:20.240 - 00:01:22.240] really to the full time
+[00:01:22.240 - 00:01:24.240] to work only with Bookmap
+[00:01:24.240 - 00:01:26.240] and I'm not more interested in the graphics at all
+[00:01:26.240 - 00:01:28.240] because of what I'm going to read
+[00:01:28.240 - 00:01:30.240] so what I'm going to do
+[00:01:30.240 - 00:01:32.240] I'm actually going to connect my AMP broker
+[00:01:32.240 - 00:01:34.240] to Bookmap and I don't need
+[00:01:34.240 - 00:01:36.240] the trading view, I'm just going to
+[00:01:36.240 - 00:01:38.240] bookmap through Bookmap, you can't
+[00:01:38.240 - 00:01:40.240] bookmap through Bookmap as well
+[00:01:40.240 - 00:01:42.240] let's talk a little bit about what I want to see
+[00:01:42.240 - 00:01:44.240] in the session, our book here today
+[00:01:44.240 - 00:01:46.240] so New York Open
+[00:01:46.240 - 00:01:49.240] really in six minutes
+[00:01:49.240 - 00:01:51.240] I'm going to open the book
+[00:01:51.240 - 00:01:53.240] and what I'm going to do with you
+[00:01:53.240 - 00:01:55.240] together, I'm going to show you
+[00:01:55.240 - 00:01:57.240] how I remember the strategy
+[00:01:57.240 - 00:01:59.240] wow
+[00:01:59.240 - 00:02:01.240] how I remember the strategy
+[00:02:01.240 - 00:02:03.240] order flow bookmap
+[00:02:03.240 - 00:02:05.240] exactly, right that in the course
+[00:02:05.240 - 00:02:07.240] I taught you two strategies
+[00:02:07.240 - 00:02:09.240] that you can do also in the help of
+[00:02:09.240 - 00:02:11.240] the ICT, the strategy that you know
+[00:02:11.240 - 00:02:13.240] with Bookmap, but I'm going
+[00:02:13.240 - 00:02:15.240] to show you how I remember
+[00:02:15.240 - 00:02:17.240] Bookmap without looking at the graphics
+[00:02:17.240 - 00:02:19.240] at all, of course
+[00:02:19.240 - 00:02:21.240] I'm going to show you examples
+[00:02:21.240 - 00:02:23.240] of the strategy
+[00:02:23.240 - 00:02:25.240] how I can actually do
+[00:02:25.240 - 00:02:27.240] also in the help of
+[00:02:27.240 - 00:02:29.240] ICT and ICT concepts
+[00:02:29.240 - 00:02:31.240] with Bookmap together
+[00:02:31.240 - 00:02:33.240] so first of all, let's start with
+[00:02:33.240 - 00:02:35.240] Daily Bias, so right at the time
+[00:02:35.240 - 00:02:37.240] I'm shooting the video, you can see
+[00:02:37.240 - 00:02:39.240] that we are at all time high, which is a very
+[00:02:39.240 - 00:02:41.240] very boring strategy
+[00:02:41.240 - 00:02:43.240] and if I open the CVD here
+[00:02:43.240 - 00:02:45.240] then it's a little bit of my story
+[00:02:45.240 - 00:02:47.240] but I'm going to tell you that the CVD
+[00:02:47.240 - 00:02:49.240] is 1316, and you can see here
+[00:02:49.240 - 00:02:51.240] that the CVD is very
+[00:02:51.240 - 00:02:53.240] strong, it means that
+[00:02:53.240 - 00:02:55.240] right at the time of the
+[00:02:55.240 - 00:02:57.240] opening of the strategy
+[00:02:57.240 - 00:02:59.240] the CVD is currently running
+[00:02:59.240 - 00:03:01.240] so if I know
+[00:03:01.240 - 00:03:03.240] that the CVD is in the control
+[00:03:03.240 - 00:03:05.240] and the CVD is currently at the
+[00:03:05.240 - 00:03:07.240] end of the line, then
+[00:03:07.240 - 00:03:09.240] I want to save blocks
+[00:03:09.240 - 00:03:11.240] to take them, so I want to save
+[00:03:11.240 - 00:03:13.240] blocks that are in the middle
+[00:03:13.240 - 00:03:15.240] of the building, that will
+[00:03:15.240 - 00:03:17.240] bring me the interest rate, so I can
+[00:03:17.240 - 00:03:19.240] get in again, I'm not going to
+[00:03:19.240 - 00:03:21.240] enter the limit, I'm not
+[00:03:21.240 - 00:03:23.240] going to let you continue, if I
+[00:03:23.240 - 00:03:25.240] see something that is really, really
+[00:03:25.240 - 00:03:27.240] interesting to me, how do I get
+[00:03:27.240 - 00:03:29.240] in the limit, but
+[00:03:29.240 - 00:03:31.240] the strategy is very, very
+[00:03:31.240 - 00:03:33.240] very simple, it is very, very
+[00:03:33.240 - 00:03:35.240] boring, especially for ICT
+[00:03:35.240 - 00:03:37.240] the goal is to find a
+[00:03:37.240 - 00:03:39.240] block of
+[00:03:39.240 - 00:03:41.240] blocks that want to save the
+[00:03:41.240 - 00:03:43.240] building, right, because this block is
+[00:03:43.240 - 00:03:45.240] located at the bottom of the building, so it
+[00:03:45.240 - 00:03:47.240] means that it is a block of blocks, from here
+[00:03:47.240 - 00:03:49.240] I want to give you a hint
+[00:03:49.240 - 00:03:51.240] that happens in the block area
+[00:03:51.240 - 00:03:53.240] and to see blocks that
+[00:03:53.240 - 00:03:55.240] are live, that are actually blocks that
+[00:03:55.240 - 00:03:57.240] want to save the building
+[00:03:57.240 - 00:03:59.240] and take it to the next level.
+[00:03:59.240 - 00:04:01.240] So,
+[00:04:01.240 - 00:04:03.240] this is now the reverse
+[00:04:03.240 - 00:04:05.240] strategy, for those of you
+[00:04:05.240 - 00:04:07.240] who want to take a continuation, and this is
+[00:04:07.240 - 00:04:09.240] what I really like in the
+[00:04:09.240 - 00:04:11.240] book and in the order flow, I
+[00:04:11.240 - 00:04:13.240] don't necessarily have to take the
+[00:04:13.240 - 00:04:15.240] end of the block,
+[00:04:15.240 - 00:04:17.240] I can get into a more
+[00:04:17.240 - 00:04:19.240] interesting process that happens,
+[00:04:19.240 - 00:04:21.240] really to see a crack, and
+[00:04:21.240 - 00:04:23.240] one block that was simply
+[00:04:23.240 - 00:04:25.240] blocked on the way, and this is
+[00:04:25.240 - 00:04:27.240] really our continuation, that you
+[00:04:27.240 - 00:04:29.240] get used to from ICT, it is exactly
+[00:04:29.240 - 00:04:31.240] the same thing here, but at the moment
+[00:04:31.240 - 00:04:33.240] we are still talking about it,
+[00:04:33.240 - 00:04:35.240] let's give it a try to do it, let's
+[00:04:35.240 - 00:04:37.240] see if there is, at the moment, this
+[00:04:37.240 - 00:04:39.240] block that is located here in
+[00:04:39.240 - 00:04:41.240] I can also follow it and see
+[00:04:41.240 - 00:04:43.240] the spawn, I can see that there are
+[00:04:43.240 - 00:04:45.240] two and a half, that it is really
+[00:04:45.240 - 00:04:47.240] really here, at the bottom of
+[00:04:47.240 - 00:04:49.240] this building, you can see
+[00:04:49.240 - 00:04:51.240] seventy-one points, seventy-one
+[00:04:51.240 - 00:04:53.240] points that are located
+[00:04:53.240 - 00:04:55.240] in corners, and if I
+[00:04:55.240 - 00:04:57.240] see a crack here, and
+[00:04:57.240 - 00:04:59.240] points that are being used, I can
+[00:04:59.240 - 00:05:01.240] really think about, maybe
+[00:05:01.240 - 00:05:03.240] an advanced level, in the future,
+[00:05:03.240 - 00:05:05.240] once again, in the level of
+[00:05:05.240 - 00:05:07.240] ICT, as I taught you, I don't
+[00:05:07.240 - 00:05:09.240] deal with it like we did once
+[00:05:09.240 - 00:05:11.240] with the prices of the price action,
+[00:05:11.240 - 00:05:13.240] because the stops here are very
+[00:05:13.240 - 00:05:15.240] small, and the price is very high, so I
+[00:05:15.240 - 00:05:17.240] just take a look at the example, I
+[00:05:17.240 - 00:05:19.240] now have five hundred dollars
+[00:05:19.240 - 00:05:21.240] for a stop, and one thousand five hundred
+[00:05:21.240 - 00:05:23.240] dollars for a full stop, so
+[00:05:23.240 - 00:05:25.240] everything is fine, I can take five hundred
+[00:05:25.240 - 00:05:27.240] dollars for the first stop, to
+[00:05:27.240 - 00:05:29.240] take five hundred dollars for a second stop
+[00:05:29.240 - 00:05:31.240] and still save yourself in a third stop,
+[00:05:31.240 - 00:05:33.240] because the R, R here is much, much
+[00:05:33.240 - 00:05:35.240] bigger, but that's what I talked about
+[00:05:35.240 - 00:05:37.240] in the beginning of the video,
+[00:05:37.240 - 00:05:39.240] let's see, we really
+[00:05:39.240 - 00:05:41.240] know how to open it, you can see
+[00:05:41.240 - 00:05:43.240] that we have high market points
+[00:05:43.240 - 00:05:45.240] that take us to the area here
+[00:05:45.240 - 00:05:47.240] let's see if we can get from there
+[00:05:47.240 - 00:05:54.300] the level of the stop,
+[00:05:54.300 - 00:05:56.300] this tip that I'm working on, and
+[00:05:56.300 - 00:05:58.300] by the way, I didn't talk about it,
+[00:05:58.300 - 00:06:00.300] this tip that I'm working on,
+[00:06:00.300 - 00:06:02.300] it's amazing, I don't have any
+[00:06:02.300 - 00:06:04.300] interest in this tip, I just want
+[00:06:04.300 - 00:06:06.300] really, I told you to use the
+[00:06:06.300 - 00:06:08.300] bookmap strategy
+[00:06:08.300 - 00:06:10.300] to define this market,
+[00:06:10.300 - 00:06:12.300] and I'm going back to my tip
+[00:06:12.300 - 00:06:14.300] in AMP, you know
+[00:06:14.300 - 00:06:16.300] in the end,
+[00:06:16.300 - 00:06:18.300] at the moment, I still don't feel
+[00:06:18.300 - 00:06:20.300] comfortable to spend my money,
+[00:06:20.300 - 00:06:22.300] but also, it's a great tip,
+[00:06:22.300 - 00:06:24.300] you know, it's a tip for everything,
+[00:06:24.300 - 00:06:26.300] and I treat it really, really like a tip live.
+[00:06:26.300 - 00:06:28.300] By the way, let's say
+[00:06:28.300 - 00:06:30.300] more things, for example, I'm standing here
+[00:06:30.300 - 00:06:32.300] for five minutes, you can stand on the
+[00:06:32.300 - 00:06:34.300] graph, the graph will see,
+[00:06:34.300 - 00:06:36.300] it's not what's changing, what's
+[00:06:36.300 - 00:06:38.300] happening here on this side of the
+[00:06:38.300 - 00:06:40.300] bookmap, and you'll see,
+[00:06:40.300 - 00:06:42.300] you'll see, just open it, and you'll see
+[00:06:42.300 - 00:06:44.300] it's good, we'll see the things
+[00:06:44.300 - 00:06:46.300] that are very good, you'll see
+[00:06:46.300 - 00:06:48.300] it's good, you'll see it's good,
+[00:06:48.300 - 00:06:50.300] gradually, everything, everything
+[00:06:50.300 - 00:06:52.300] will be clear, and you'll also see
+[00:06:52.300 - 00:06:54.300] how I'm going to write, how I'm going to
+[00:06:54.300 - 00:06:56.300] enter, a lot of big things
+[00:06:56.300 - 00:06:58.300] are waiting, and I can't wait
+[00:06:58.300 - 00:07:00.300] for this session to open,
+[00:07:00.300 - 00:07:02.300] but again, I remember,
+[00:07:02.300 - 00:07:04.300] at the moment, I'm here with the
+[00:07:04.300 - 00:07:06.300] bookmap, half by half, Neto, because
+[00:07:06.300 - 00:07:08.300] I'm teaching you, and I want you to
+[00:07:08.300 - 00:07:10.300] see it in the film, I'm here
+[00:07:10.300 - 00:07:12.300] every day, my regular day, my
+[00:07:12.300 - 00:07:14.300] time, I open the lights, and on the
+[00:07:14.300 - 00:07:16.300] screen, it's not just one screen,
+[00:07:16.300 - 00:07:18.300] it's all good as I said, you can
+[00:07:18.300 - 00:07:20.300] see it's the same thing. Again, let's
+[00:07:20.300 - 00:07:22.300] look at the CVD, the CVD
+[00:07:22.300 - 00:07:24.300] still looks like this, it says
+[00:07:24.300 - 00:07:26.300] that the lights are
+[00:07:26.300 - 00:07:28.300] currently agressive, and the
+[00:07:28.300 - 00:07:30.300] lights are on, it says
+[00:07:30.300 - 00:07:32.300] that we need to save
+[00:07:32.300 - 00:07:34.300] a lot of money, without money,
+[00:07:34.300 - 00:07:36.300] we're in an all-time high, so
+[00:07:36.300 - 00:07:38.300] without any money, we
+[00:07:38.300 - 00:07:40.300] want to save only money.
+[00:07:40.300 - 00:07:42.300] Come on, 20 seconds to the opening,
+[00:07:42.300 - 00:07:44.300] let's go to the next block,
+[00:07:44.300 - 00:07:47.610] let's try to remember
+[00:07:47.610 - 00:07:49.610] how many more are left, and
+[00:07:49.610 - 00:07:51.610] really see the interesting blocks.
+[00:07:51.610 - 00:07:55.590] I'm doing this with this
+[00:07:55.590 - 00:08:04.120] guide, of course here,
+[00:08:04.120 - 00:08:08.740] and we
+[00:08:08.740 - 00:08:10.740] opened up a little bit,
+[00:08:10.740 - 00:08:14.860] there is some kind of
+[00:08:14.860 - 00:08:16.860] reflection of some kind of block,
+[00:08:16.860 - 00:08:18.860] again, it's not something that
+[00:08:18.860 - 00:08:20.860] I understood, we
+[00:08:20.860 - 00:08:22.860] want to see what happens
+[00:08:22.860 - 00:08:24.860] from this area, we are
+[00:08:24.860 - 00:08:26.860] going to see some
+[00:08:26.860 - 00:08:28.860] bullies, we want to see
+[00:08:28.860 - 00:08:30.860] sheep, again, it's not
+[00:08:30.860 - 00:08:32.860] the same thing that my guide
+[00:08:32.860 - 00:08:34.860] left here, but
+[00:08:34.860 - 00:08:36.860] it's not the same as the area that
+[00:08:36.860 - 00:08:38.860] I'm interested in starting
+[00:08:38.860 - 00:08:42.140] to be proud of it,
+[00:08:42.140 - 00:08:44.140] again, another thing that I really like
+[00:08:44.140 - 00:08:46.140] in the whole area of Bookmap, is that
+[00:08:46.140 - 00:08:48.140] there is no one, I just know that
+[00:08:48.140 - 00:08:50.140] some of the setup here is built-in
+[00:08:50.140 - 00:08:52.140] complete, I can
+[00:08:52.140 - 00:08:54.140] take a continuation from some block
+[00:08:54.140 - 00:08:56.140] that happens here,
+[00:08:56.140 - 00:08:58.140] and it's just to show you,
+[00:08:58.140 - 00:09:00.140] again, you see
+[00:09:00.140 - 00:09:02.140] this process that happens here
+[00:09:02.140 - 00:09:04.140] very quickly, and aggressive blocks
+[00:09:04.140 - 00:09:06.140] and blocks that are created here
+[00:09:06.140 - 00:09:08.140] below, it means that there are
+[00:09:08.140 - 00:09:10.140] bullies here that want to hide
+[00:09:10.140 - 00:09:12.140] on the wall, and are ready to
+[00:09:12.140 - 00:09:14.140] hide in this wall, so
+[00:09:14.140 - 00:09:16.140] even if we don't get to the block that I
+[00:09:16.140 - 00:09:18.140] understood, everything is fine, I know
+[00:09:18.140 - 00:09:20.140] there will be more steps that I can
+[00:09:20.140 - 00:09:22.140] take from them,
+[00:09:22.140 - 00:09:24.140] and let's see, let's see,
+[00:09:24.140 - 00:09:26.140] wait a minute, I don't think this is the
+[00:09:26.140 - 00:09:29.380] site, it can be very interesting,
+[00:09:29.380 - 00:09:31.380] I do want to see an example of
+[00:09:31.380 - 00:09:33.380] one of these blocks, because we just
+[00:09:33.380 - 00:09:35.380] broke it, right,
+[00:09:35.380 - 00:09:37.380] wait a minute, I didn't see that
+[00:09:37.380 - 00:09:39.380] we got out of some block,
+[00:09:39.380 - 00:09:41.380] and I'm amazed at this
+[00:09:41.380 - 00:09:43.380] to find out,
+[00:09:43.380 - 00:09:45.380] by the way,
+[00:09:45.380 - 00:09:47.380] if we are already familiar with
+[00:09:47.380 - 00:09:49.380] Take Profit for example, and we really
+[00:09:49.380 - 00:09:51.380] want to see where all this
+[00:09:51.380 - 00:09:53.380] block is, and you can see
+[00:09:53.380 - 00:09:55.380] now you can see that we are starting to
+[00:09:55.380 - 00:09:57.380] see big blocks of blocks
+[00:09:57.380 - 00:09:59.380] in the same frames, so for example
+[00:09:59.380 - 00:10:01.380] 430, you can see
+[00:10:01.380 - 00:10:03.380] that this is the all-time high, but I can
+[00:10:03.380 - 00:10:05.380] already know a lot, from the all-time
+[00:10:05.380 - 00:10:07.380] high, to where the graph is going to
+[00:10:07.380 - 00:10:09.380] arrive, so you can see
+[00:10:09.380 - 00:10:11.380] this block, you can see this
+[00:10:11.380 - 00:10:13.380] block, this block, all of these
+[00:10:13.380 - 00:10:15.380] can pass points to Take Profit,
+[00:10:15.380 - 00:10:17.380] but I still don't get in,
+[00:10:17.380 - 00:10:19.380] I still don't get in, I do
+[00:10:19.380 - 00:10:21.380] want to see a gap below
+[00:10:21.380 - 00:10:23.380] the block of blocks,
+[00:10:23.380 - 00:10:25.380] once again, the CVD here already
+[00:10:25.380 - 00:10:27.380] in 3500, breaks
+[00:10:27.380 - 00:10:29.380] to blocks, we don't have
+[00:10:29.380 - 00:10:32.700] a gap here, at this point,
+[00:10:32.700 - 00:10:34.700] I'm still amazed to see
+[00:10:34.700 - 00:10:36.700] blocks that
+[00:10:36.700 - 00:10:38.700] break
+[00:10:38.700 - 00:10:40.700] blocks of blocks that
+[00:10:40.700 - 00:10:42.700] play on us, and then
+[00:10:42.700 - 00:10:49.720] I pick the long,
+[00:10:49.720 - 00:10:51.720] wait a minute, you can see a gap
+[00:10:51.720 - 00:10:53.720] of blocks in this block, but once again
+[00:10:53.720 - 00:10:55.720] we break it, here is the sweep,
+[00:10:55.720 - 00:10:57.720] we broke it,
+[00:10:57.720 - 00:10:59.720] once again, right
+[00:10:59.720 - 00:11:01.720] to this point, there is nothing
+[00:11:01.720 - 00:11:03.720] that we could do
+[00:11:03.720 - 00:11:05.720] from our selection, right
+[00:11:05.720 - 00:11:07.720] friend?
+[00:11:07.720 - 00:11:09.720] At this moment, it was
+[00:11:09.720 - 00:11:11.720] very, very, very important
+[00:11:11.720 - 00:11:13.720] to get in, I want
+[00:11:13.720 - 00:11:15.720] to see a block of
+[00:11:15.720 - 00:11:17.720] sounds that
+[00:11:17.720 - 00:11:19.720] meets a gap,
+[00:11:19.720 - 00:11:21.720] okay, if there is a gap,
+[00:11:21.720 - 00:11:30.250] at this moment,
+[00:11:30.250 - 00:11:32.250] the block with these holes,
+[00:11:32.250 - 00:11:34.250] they are not heard around me,
+[00:11:34.250 - 00:11:36.250] I want to see a gap
+[00:11:36.250 - 00:11:38.250] that we break here,
+[00:11:38.250 - 00:11:40.250] or, or,
+[00:11:40.250 - 00:11:42.250] that I want to see,
+[00:11:42.250 - 00:11:44.250] especially,
+[00:11:44.250 - 00:11:46.250] here is the gap, but
+[00:11:46.250 - 00:11:48.250] there is no such big gap
+[00:11:48.250 - 00:11:50.250] that we break it, wow
+[00:11:50.250 - 00:11:52.250] just when it's really, really sharp,
+[00:11:52.250 - 00:11:54.250] it's not big enough,
+[00:11:54.250 - 00:11:56.250] I want to see a really big gap,
+[00:11:56.250 - 00:11:58.250] I want to see holes that
+[00:11:58.250 - 00:12:00.250] try to break the gap, but
+[00:12:00.250 - 00:12:02.250] really, the holes here are really, really sharp
+[00:12:02.250 - 00:12:04.250] today,
+[00:12:04.250 - 00:12:06.250] you can see a really small gap,
+[00:12:06.250 - 00:12:08.250] this gap in this block
+[00:12:08.250 - 00:12:10.250] that we broke, but
+[00:12:10.250 - 00:12:12.250] it's not enough for me,
+[00:12:12.250 - 00:12:14.250] for me to get in, okay?
+[00:12:14.250 - 00:12:16.250] I'm still
+[00:12:16.250 - 00:12:18.250] still getting
+[00:12:18.250 - 00:12:20.250] some kind of
+[00:12:20.250 - 00:12:22.250] a little bit more of a gap
+[00:12:22.250 - 00:12:26.940] that we broke here,
+[00:12:26.940 - 00:12:28.940] again, you see, because
+[00:12:28.940 - 00:12:30.940] the CVD is high, because I'm
+[00:12:30.940 - 00:12:32.940] all time high, I think
+[00:12:32.940 - 00:12:34.940] at the moment, my problem is
+[00:12:34.940 - 00:12:36.940] just how I break it, just how I break it,
+[00:12:36.940 - 00:12:38.940] I don't care about the blocks of the holes,
+[00:12:38.940 - 00:12:40.940] I don't care about the gaps that happen
+[00:12:40.940 - 00:12:42.940] in the blocks of the hole,
+[00:12:42.940 - 00:12:44.940] it's not relevant to me, I want to get in,
+[00:12:44.940 - 00:12:46.940] okay, so
+[00:12:46.940 - 00:12:48.940] I'm looking for a good area
+[00:12:48.940 - 00:12:50.940] to get in, I know
+[00:12:50.940 - 00:12:52.940] 29,400 can be a great area
+[00:12:52.940 - 00:12:54.940] but I want to show you the perfect block
+[00:12:54.940 - 00:12:56.940] of the holes that
+[00:12:56.940 - 00:12:58.940] we want to get in this gap,
+[00:12:58.940 - 00:13:00.940] and that may be interesting
+[00:13:00.940 - 00:13:02.940] you see, it's getting deeper
+[00:13:02.940 - 00:13:04.940] and deeper and deeper
+[00:13:04.940 - 00:13:06.940] more and more gaps that we're getting
+[00:13:06.940 - 00:13:08.940] in this gap, and I think it's
+[00:13:08.940 - 00:13:10.940] the gap of my test today
+[00:13:10.940 - 00:13:12.940] first slide
+[00:13:12.940 - 00:13:14.940] stop selection, I'd better go with
+[00:13:14.940 - 00:13:16.940] stop
+[00:13:16.940 - 00:13:18.940] short,
+[00:13:18.940 - 00:13:20.940] oh, oh, oh
+[00:13:20.940 - 00:13:22.940] oh, okay,
+[00:13:22.940 - 00:13:24.940] this is a good block,
+[00:13:24.940 - 00:13:26.940] now I want to see,
+[00:13:26.940 - 00:13:28.940] you see how we broke this block,
+[00:13:28.940 - 00:13:30.940] I want to see that we break it
+[00:13:30.940 - 00:13:32.940] and the gap is not enough to get in
+[00:13:32.940 - 00:13:34.940] the gap,
+[00:13:34.940 - 00:13:36.940] the gaps that we're getting in live,
+[00:13:36.940 - 00:13:38.940] those gaps that we want to hide
+[00:13:38.940 - 00:13:40.940] on this gap,
+[00:13:40.940 - 00:13:42.940] let's get in
+[00:13:42.940 - 00:13:44.940] let's see if we can get in
+[00:13:44.940 - 00:13:46.940] at the moment,
+[00:13:46.940 - 00:13:48.940] at the moment we're getting in
+[00:13:48.940 - 00:13:50.940] the gap,
+[00:13:50.940 - 00:13:52.940] how much we broke the block that I wanted to get in
+[00:13:52.940 - 00:13:54.940] from it, it may be that the gap
+[00:13:54.940 - 00:13:56.940] is getting deeper
+[00:13:56.940 - 00:14:07.800] it's getting deeper
+[00:14:07.800 - 00:14:09.800] and it doesn't understand
+[00:14:09.800 - 00:14:11.800] that I'm in a hole
+[00:14:11.800 - 00:14:13.800] who is it
+[00:14:13.800 - 00:14:15.800] I don't know who it is, it's on the phone
+[00:14:15.800 - 00:14:17.800] I don't know where, let's see
+[00:14:17.800 - 00:14:19.800] let's put it in the hole
+[00:14:19.800 - 00:14:21.800] so the block that I wanted to get in
+[00:14:21.800 - 00:14:23.800] I didn't get in, it's a hole
+[00:14:23.800 - 00:14:25.800] and you can see that the gaps
+[00:14:25.800 - 00:14:27.800] in this block
+[00:14:27.800 - 00:14:29.800] it may be that I need to hide
+[00:14:29.800 - 00:14:31.800] let's see
+[00:14:31.800 - 00:14:33.800] so I'm starting to get in
+[00:14:33.800 - 00:14:35.800] I can see that there's a hole here
+[00:14:35.800 - 00:14:37.800] let's see if we can see
+[00:14:37.800 - 00:14:39.800] the gap of the others
+[00:14:39.800 - 00:14:41.800] so at the moment
+[00:14:41.800 - 00:14:43.800] there's a gap here
+[00:14:43.800 - 00:14:45.800] we're getting in the gap of this market
+[00:14:45.800 - 00:14:47.800] now I want to see
+[00:14:47.800 - 00:14:49.800] the gap getting deeper
+[00:14:49.800 - 00:14:51.800] and I can try to get in here
+[00:14:51.800 - 00:14:58.630] let's see
+[00:14:58.630 - 00:15:00.630] ok, the market gap
+[00:15:00.630 - 00:15:02.630] of the holes
+[00:15:02.630 - 00:15:04.630] we can see
+[00:15:04.630 - 00:15:06.630] the holes are getting deeper
+[00:15:06.630 - 00:15:08.630] and I'm getting in here
+[00:15:08.630 - 00:15:12.010] I'm doing stop loss
+[00:15:12.010 - 00:15:14.010] in 3.3.5
+[00:15:14.010 - 00:15:22.470] and I'm getting in
+[00:15:22.470 - 00:15:24.470] take profit
+[00:15:24.470 - 00:15:26.470] I can get in
+[00:15:26.470 - 00:15:28.470] 450, there's a block
+[00:15:28.470 - 00:15:43.910] let's see if we can
+[00:15:43.910 - 00:15:45.910] with these blocks
+[00:15:45.910 - 00:15:47.910] we can get in
+[00:15:47.910 - 00:15:49.910] and we need to get in
+[00:15:49.910 - 00:16:09.830] deeper
+[00:16:09.830 - 00:16:11.830] I got in there 2 blocks
+[00:16:11.830 - 00:16:13.830] it's a bit deeper
+[00:16:13.830 - 00:16:15.830] I didn't notice that I have 2 blocks
+[00:16:15.830 - 00:16:17.830] I need to get in
+[00:16:17.830 - 00:16:19.830] chill out, chill out
+[00:16:19.830 - 00:16:21.830] it's ok
+[00:16:21.830 - 00:16:25.370] it doesn't happen
+[00:16:25.370 - 00:16:27.370] ok, at this moment
+[00:16:27.370 - 00:16:32.570] it doesn't happen
+[00:16:32.570 - 00:16:34.570] it doesn't happen
+[00:16:34.570 - 00:16:36.570] it's ok, we tried to get in
+[00:16:36.570 - 00:16:39.880] wow
+[00:16:39.880 - 00:16:41.880] and the thing is
+[00:16:41.880 - 00:16:43.880] it didn't happen
+[00:16:43.880 - 00:16:45.880] and the beginning
+[00:16:45.880 - 00:16:47.880] to be
+[00:16:47.880 - 00:16:49.880] it will be very exciting
+[00:16:49.880 - 00:16:51.880] wow, if it's the place of the stop
+[00:16:51.880 - 00:16:53.880] I'm sorry
+[00:16:53.880 - 00:16:55.880] now I can choose
+[00:16:55.880 - 00:16:57.880] if I want to get in
+[00:16:57.880 - 00:17:01.700] in 350
+[00:17:01.700 - 00:17:05.720] because personally
+[00:17:05.720 - 00:17:07.720] we're really bullies
+[00:17:07.720 - 00:17:09.720] I just had a block in the stop
+[00:17:09.720 - 00:17:22.410] I think I'll get in
+[00:17:22.410 - 00:17:27.100] here in 350
+[00:17:27.100 - 00:17:29.100] let's try to get in 350
+[00:17:29.100 - 00:17:31.100] and the stop we need
+[00:17:31.100 - 00:17:33.100] to
+[00:17:33.100 - 00:17:35.100] it can go to 35
+[00:17:35.100 - 00:17:37.100] it can also go to 40
+[00:17:37.100 - 00:17:39.100] let's go to 35
+[00:17:39.100 - 00:17:46.280] here in the stop
+[00:17:46.280 - 00:17:50.780] it doesn't happen
+[00:17:50.780 - 00:17:54.410] it doesn't happen
+[00:17:54.410 - 00:17:56.410] so I got in less than $1,100
+[00:17:56.410 - 00:17:58.410] in the first block
+[00:17:58.410 - 00:18:00.410] because I didn't
+[00:18:00.410 - 00:18:02.410] notice that I have 2 blocks
+[00:18:02.410 - 00:18:04.410] and of course
+[00:18:04.410 - 00:18:06.410] I had a bit of a problem here
+[00:18:06.410 - 00:18:08.410] with the stop
+[00:18:08.410 - 00:18:10.410] but we have a huge gap here
+[00:18:10.410 - 00:18:19.830] let's see, maybe from this block
+[00:18:19.830 - 00:18:21.830] because at this moment
+[00:18:21.830 - 00:18:26.420] we have a bit of a gap
+[00:18:26.420 - 00:18:28.420] you can see here
+[00:18:28.420 - 00:18:30.420] how beautiful
+[00:18:30.420 - 00:18:32.420] it's crazy, it's crazy
+[00:18:32.420 - 00:18:34.420] with the stop
+[00:18:34.420 - 00:18:37.700] it really went to 35
+[00:18:37.700 - 00:18:40.980] 32 it also came out
+[00:18:40.980 - 00:18:44.580] it doesn't happen
+[00:18:44.580 - 00:18:46.580] with the stop
+[00:18:46.580 - 00:18:48.580] 350 it looks amazing
+[00:18:48.580 - 00:18:50.580] 12% that are waiting
+[00:18:50.580 - 00:18:54.280] we have a lot of blocks
+[00:18:54.280 - 00:18:58.550] in the stop
+[00:18:58.550 - 00:19:11.110] CVD is still very bullies
+[00:19:11.110 - 00:19:18.230] we want to see
+[00:19:18.230 - 00:19:20.230] it really came out
+[00:19:20.230 - 00:19:22.230] in 350
+[00:19:22.230 - 00:19:24.230] and from there
+[00:19:24.230 - 00:19:26.230] we can see it going to the stop
+[00:19:26.230 - 00:19:35.560] now we can see how they
+[00:19:35.560 - 00:19:37.560] continue to put blocks here
+[00:19:37.560 - 00:19:39.560] the stop is up
+[00:19:39.560 - 00:19:41.560] you saw it
+[00:19:41.560 - 00:19:43.560] you can see it
+[00:19:43.560 - 00:19:45.560] how they continue to put the blocks here in live
+[00:19:45.560 - 00:19:47.560] in order to prevent the stop
+[00:19:47.560 - 00:19:49.560] very big gaps here today
+[00:19:49.560 - 00:19:59.500] I really like this block
+[00:19:59.500 - 00:20:01.500] the reason I'm putting blocks here in the limit
+[00:20:01.500 - 00:20:03.500] is because I really believe
+[00:20:03.500 - 00:20:05.500] there's no reason to break this block
+[00:20:05.500 - 00:20:07.500] I want to see this block
+[00:20:07.500 - 00:20:09.500] and I want to use it
+[00:20:09.500 - 00:20:11.500] in the best way I can
+[00:20:11.500 - 00:20:13.500] differently from before
+[00:20:13.500 - 00:20:15.500] I would need a moment to rest
+[00:20:15.500 - 00:20:17.500] to really see a real reversal
+[00:20:17.500 - 00:20:19.500] you can see that this was my first try
+[00:20:19.500 - 00:20:21.500] really
+[00:20:21.500 - 00:20:23.500] a huge gap here with the stop
+[00:20:23.500 - 00:20:25.500] we have already made a way there
+[00:20:25.500 - 00:20:27.500] in the limit
+[00:20:27.500 - 00:20:29.500] but it's not bad, it's good in the
+[00:20:29.500 - 00:20:31.500] bookmarks
+[00:20:31.500 - 00:20:33.500] in order flows that I always know
+[00:20:33.500 - 00:20:35.500] that there will be a set up so I don't have
+[00:20:35.500 - 00:20:37.500] much left
+[00:20:37.500 - 00:20:39.500] also if I take one stop, everything is good
+[00:20:39.500 - 00:20:41.500] I can always go to another disk
+[00:20:41.500 - 00:20:43.500] and even to a third
+[00:20:43.500 - 00:20:45.500] I know what's going on here behind the blocks
+[00:20:45.500 - 00:20:47.500] and again if the blocks are broken
+[00:20:47.500 - 00:20:49.500] 350, we need to fix it
+[00:20:49.500 - 00:20:55.020] the question
+[00:20:55.020 - 00:20:57.020] from 350
+[00:20:57.020 - 00:20:59.020] after we get to the limit
+[00:20:59.020 - 00:21:01.020] we need to get to the limit much more
+[00:21:01.020 - 00:21:22.980] you can do it much easier
+[00:21:22.980 - 00:21:24.980] and even stop
+[00:21:24.980 - 00:21:26.980] let's say
+[00:21:26.980 - 00:21:28.980] 45 on this disk
+[00:21:30.980 - 00:21:32.980] in the limit
+[00:21:32.980 - 00:21:34.980] I don't see a reason
+[00:21:34.980 - 00:21:36.980] why not
+[00:21:36.980 - 00:21:38.980] because there is no real reason to stop
+[00:21:38.980 - 00:21:40.980] I can try to stop here
+[00:21:40.980 - 00:21:42.980] but I don't want to stop
+[00:21:42.980 - 00:21:44.980] you see I don't want to stop
+[00:21:44.980 - 00:21:46.980] to stop it here
+[00:21:46.980 - 00:21:48.980] because it doesn't happen to me what happened before
+[00:21:48.980 - 00:21:50.980] wow it's just that what happened to me here
+[00:21:50.980 - 00:21:54.680] look at the difference from the one I entered
+[00:21:54.680 - 00:21:56.680] okay I'm in a hurry
+[00:21:56.680 - 00:21:58.680] if he does 350
+[00:21:58.680 - 00:22:00.680] there is a point
+[00:22:00.680 - 00:22:02.680] there is a point and we need to
+[00:22:02.680 - 00:22:04.680] get to the limit
+[00:22:04.680 - 00:22:06.680] again this is a block that they put
+[00:22:06.680 - 00:22:08.680] to really stop at the limit
+[00:22:08.680 - 00:22:10.680] 350
+[00:22:10.680 - 00:22:12.680] but it looks really
+[00:22:12.680 - 00:22:14.680] the market points here are really big
+[00:22:14.680 - 00:22:16.680] I really
+[00:22:16.680 - 00:22:18.680] can be that if I see it
+[00:22:18.680 - 00:22:20.680] it's a live block
+[00:22:20.680 - 00:22:22.680] there is a point that I don't
+[00:22:22.680 - 00:22:24.680] try to use really live
+[00:22:24.680 - 00:22:26.680] with you
+[00:22:26.680 - 00:22:28.680] here
+[00:22:28.680 - 00:22:30.680] here they start to add
+[00:22:30.680 - 00:22:32.680] you can see
+[00:22:32.680 - 00:22:34.680] and I'm trying to
+[00:22:34.680 - 00:22:36.680] really see the details
+[00:22:36.680 - 00:22:38.680] you see I'm looking for the details
+[00:22:38.680 - 00:22:40.680] and details all the time
+[00:22:40.680 - 00:22:42.680] it's just a block
+[00:22:42.680 - 00:22:44.680] I want to see the details
+[00:22:44.680 - 00:22:46.680] in live
+[00:22:46.680 - 00:22:48.680] the details
+[00:22:48.680 - 00:22:50.680] what a mess
+[00:22:50.680 - 00:22:52.680] what a mess with my first corner
+[00:22:52.680 - 00:22:54.680] what a mess
+[00:22:54.680 - 00:22:58.660] but
+[00:22:58.660 - 00:23:00.660] I really wanted to stop
+[00:23:00.660 - 00:23:02.660] in a hurry there
+[00:23:02.660 - 00:23:05.940] where was it
+[00:23:05.940 - 00:23:07.940] 340
+[00:23:07.940 - 00:23:09.940] not 440
+[00:23:09.940 - 00:23:11.940] I think it was even before I entered
+[00:23:11.940 - 00:23:16.310] what was there
+[00:23:16.310 - 00:23:20.780] you see
+[00:23:20.780 - 00:23:22.780] even in order flow you can't
+[00:23:22.780 - 00:23:24.780] stop and the graph breaks
+[00:23:24.780 - 00:23:26.780] we don't have money
+[00:23:26.780 - 00:23:28.780] come on
+[00:23:28.780 - 00:23:30.780] I'm looking for a reentry
+[00:23:30.780 - 00:23:32.780] still
+[00:23:32.780 - 00:23:34.780] the cvd is still a mess
+[00:23:34.780 - 00:23:36.780] the graph is really
+[00:23:36.780 - 00:23:38.780] I'm looking for a way to stop
+[00:23:38.780 - 00:23:42.250] in this case
+[00:23:42.250 - 00:23:44.250] it's not that bad, the first one
+[00:23:44.250 - 00:23:46.250] you can see it
+[00:23:46.250 - 00:23:48.250] I'll give you this limit
+[00:23:48.250 - 00:23:50.250] really
+[00:23:50.250 - 00:23:52.250] there's no reason
+[00:23:52.250 - 00:23:54.250] I have to use the other set
+[00:23:54.250 - 00:23:56.250] and check
+[00:23:56.250 - 00:24:04.620] what happened here
+[00:24:04.620 - 00:24:06.620] the limit I wanted
+[00:24:06.620 - 00:24:08.620] in 50 is already very
+[00:24:08.620 - 00:24:10.620] very cheap
+[00:24:10.620 - 00:24:12.620] or you see the limits
+[00:24:12.620 - 00:24:14.620] are added here in live
+[00:24:14.620 - 00:24:16.620] this is what we want to see
+[00:24:16.620 - 00:24:18.620] and
+[00:24:18.620 - 00:24:23.400] you can try to use
+[00:24:23.400 - 00:24:25.400] from this block
+[00:24:25.400 - 00:24:27.400] 390
+[00:24:27.400 - 00:24:29.400] looks good
+[00:24:29.400 - 00:24:31.400] also 385
+[00:24:31.400 - 00:24:37.180] looks good
+[00:24:37.180 - 00:24:39.180] you can try to use where it is in the end
+[00:24:39.180 - 00:24:45.110] 387
+[00:24:45.110 - 00:24:47.110] and half I see that there
+[00:24:47.110 - 00:24:50.870] it's official
+[00:24:50.870 - 00:24:52.870] then I'll put
+[00:24:52.870 - 00:24:54.870] in the limit
+[00:24:54.870 - 00:24:56.870] and let's stop
+[00:24:56.870 - 00:24:58.870] in
+[00:24:58.870 - 00:25:00.870] 10 points
+[00:25:00.870 - 00:25:06.070] 77
+[00:25:06.070 - 00:25:08.070] and I think in this case I'll work with trail
+[00:25:08.070 - 00:25:10.070] let's try to get
+[00:25:10.070 - 00:25:12.070] how much more accurate
+[00:25:12.070 - 00:25:14.070] you see the blocks of the points
+[00:25:14.070 - 00:25:16.070] that you want to hide in these areas
+[00:25:16.070 - 00:25:18.070] 77
+[00:25:18.070 - 00:25:20.070] 25 it's here
+[00:25:20.070 - 00:25:22.070] these blocks say to save it
+[00:25:22.070 - 00:25:24.070] there are two nice blocks
+[00:25:24.070 - 00:25:29.050] I didn't get a file here
+[00:25:31.050 - 00:25:34.330] I got a file
+[00:25:34.330 - 00:25:36.330] from here I want to see how it starts
+[00:25:36.330 - 00:25:38.330] to go up and down
+[00:25:38.330 - 00:25:40.330] to the highest points
+[00:25:40.330 - 00:25:42.330] or the limit
+[00:25:42.330 - 00:25:44.330] I can advance here also to break
+[00:25:44.330 - 00:25:46.330] very high
+[00:25:46.330 - 00:25:49.580] the limit
+[00:25:49.580 - 00:25:51.580] I'm already at risk
+[00:25:51.580 - 00:25:53.580] and I can hide
+[00:25:53.580 - 00:25:55.580] this block in 422
+[00:25:55.580 - 00:25:58.980] and half
+[00:25:58.980 - 00:26:00.980] or I can even go to the highest point
+[00:26:00.980 - 00:26:02.980] 450
+[00:26:02.980 - 00:26:04.980] I want to go first
+[00:26:04.980 - 00:26:08.740] I'll go to 450
+[00:26:08.740 - 00:26:14.940] let's see if we can get
+[00:26:14.940 - 00:26:16.940] a point
+[00:26:16.940 - 00:26:38.740] to get 450
+[00:26:38.740 - 00:26:40.740] it can be a very high scale
+[00:26:40.740 - 00:26:42.740] and very good
+[00:26:42.740 - 00:26:44.740] we really put there a stop of
+[00:26:44.740 - 00:26:46.740] 10 points that we got
+[00:26:46.740 - 00:26:50.120] you see
+[00:26:50.120 - 00:26:52.120] my stop was 77
+[00:26:52.120 - 00:26:54.120] 25
+[00:26:54.120 - 00:26:56.120] 25
+[00:26:56.120 - 00:26:58.120] and I'm going to
+[00:26:58.120 - 00:27:00.120] the limit of 1 to 6
+[00:27:02.120 - 00:27:05.620] 4
+[00:27:05.620 - 00:27:16.100] in order to get the point
+[00:27:16.100 - 00:27:18.100] all good, even if this limit will return to break
+[00:27:18.100 - 00:27:20.100] it's all good
+[00:27:20.100 - 00:27:22.100] there is no limit
+[00:27:22.100 - 00:27:26.120] break even
+[00:27:26.120 - 00:27:28.120] it doesn't matter
+[00:27:28.120 - 00:27:30.120] I can always hide it
+[00:27:30.120 - 00:27:32.120] and maybe even go to the highest point
+[00:27:32.120 - 00:27:34.120] but you realize that the second limit
+[00:27:34.120 - 00:27:36.120] I'm going to break super super high
+[00:27:36.120 - 00:27:38.120] and also
+[00:27:38.120 - 00:27:40.120] 4 points 1 to 6
+[00:27:40.120 - 00:27:42.120] so all good
+[00:27:42.120 - 00:27:44.120] even with the first stop that I got
+[00:27:44.120 - 00:27:46.120] and also that I was there at a certain point
+[00:27:46.120 - 00:27:48.120] I went
+[00:27:48.120 - 00:27:50.120] I only need one good point here
+[00:27:50.120 - 00:27:52.120] and I'm going back to the money
+[00:27:52.120 - 00:27:54.120] 350 what I wanted from before
+[00:27:54.120 - 00:27:56.120] you can see that we
+[00:27:56.120 - 00:27:58.120] really really really begin to
+[00:27:58.120 - 00:28:00.120] limit points
+[00:28:00.120 - 00:28:02.120] but here it will be very very
+[00:28:02.120 - 00:28:04.120] very risky to take the limit
+[00:28:04.120 - 00:28:06.120] ok this error is very new
+[00:28:06.120 - 00:28:08.120] I want to see the prices
+[00:28:08.120 - 00:28:10.120] here at 350
+[00:28:10.120 - 00:28:12.120] to the end
+[00:28:12.120 - 00:28:14.120] and if I get
+[00:28:14.120 - 00:28:16.120] here a round of prices
+[00:28:16.120 - 00:28:18.120] I will choose to use another time to 450
+[00:28:18.120 - 00:28:20.120] this is when we also get
+[00:28:20.120 - 00:28:22.120] points
+[00:28:22.120 - 00:28:24.120] then it's great
+[00:28:24.120 - 00:28:26.120] we can also go back to the percentage of
+[00:28:26.120 - 00:28:28.120] the first quarter
+[00:28:28.120 - 00:28:30.120] and also take here
+[00:28:30.120 - 00:28:37.140] again you see that the next
+[00:28:37.140 - 00:28:39.140] break here and it was very very
+[00:28:39.140 - 00:28:41.140] risky when you get
+[00:28:41.140 - 00:28:43.140] a very big break
+[00:28:43.140 - 00:28:45.140] there is no reason to lose
+[00:28:45.140 - 00:28:47.140] I was also in 1 to 2 hours
+[00:28:47.140 - 00:28:49.140] there for a minute even
+[00:28:49.140 - 00:28:51.140] I lost more
+[00:28:51.140 - 00:28:53.140] there is no reason to lose money
+[00:28:53.140 - 00:28:55.140] you have to understand that this price
+[00:28:55.140 - 00:28:57.140] is really high
+[00:28:57.140 - 00:28:59.140] so if you enter from the block
+[00:28:59.140 - 00:29:01.140] and you get a good point
+[00:29:01.140 - 00:29:03.140] increase the price of the break
+[00:29:03.140 - 00:29:05.140] ok now I want to see
+[00:29:05.140 - 00:29:07.140] prices that are rising
+[00:29:07.140 - 00:29:09.140] and markets
+[00:29:09.140 - 00:29:11.140] ok I can see
+[00:29:11.140 - 00:29:13.140] that there are points here that are also trying to
+[00:29:13.140 - 00:29:15.140] reduce the price of this
+[00:29:15.140 - 00:29:17.140] I still haven't seen
+[00:29:17.140 - 00:29:19.140] the
+[00:29:19.140 - 00:29:21.140] the confidence that I want to see
+[00:29:21.140 - 00:29:23.140] it can be very much that we
+[00:29:23.140 - 00:29:25.140] want to reduce the prices of these
+[00:29:25.140 - 00:29:30.090] we still don't know
+[00:29:30.090 - 00:29:38.420] ok
+[00:29:38.420 - 00:29:40.420] there is a very big gap
+[00:29:40.420 - 00:29:42.420] on this block
+[00:29:42.420 - 00:29:44.420] but actually
+[00:29:44.420 - 00:29:46.420] there are a lot of blocks here
+[00:29:46.420 - 00:29:48.420] below the price
+[00:29:48.420 - 00:29:50.420] it makes me very happy that we
+[00:29:50.420 - 00:29:52.420] do want to visit this area
+[00:29:52.420 - 00:29:54.420] and there are also blocks here
+[00:29:54.420 - 00:29:56.420] that are not broken
+[00:29:56.420 - 00:29:58.420] if we wanted to break this
+[00:29:58.420 - 00:30:00.420] block I would enter a market
+[00:30:00.420 - 00:30:02.420] with a stop below
+[00:30:02.420 - 00:30:06.950] this line
+[00:30:06.950 - 00:30:08.950] if this is what happens here
+[00:30:08.950 - 00:30:18.660] this is what I do
+[00:30:18.660 - 00:30:20.660] this is the difference
+[00:30:20.660 - 00:30:25.000] that we broke there
+[00:30:25.000 - 00:30:27.000] let's see
+[00:30:27.000 - 00:30:30.890] if he breaks this block
+[00:30:30.890 - 00:30:40.660] it's very very interesting
+[00:30:40.660 - 00:30:44.010] it's hard to break
+[00:30:44.010 - 00:30:46.010] the blocks, it's hard to break
+[00:30:46.010 - 00:30:48.010] this block
+[00:30:48.010 - 00:30:50.010] it's very hard for me to get here
+[00:30:50.010 - 00:31:07.660] it's very hard for me to get there
+[00:31:07.660 - 00:31:09.660] now I see that there is a huge gap
+[00:31:09.660 - 00:31:14.120] of prices that is worth
+[00:31:14.120 - 00:31:16.120] in a hurry, in a hurry
+[00:31:16.120 - 00:31:18.120] there is one block here
+[00:31:18.120 - 00:31:20.120] they don't want to see
+[00:31:20.120 - 00:31:22.120] the price of this block
+[00:31:22.120 - 00:31:24.120] I think we can
+[00:31:24.120 - 00:31:26.120] also go here to this area
+[00:31:26.120 - 00:31:28.120] but I won't break it
+[00:31:28.120 - 00:31:30.120] let's not break it
+[00:31:30.120 - 00:31:32.120] let's break the block
+[00:31:32.120 - 00:31:35.690] let's take a look
+[00:31:35.690 - 00:31:37.690] we have already seen two blocks
+[00:31:37.690 - 00:31:39.690] and it's not even open
+[00:31:39.690 - 00:31:41.690] it just breaks
+[00:31:41.690 - 00:31:43.690] that's what happens here
+[00:31:43.690 - 00:31:45.690] ok
+[00:31:45.690 - 00:31:47.690] we entered the block
+[00:31:47.690 - 00:31:49.690] that was here
+[00:31:49.690 - 00:31:51.690] the price of blocks
+[00:31:51.690 - 00:31:53.690] that we didn't break
+[00:31:53.690 - 00:31:55.690] but I don't see blocks
+[00:31:55.690 - 00:31:57.690] that are used in the market
+[00:31:57.690 - 00:31:59.690] I'm looking to see blocks
+[00:31:59.690 - 00:32:01.690] that are used here in the market
+[00:32:01.690 - 00:32:03.690] very very hard
+[00:32:03.690 - 00:32:05.690] and then maybe
+[00:32:05.690 - 00:32:07.690] I can start to think
+[00:32:07.690 - 00:32:15.610] to use
+[00:32:15.610 - 00:32:17.610] now the blocks
+[00:32:17.610 - 00:32:19.610] are breaking
+[00:32:19.610 - 00:32:21.610] this can be a good trick
+[00:32:21.610 - 00:32:23.610] to see a reaction
+[00:32:23.610 - 00:32:40.620] wow
+[00:32:40.620 - 00:32:42.620] it also breaks the blocks
+[00:32:42.620 - 00:32:44.620] that don't need to break this block
+[00:32:44.620 - 00:32:46.620] there is another block here
+[00:32:46.620 - 00:32:48.620] of the blocks
+[00:32:48.620 - 00:32:50.620] if this thing breaks
+[00:32:50.620 - 00:32:52.620] I'm one of the most famous
+[00:32:52.620 - 00:32:54.620] with a stock of 320
+[00:32:54.620 - 00:32:56.620] in these areas
+[00:32:56.620 - 00:32:58.620] 315
+[00:32:58.620 - 00:33:00.620] I'll put it down
+[00:33:00.620 - 00:33:02.620] even that
+[00:33:02.620 - 00:33:04.620] can be a very very interesting help
+[00:33:04.620 - 00:33:06.620] I'm still looking to see
+[00:33:06.620 - 00:33:08.620] a little bit more accuracy
+[00:33:08.620 - 00:33:10.620] because at the moment it's very very good
+[00:33:10.620 - 00:33:30.410] you see
+[00:33:30.410 - 00:33:32.410] there is no accuracy in this area
+[00:33:32.410 - 00:33:34.410] I didn't get any momentum
+[00:33:34.410 - 00:33:36.410] of blocks in the market
+[00:33:36.410 - 00:33:38.410] and I didn't get any break
+[00:33:38.410 - 00:33:40.410] of blocks of blocks
+[00:33:40.410 - 00:33:42.410] or that's what started to look good
+[00:33:42.410 - 00:33:44.410] I want to see that we break
+[00:33:44.410 - 00:33:46.410] the 350
+[00:33:46.410 - 00:33:48.410] the blocks are trying to
+[00:33:48.410 - 00:33:50.410] prevent the 350
+[00:33:50.410 - 00:33:52.410] if we break it
+[00:33:52.410 - 00:33:54.410] it can be a good trick
+[00:33:54.410 - 00:33:56.410] and it also breaks this block in 62
+[00:33:56.410 - 00:33:58.410] also a very interesting help
+[00:33:58.410 - 00:34:02.710] and of course
+[00:34:02.710 - 00:34:04.710] we can see
+[00:34:04.710 - 00:34:09.940] something that comes out of this help
+[00:34:09.940 - 00:34:11.940] here are the blocks that are used
+[00:34:11.940 - 00:34:36.950] here in the market
+[00:34:36.950 - 00:34:38.950] we put it here
+[00:34:38.950 - 00:34:40.950] between the blocks
+[00:34:40.950 - 00:34:42.950] between the two blocks
+[00:34:42.950 - 00:34:44.950] if it looks like it's going to work
+[00:34:44.950 - 00:34:46.950] what is the CVD
+[00:34:46.950 - 00:34:48.950] 3200
+[00:34:48.950 - 00:34:50.950] there is nothing wrong with it
+[00:34:50.950 - 00:34:54.260] there is nothing wrong with it
+[00:34:54.260 - 00:34:56.260] in the world
+[00:34:56.260 - 00:34:58.260] that I'm wrong with it
+[00:34:58.260 - 00:35:02.220] or
+[00:35:02.220 - 00:35:04.220] that's what I want to see
+[00:35:04.220 - 00:35:06.220] I want to see
+[00:35:06.220 - 00:35:08.220] this curve
+[00:35:08.220 - 00:35:10.220] of the blocks
+[00:35:10.220 - 00:35:12.220] but at the moment they don't succeed
+[00:35:12.220 - 00:35:14.220] they don't succeed
+[00:35:14.220 - 00:35:23.640] to get out of this block
+[00:35:23.640 - 00:35:25.640] if I manage to break it
+[00:35:25.640 - 00:35:27.640] 311
+[00:35:27.640 - 00:35:29.640] 312
+[00:35:29.640 - 00:35:31.640] this help
+[00:35:31.640 - 00:35:33.640] I want to see these blocks
+[00:35:33.640 - 00:35:35.640] from behind when the block is broken
+[00:35:35.640 - 00:35:37.640] and we break it
+[00:35:37.640 - 00:35:39.640] it can be very interesting that it doesn't open
+[00:35:39.640 - 00:35:41.640] and we put it here in the area of
+[00:35:41.640 - 00:35:43.640] 262.5
+[00:35:43.640 - 00:35:45.640] it's also fine by the way
+[00:35:45.640 - 00:35:47.640] I don't have one, you see
+[00:35:47.640 - 00:35:49.640] I already have two blocks
+[00:35:49.640 - 00:35:51.640] one that I want to stop
+[00:35:51.640 - 00:35:53.640] and the other in the break
+[00:35:53.640 - 00:35:55.640] nothing happens
+[00:35:55.640 - 00:35:57.640] again I'm not alone
+[00:35:57.640 - 00:35:59.640] everything is fine
+[00:35:59.640 - 00:36:01.640] because I really know that you see
+[00:36:01.640 - 00:36:03.640] I spent half an hour here
+[00:36:03.640 - 00:36:05.640] I found two blocks
+[00:36:05.640 - 00:36:07.640] that's the best
+[00:36:07.640 - 00:36:09.640] it's good
+[00:36:09.640 - 00:36:11.640] it's good to have two blocks
+[00:36:11.640 - 00:36:13.640] everything is fine
+[00:36:13.640 - 00:36:19.640] what I do
+[00:36:19.640 - 00:36:21.640] I do want to send you
+[00:36:21.640 - 00:36:23.640] all these blocks together
+[00:36:23.640 - 00:36:25.640] I hope you really know
+[00:36:25.640 - 00:36:27.640] this video
+[00:36:27.640 - 00:36:29.640] now you can really see the blocks
+[00:36:29.640 - 00:36:31.640] they start to break with a huge block
+[00:36:31.640 - 00:36:33.640] but
+[00:36:33.640 - 00:36:35.640] it will be a risk to get out
+[00:36:35.640 - 00:36:37.640] there's also a stop here
+[00:36:37.640 - 00:36:39.640] maybe
+[00:36:39.640 - 00:36:41.640] now in the area that I want
+[00:36:41.640 - 00:36:43.640] maybe I'm the one who breaks it
+[00:36:43.640 - 00:36:45.640] and I take some continuation
+[00:36:45.640 - 00:36:47.640] again I know
+[00:36:47.640 - 00:36:49.640] you will stay here for a long time
+[00:36:49.640 - 00:36:51.640] and do
+[00:36:51.640 - 00:37:04.460] and do a break
+[00:37:04.460 - 00:37:06.460] again I don't feel
+[00:37:06.460 - 00:37:08.460] these things, I have this area here
+[00:37:08.460 - 00:37:10.460] in 262 that I know
+[00:37:10.460 - 00:37:12.460] that it can be from here
+[00:37:12.460 - 00:37:14.460] you can see that
+[00:37:14.460 - 00:37:16.460] 262 is this block
+[00:37:16.460 - 00:37:18.460] it can be on the edge of the ICT
+[00:37:18.460 - 00:37:20.460] we look like a sweep
+[00:37:20.460 - 00:37:22.460] from below here
+[00:37:22.460 - 00:37:24.460] and then break
+[00:37:24.460 - 00:37:26.460] the best way to do this is to talk about it
+[00:37:26.460 - 00:37:28.460] because I can understand more
+[00:37:28.460 - 00:37:31.800] and more
+[00:37:31.800 - 00:37:38.440] so I'm in a hurry
+[00:37:38.440 - 00:37:40.440] in the next 20 seconds
+[00:37:40.440 - 00:37:42.440] let's see how it goes
+[00:37:42.440 - 00:37:46.070] 262
+[00:37:46.070 - 00:37:48.070] block and sweep
+[00:37:48.070 - 00:37:50.070] it doesn't look like a sweep
+[00:37:50.070 - 00:37:59.940] it really breaks
+[00:37:59.940 - 00:38:01.940] and
+[00:38:01.940 - 00:38:03.940] sweep
+[00:38:03.940 - 00:38:05.940] let's see if it will be a sweep
+[00:38:05.940 - 00:38:07.940] of other blocks
+[00:38:07.940 - 00:38:11.800] and we start with a sweep
+[00:38:11.800 - 00:38:13.800] wow, it looks like it
+[00:38:13.800 - 00:38:15.800] wait a minute
+[00:38:15.800 - 00:38:17.800] my stop is 30 points
+[00:38:17.800 - 00:38:19.800] oh, you see these limits
+[00:38:19.800 - 00:38:21.800] I can do a limit of
+[00:38:21.800 - 00:38:23.800] 300 and wow
+[00:38:23.800 - 00:38:25.800] 320 you can
+[00:38:25.800 - 00:38:27.800] do a limit
+[00:38:27.800 - 00:38:29.800] and my stop can go
+[00:38:29.800 - 00:38:31.800] wow, you see how they start to go up
+[00:38:31.800 - 00:38:33.800] the limits are huge
+[00:38:33.800 - 00:38:35.800] my stop can go up to 310
+[00:38:35.800 - 00:38:41.380] in fun
+[00:38:41.380 - 00:38:43.380] it can go up to this level
+[00:38:43.380 - 00:38:45.380] there is here the sweep
+[00:38:45.380 - 00:38:47.380] from this block and I want to go up
+[00:38:47.380 - 00:38:51.180] with the edge
+[00:38:51.180 - 00:38:58.580] let's see if we have a reaction
+[00:38:58.580 - 00:39:00.580] 315
+[00:39:00.580 - 00:39:02.580] sweep
+[00:39:02.580 - 00:39:04.580] the edge of the corners
+[00:39:04.580 - 00:39:06.580] the corners are more aggressive
+[00:39:06.580 - 00:39:08.580] here is the reaction that I like to see
+[00:39:08.580 - 00:39:10.580] I'm already 1 to 1
+[00:39:10.580 - 00:39:14.150] and I can already sweep
+[00:39:14.150 - 00:39:16.150] here to break even
+[00:39:16.150 - 00:39:18.150] there is nothing wrong
+[00:39:18.150 - 00:39:20.150] I can go up to 315
+[00:39:20.150 - 00:39:22.150] it says to go up
+[00:39:22.150 - 00:39:24.150] wait
+[00:39:24.150 - 00:39:26.150] this block here
+[00:39:26.150 - 00:39:29.850] also this block in 335
+[00:39:29.850 - 00:39:31.850] it says to go up
+[00:39:31.850 - 00:39:38.740] I have no reason to go up to break here
+[00:39:38.740 - 00:39:40.740] take profit
+[00:39:40.740 - 00:39:42.740] I think
+[00:39:42.740 - 00:39:44.740] this block in 420
+[00:39:44.740 - 00:39:46.740] can be
+[00:39:46.740 - 00:39:48.740] in my opinion
+[00:39:48.740 - 00:39:50.740] the best tipy
+[00:39:50.740 - 00:39:58.380] let's see
+[00:39:58.380 - 00:40:00.380] what is it
+[00:40:00.380 - 00:40:02.380] this sweep is almost the same
+[00:40:02.380 - 00:40:04.380] as the previous sweep
+[00:40:04.380 - 00:40:06.380] and let's see
+[00:40:06.380 - 00:40:08.380] if we can go up to
+[00:40:08.380 - 00:40:10.380] 420
+[00:40:10.380 - 00:40:12.380] let's see
+[00:40:12.380 - 00:40:14.380] my top stop here was 10 points
+[00:40:14.380 - 00:40:16.380] again
+[00:40:16.380 - 00:40:18.380] this time I can
+[00:40:18.380 - 00:40:20.380] do something like that
+[00:40:22.380 - 00:40:24.380] let's do a top stop of 10 points
+[00:40:24.380 - 00:40:28.810] that's what I did
+[00:40:28.810 - 00:40:30.810] and if I look at the RR
+[00:40:30.810 - 00:40:32.810] and it goes up to 1 to 10
+[00:40:32.810 - 00:40:36.920] 1 to 10
+[00:40:36.920 - 00:40:38.920] ridiculous
+[00:40:38.920 - 00:40:40.920] ridiculous
+[00:40:40.920 - 00:40:42.920] come on
+[00:40:42.920 - 00:40:44.920] let's see the points
+[00:40:44.920 - 00:40:46.920] more and more points that are used
+[00:40:46.920 - 00:40:48.920] here
+[00:40:48.920 - 00:40:50.920] I don't see a reason to go back up
+[00:40:50.920 - 00:40:52.920] I want to see from here
+[00:40:52.920 - 00:40:54.920] start breaking
+[00:40:54.920 - 00:41:00.860] blocks to go up
+[00:41:00.860 - 00:41:02.860] 320 it's almost the same
+[00:41:04.860 - 00:41:06.860] there is nothing to do here
+[00:41:06.860 - 00:41:08.860] we are already in
+[00:41:08.860 - 00:41:10.860] 1 to 3
+[00:41:10.860 - 00:41:12.860] even
+[00:41:12.860 - 00:41:16.680] if not more
+[00:41:16.680 - 00:41:18.680] now we can
+[00:41:18.680 - 00:41:20.680] give up to do
+[00:41:20.680 - 00:41:22.680] his
+[00:41:22.680 - 00:41:24.680] and maybe continue
+[00:41:24.680 - 00:41:26.680] to start a trail
+[00:41:26.680 - 00:41:28.680] if we really look at the
+[00:41:28.680 - 00:41:30.680] lower blocks
+[00:41:30.680 - 00:41:32.680] we will do a trail
+[00:41:32.680 - 00:41:36.660] and we will go down
+[00:41:36.660 - 00:41:38.660] to the lower blocks
+[00:41:38.660 - 00:41:40.660] it is possible to see that we have points
+[00:41:40.660 - 00:41:42.660] that are used here in the market
+[00:41:42.660 - 00:41:44.660] continue
+[00:41:44.660 - 00:41:46.660] breaking the blocks
+[00:41:46.660 - 00:41:48.660] to see us do
+[00:41:48.660 - 00:41:50.660] 420
+[00:41:50.660 - 00:41:52.660] that's the block I want to see
+[00:41:52.660 - 00:41:57.860] the bottom block here
+[00:41:57.860 - 00:41:59.860] give me my 1 to 10
+[00:41:59.860 - 00:42:01.860] I will be upset all day long
+[00:42:01.860 - 00:42:15.480] really
+[00:42:15.480 - 00:42:17.480] if not the technical quality
+[00:42:17.480 - 00:42:19.480] with the points in the first place
+[00:42:19.480 - 00:42:21.480] I was already in the middle of the race
+[00:42:21.480 - 00:42:23.480] even though the first stop I got
+[00:42:23.480 - 00:42:26.860] and again
+[00:42:26.860 - 00:42:28.860] this security
+[00:42:28.860 - 00:42:30.860] in the races
+[00:42:30.860 - 00:42:32.860] is very important to me
+[00:42:32.860 - 00:42:34.860] from the races
+[00:42:34.860 - 00:42:36.860] I wanted to take it from the live
+[00:42:36.860 - 00:42:38.860] from the session
+[00:42:38.860 - 00:42:40.860] from live as much as possible
+[00:42:40.860 - 00:42:42.860] on this new topic
+[00:42:42.860 - 00:42:44.860] there is a drop from this block
+[00:42:44.860 - 00:42:46.860] 365
+[00:42:46.860 - 00:42:48.860] let's hope that we do not see
+[00:42:48.860 - 00:42:50.860] 330
+[00:42:50.860 - 00:42:52.860] my break stop is 320
+[00:42:52.860 - 00:42:54.860] we are in a very, very, very
+[00:42:54.860 - 00:42:56.860] good, very good
+[00:42:56.860 - 00:42:58.860] break stop
+[00:42:58.860 - 00:43:00.860] very, very good
+[00:43:00.860 - 00:43:02.860] break stop
+[00:43:02.860 - 00:43:04.860] it really did not tell me to stop
+[00:43:04.860 - 00:43:06.860] we really want to see this stop
+[00:43:06.860 - 00:43:32.060] we need to see a break
+[00:43:32.060 - 00:43:34.060] of points in the market
+[00:43:34.060 - 00:43:36.060] of this big block
+[00:43:36.060 - 00:43:38.060] 365
+[00:43:38.060 - 00:43:40.060] and this will give me the confirmation
+[00:43:40.060 - 00:43:42.060] that we will see 420
+[00:43:42.060 - 00:43:46.100] again, not once
+[00:43:46.100 - 00:43:48.100] but
+[00:43:48.100 - 00:43:50.100] there is a significant drop
+[00:43:50.100 - 00:43:53.350] like this
+[00:43:53.350 - 00:43:55.350] it will give me
+[00:43:55.350 - 00:43:57.350] a lot more
+[00:43:57.350 - 00:43:59.350] in the market
+[00:43:59.350 - 00:44:01.350] I do not see anything
+[00:44:01.350 - 00:44:03.350] on the road
+[00:44:03.350 - 00:44:05.350] that they said to free us from doing 420
+[00:44:05.350 - 00:44:07.350] when I see that the cars
+[00:44:07.350 - 00:44:09.350] start to go
+[00:44:09.350 - 00:44:11.350] to the limit
+[00:44:11.350 - 00:44:13.350] I will not go back, I will go 421 to 10R
+[00:44:13.350 - 00:44:15.350] but
+[00:44:15.350 - 00:44:17.350] on the other day
+[00:44:17.350 - 00:44:19.350] I had a lot more to do
+[00:44:19.350 - 00:44:21.350] to help these
+[00:44:21.350 - 00:44:23.350] you see that they start to go
+[00:44:23.350 - 00:44:25.350] to the limit
+[00:44:25.350 - 00:44:27.350] it can be very much that it is a take profit
+[00:44:27.350 - 00:44:29.350] of Muslims who are preparing there
+[00:44:29.350 - 00:44:31.350] limit with a lot of money
+[00:44:31.350 - 00:44:33.350] I will also continue to save
+[00:44:33.350 - 00:44:35.350] if it comes to 1 to 10
+[00:44:35.350 - 00:44:37.350] here with you live
+[00:44:37.350 - 00:44:39.350] I will go over to save
+[00:44:39.350 - 00:44:41.350] we will also go back to the first stop
+[00:44:41.350 - 00:44:43.350] and we will also save
+[00:44:43.350 - 00:44:45.350] and I do not think we saved
+[00:44:45.350 - 00:44:47.350] we can try to save some of the cars
+[00:44:47.350 - 00:44:52.490] maybe even to another trade
+[00:44:52.490 - 00:44:54.490] I will not do a trade
+[00:44:54.490 - 00:44:56.490] I have a very very big security
+[00:44:56.490 - 00:44:58.490] I see the blocks
+[00:44:58.490 - 00:45:00.490] I see the aggressive keys
+[00:45:00.490 - 00:45:02.490] here in the market
+[00:45:02.490 - 00:45:04.490] I do not get in this trade
+[00:45:04.490 - 00:45:06.490] security
+[00:45:06.490 - 00:45:08.490] very very big in the levels
+[00:45:08.490 - 00:45:10.490] right
+[00:45:10.490 - 00:45:12.490] it's a little hard not to take the car
+[00:45:12.490 - 00:45:14.490] and not to the limit
+[00:45:14.490 - 00:45:16.490] but they saved at the end
+[00:45:16.490 - 00:45:18.490] I'm just here to help friends
+[00:45:18.490 - 00:45:20.490] but on a regular day
+[00:45:20.490 - 00:45:22.490] if it was a regular day
+[00:45:22.490 - 00:45:24.490] I would of course start to make a trade
+[00:45:24.490 - 00:45:26.490] maybe put my stop under this block
+[00:45:26.490 - 00:45:28.490] but again because it's with you
+[00:45:28.490 - 00:45:30.490] and it's a little boring here
+[00:45:30.490 - 00:45:32.490] let's have a little fun
+[00:45:32.490 - 00:45:34.490] we really tried to understand
+[00:45:34.490 - 00:45:36.490] a live trade
+[00:45:36.490 - 00:45:38.490] 1 to 10
+[00:45:38.490 - 00:45:40.490] if I save now I'm 1 to 7
+[00:45:40.490 - 00:45:42.490] 1 to 8
+[00:45:42.490 - 00:45:44.490] you can also
+[00:45:44.490 - 00:45:46.490] take it but I'm very very very
+[00:45:46.490 - 00:45:48.490] very much in the 420
+[00:45:48.490 - 00:45:50.490] very very much in the 420
+[00:45:50.490 - 00:45:52.490] of me
+[00:45:52.490 - 00:45:54.490] you can see it comes there
+[00:45:54.490 - 00:45:56.490] to this big block that it is sitting
+[00:45:56.490 - 00:45:58.490] and it is looking at us
+[00:45:58.490 - 00:46:02.500] very open to me
+[00:46:02.500 - 00:46:04.500] if I do there 420
+[00:46:04.500 - 00:46:06.500] it will be very very open
+[00:46:06.500 - 00:46:21.910] ok, a cheap trade
+[00:46:21.910 - 00:46:23.910] another trade of cars
+[00:46:23.910 - 00:46:25.910] that you can see in this block
+[00:46:25.910 - 00:46:27.910] that is
+[00:46:27.910 - 00:46:29.910] cars that were marked
+[00:46:29.910 - 00:46:35.240] and this block is still hot
+[00:46:35.240 - 00:46:37.240] I don't see cars here
+[00:46:37.240 - 00:46:39.240] when it's a little boring
+[00:46:39.240 - 00:46:41.240] I would like to see cars that try to hide
+[00:46:41.240 - 00:46:43.240] here, now they are waiting
+[00:46:43.240 - 00:46:45.240] now I see that now they are waiting
+[00:46:45.240 - 00:46:47.240] live here and they stop at this level
+[00:46:47.240 - 00:46:49.240] 3,6,5
+[00:46:49.240 - 00:46:51.240] we don't need to put it under 3,6,5
+[00:46:51.240 - 00:46:53.240] we need to start
+[00:46:53.240 - 00:46:55.240] to go to my 420
+[00:46:55.240 - 00:46:58.710] come on, let's go
+[00:46:58.710 - 00:47:00.710] come on
+[00:47:00.710 - 00:47:02.710] let's start and go to the 420
+[00:47:02.710 - 00:47:10.440] let's say
+[00:47:10.440 - 00:47:12.440] that I have 0 technical performance here
+[00:47:12.440 - 00:47:14.440] I don't care about the graphics
+[00:47:14.440 - 00:47:16.440] it's just from the platform
+[00:47:16.440 - 00:47:18.440] all my performance
+[00:47:18.440 - 00:47:20.440] my understanding of the process
+[00:47:20.440 - 00:47:22.440] that happens in the bookmap
+[00:47:22.440 - 00:47:24.440] I remember that I do a little
+[00:47:24.440 - 00:47:26.440] here, because I had time
+[00:47:26.440 - 00:47:28.440] I had to start playing games
+[00:47:28.440 - 00:47:30.440] and do a rail stop
+[00:47:30.440 - 00:47:32.440] the R4 is very very much
+[00:47:32.440 - 00:47:34.440] but we play in the game
+[00:47:34.440 - 00:47:36.440] I'm with you
+[00:47:36.440 - 00:47:38.440] it doesn't take long to get back to the break
+[00:47:38.440 - 00:47:40.440] even though there is no reason to get back here
+[00:47:40.440 - 00:47:42.440] very confident in my 420
+[00:47:42.440 - 00:47:44.440] at my level
+[00:47:44.440 - 00:47:46.440] and we are together
+[00:47:46.440 - 00:47:48.440] we spend the time
+[00:47:48.440 - 00:47:52.650] it's impossible to see
+[00:47:52.650 - 00:47:54.650] that there is nothing to say
+[00:47:54.650 - 00:47:56.650] to meet here at the end
+[00:47:56.650 - 00:47:58.650] so I'm very very confident
+[00:47:58.650 - 00:48:00.650] that we will see
+[00:48:00.650 - 00:48:02.650] a huge explosion of market
+[00:48:02.650 - 00:48:04.650] we get to this block
+[00:48:04.650 - 00:48:06.650] it's hard for me to believe
+[00:48:06.650 - 00:48:24.840] that we won't get to this block
+[00:48:24.840 - 00:48:26.840] because now there is no block
+[00:48:26.840 - 00:48:28.840] live in 350
+[00:48:28.840 - 00:48:30.840] I saw it there
+[00:48:30.840 - 00:48:32.840] it's a bit
+[00:48:32.840 - 00:48:34.840] back to 350
+[00:48:34.840 - 00:48:36.840] it's a bit of a match
+[00:48:36.840 - 00:48:38.840] in my opinion
+[00:48:38.840 - 00:48:40.840] and it's still hard
+[00:48:40.840 - 00:48:42.840] to believe that the players
+[00:48:42.840 - 00:48:44.840] didn't want to play in a lot of areas
+[00:48:44.840 - 00:48:46.840] it takes a few points
+[00:48:46.840 - 00:48:48.840] in my 420
+[00:48:48.840 - 00:48:50.840] I don't even know
+[00:48:50.840 - 00:48:52.840] in my 420
+[00:48:52.840 - 00:48:54.840] we will see
+[00:48:54.840 - 00:48:59.240] that's what I wanted to see
+[00:48:59.240 - 00:49:01.240] amazing
+[00:49:01.240 - 00:49:03.240] just like I told you
+[00:49:03.240 - 00:49:05.240] now I want to see
+[00:49:05.240 - 00:49:07.240] all these blocks
+[00:49:07.240 - 00:49:09.240] and the blocks are still
+[00:49:09.240 - 00:49:11.240] up to this level
+[00:49:11.240 - 00:49:13.240] it's just what I want to see
+[00:49:13.240 - 00:49:15.240] wow
+[00:49:15.240 - 00:49:17.240] wow
+[00:49:17.240 - 00:49:19.240] if we go back to the break
+[00:49:19.240 - 00:49:21.240] it's going to be very tough
+[00:49:21.240 - 00:49:23.240] what happened to the CVD
+[00:49:23.240 - 00:49:25.240] because the CVD
+[00:49:25.240 - 00:49:27.240] is still so tough
+[00:49:27.240 - 00:49:29.240] 3200 and it doesn't seem
+[00:49:29.240 - 00:49:31.240] that the players used it
+[00:49:31.240 - 00:49:41.940] well
+[00:49:41.940 - 00:49:43.940] well
+[00:49:43.940 - 00:49:45.940] we got a block of players
+[00:49:45.940 - 00:49:47.940] that exploded
+[00:49:47.940 - 00:49:49.940] it wasn't going to happen
+[00:49:49.940 - 00:49:51.940] we need to see that it's broken
+[00:49:51.940 - 00:49:53.940] but
+[00:49:53.940 - 00:49:55.940] 350
+[00:49:55.940 - 00:49:57.940] you can see that there are blocks
+[00:49:57.940 - 00:49:59.940] that want to stop us
+[00:49:59.940 - 00:50:01.940] our take profit
+[00:50:01.940 - 00:50:03.940] at the moment is good
+[00:50:03.940 - 00:50:05.940] I don't see a block of players
+[00:50:05.940 - 00:50:07.940] that's going to explode
+[00:50:07.940 - 00:50:09.940] so I'm sure that if the blocks
+[00:50:09.940 - 00:50:11.940] are completely broken
+[00:50:11.940 - 00:50:13.940] they will keep it here
+[00:50:13.940 - 00:50:15.940] maybe even worse
+[00:50:15.940 - 00:50:17.940] but I don't understand
+[00:50:17.940 - 00:50:19.940] how it's going to happen
+[00:50:19.940 - 00:50:21.940] in the areas that I played
+[00:50:21.940 - 00:50:23.940] but
+[00:50:23.940 - 00:50:27.800] I'm going to keep it
+[00:50:27.800 - 00:50:29.800] even though the block is very small
+[00:50:31.800 - 00:50:33.800] 10 blocks of block
+[00:50:33.800 - 00:50:35.800] so
+[00:50:35.800 - 00:50:37.800] again
+[00:50:37.800 - 00:50:39.800] again and again you see
+[00:50:39.800 - 00:50:41.800] that the mentality here
+[00:50:41.800 - 00:50:43.800] is much more complicated
+[00:50:43.800 - 00:50:45.800] because
+[00:50:45.800 - 00:50:47.800] what I got in this game
+[00:50:47.800 - 00:50:49.800] $2
+[00:50:49.800 - 00:50:51.800] and look at the risk reward
+[00:50:51.800 - 00:50:53.800] and therefore much more easy
+[00:50:53.800 - 00:50:55.800] in the areas that are going to explode
+[00:50:55.800 - 00:50:59.720] well, I love this
+[00:50:59.720 - 00:51:01.720] I love what's happening here
+[00:51:01.720 - 00:51:03.720] we didn't manage to see something that is
+[00:51:03.720 - 00:51:09.140] very, very important to me
+[00:51:09.140 - 00:51:11.140] all good and it can be a manipulation
+[00:51:11.140 - 00:51:13.140] to get people to save money
+[00:51:13.140 - 00:51:32.810] still not good
+[00:51:32.810 - 00:51:34.810] again, as I said
+[00:51:34.810 - 00:51:36.810] before
+[00:51:36.810 - 00:51:38.810] I don't see how I get out of this risk
+[00:51:38.810 - 00:51:40.810] at least 420
+[00:51:40.810 - 00:51:42.810] they put a block on this block
+[00:51:42.810 - 00:51:44.810] they put a block on the market
+[00:51:44.810 - 00:51:46.810] that entered here now
+[00:51:46.810 - 00:51:48.810] they said to put it on my Tipee
+[00:51:48.810 - 00:51:50.810] really
+[00:51:50.810 - 00:51:52.810] they put a block on it
+[00:51:52.810 - 00:51:54.810] there is someone here that is very, very strong
+[00:51:54.810 - 00:51:56.810] and it's not the same
+[00:51:56.810 - 00:51:58.810] we understand what is happening here
+[00:51:58.810 - 00:52:00.810] in my opinion it's going to be Gigi
+[00:52:00.810 - 00:52:02.810] they do read something
+[00:52:02.810 - 00:52:04.810] that is really exciting
+[00:52:04.810 - 00:52:08.340] really
+[00:52:08.340 - 00:52:10.340] I don't see how I get out of this risk
+[00:52:10.340 - 00:52:12.340] at least
+[00:52:12.340 - 00:52:14.340] if I didn't get out of this risk
+[00:52:14.340 - 00:52:16.340] I would have advanced even to 450
+[00:52:16.340 - 00:52:18.340] and do a rail, I don't need
+[00:52:18.340 - 00:52:20.340] at least 420
+[00:52:20.340 - 00:52:22.340] I don't see how we don't get
+[00:52:22.340 - 00:52:24.340] really
+[00:52:24.340 - 00:52:28.420] this is my risk
+[00:52:28.420 - 00:52:30.420] simply this is the risk
+[00:52:30.420 - 00:52:32.420] friends
+[00:52:32.420 - 00:52:43.220] this is really my risk
+[00:52:43.220 - 00:52:45.220] I can already imagine
+[00:52:45.220 - 00:52:47.220] 1 to 8
+[00:52:47.220 - 00:52:49.220] but not once, we are here in a study
+[00:52:49.220 - 00:52:51.220] as I said already
+[00:52:51.220 - 00:52:53.220] I don't know
+[00:52:53.220 - 00:52:55.220] let's say there is no problem
+[00:52:55.220 - 00:52:57.220] with one of them being the best
+[00:52:57.220 - 00:52:59.220] in 1 to 8
+[00:52:59.220 - 00:53:11.460] even though it's a big drop
+[00:53:11.460 - 00:53:13.460] but again
+[00:53:13.460 - 00:53:15.460] I don't understand it
+[00:53:15.460 - 00:53:17.460] I don't understand it, I don't see
+[00:53:17.460 - 00:53:19.460] I'm sorry, but I don't see
+[00:53:19.460 - 00:53:21.460] this block
+[00:53:21.460 - 00:53:23.460] I want to see us meet
+[00:53:23.460 - 00:53:25.460] with this block in a minimum
+[00:53:25.460 - 00:53:27.460] it's the minimum
+[00:53:27.460 - 00:53:29.460] that I want to see us
+[00:53:29.460 - 00:53:33.000] we are here
+[00:53:33.000 - 00:53:35.000] CVD, once again I'm giving you a discount
+[00:53:35.000 - 00:53:37.000] CVD is only to reduce
+[00:53:37.000 - 00:53:39.000] the cost
+[00:53:39.000 - 00:53:41.000] here they don't put it on the side
+[00:53:41.000 - 00:53:43.000] the side
+[00:53:43.000 - 00:53:52.200] the agressive side
+[00:53:52.200 - 00:53:54.200] what do you need to do?
+[00:53:54.200 - 00:53:56.200] you need to be careful
+[00:53:56.200 - 00:53:58.200] don't let anyone else do it
+[00:53:58.200 - 00:54:00.200] you know, the mentality
+[00:54:00.200 - 00:54:02.200] you need to be aware of
+[00:54:02.200 - 00:54:04.200] is that there are more risks
+[00:54:04.200 - 00:54:06.200] and if it's a bit more dangerous
+[00:54:06.200 - 00:54:08.200] I still don't say that we don't need mentality
+[00:54:08.200 - 00:54:10.200] ok, there are more risks
+[00:54:10.200 - 00:54:12.200] there are more risks
+[00:54:12.200 - 00:54:14.200] I want this risk
+[00:54:14.200 - 00:54:16.200] take me now
+[00:54:16.200 - 00:54:22.200] to T.P
+[00:54:22.200 - 00:54:33.740] come on
+[00:54:33.740 - 00:54:35.740] come on
+[00:54:35.740 - 00:54:37.740] let's see this big block
+[00:54:37.740 - 00:54:39.740] come on
+[00:54:39.740 - 00:54:43.780] 2D take profits
+[00:54:43.780 - 00:54:52.250] come on
+[00:54:52.250 - 00:54:54.250] a little push
+[00:54:54.250 - 00:54:56.250] you can see there are more risks
+[00:54:56.250 - 00:54:58.250] there are hundreds of blocks
+[00:54:58.250 - 00:55:08.730] and
+[00:55:08.730 - 00:55:23.080] they are really close
+[00:55:23.080 - 00:55:25.080] wow, they are really close
+[00:55:25.080 - 00:55:27.080] but it's still not working
+[00:55:27.080 - 00:55:29.080] you can see the amount of limits
+[00:55:29.080 - 00:55:31.080] that are stored there
+[00:55:31.080 - 00:55:33.080] it's a few that you don't even need to understand
+[00:55:33.080 - 00:55:35.080] ok
+[00:55:35.080 - 00:55:37.080] 163, 68
+[00:55:37.080 - 00:55:39.080] there are a lot of limits
+[00:55:39.080 - 00:55:41.080] that are stored there
+[00:55:41.080 - 00:55:43.080] I don't care about this limit
+[00:55:43.080 - 00:55:45.080] I'm really impressed
+[00:55:45.080 - 00:55:47.080] but it's still not working
+[00:55:47.080 - 00:55:49.080] I'm still not satisfied
+[00:55:49.080 - 00:55:51.080] again, the big blocks
+[00:55:51.080 - 00:55:53.080] are really 422
+[00:55:53.080 - 00:55:55.080] which is 2 big blocks
+[00:55:55.080 - 00:55:57.080] so I'm not satisfied
+[00:55:57.080 - 00:55:59.080] I told you from the beginning
+[00:55:59.080 - 00:56:01.080] all the way that I have a very big security in this block
+[00:56:01.080 - 00:56:03.080] so
+[00:56:03.080 - 00:56:05.080] if it's a little bit too much
+[00:56:05.080 - 00:56:07.080] because you can
+[00:56:07.080 - 00:56:09.080] tell that there will be a lot of risks
+[00:56:09.080 - 00:56:11.080] and it doesn't always get to the block
+[00:56:11.080 - 00:56:13.080] but
+[00:56:13.080 - 00:56:15.080] you can see what's going on
+[00:56:15.080 - 00:56:17.080] I think that we still haven't
+[00:56:17.080 - 00:56:19.080] met a real block
+[00:56:19.080 - 00:56:23.350] that they told us to take
+[00:56:23.350 - 00:56:25.350] and we're still waiting
+[00:56:25.350 - 00:56:38.580] we're still waiting
+[00:56:38.580 - 00:56:58.280] let's look at this market
+[00:56:58.280 - 00:57:00.280] now they took us to 420
+[00:57:00.280 - 00:57:02.280] wow
+[00:57:02.280 - 00:57:09.590] come on
+[00:57:09.590 - 00:57:11.590] come on
+[00:57:11.590 - 00:57:13.590] give us the push we're waiting for
+[00:57:13.590 - 00:57:15.590] let's look at this block
+[00:57:15.590 - 00:57:23.740] it's coming
+[00:57:23.740 - 00:57:36.780] it's coming
+[00:57:36.780 - 00:57:42.300] it's coming
+[00:57:42.300 - 00:57:44.300] it's coming
+[00:57:44.300 - 00:57:46.300] I know
+[00:57:46.300 - 00:57:48.300] it's hard
+[00:57:48.300 - 00:57:50.300] again, you're already
+[00:57:50.300 - 00:57:52.300] out of time
+[00:57:52.300 - 00:57:54.300] one to seven, one to eight
+[00:57:54.300 - 00:57:56.300] to send to the community
+[00:57:56.300 - 00:57:58.300] we've already taken two
+[00:57:58.300 - 00:58:00.300] I'm just here
+[00:58:00.300 - 00:58:02.300] just for the price
+[00:58:02.300 - 00:58:04.300] and not too much
+[00:58:04.300 - 00:58:06.300] everything's fine
+[00:58:06.300 - 00:58:08.300] if we really got to 420
+[00:58:08.300 - 00:58:12.340] if we didn't even get to 420
+[00:58:12.340 - 00:58:14.340] it's really
+[00:58:14.340 - 00:58:16.340] something that's going on
+[00:58:16.340 - 00:58:19.940] CVD is still a big deal
+[00:58:21.940 - 00:58:23.940] I don't know anything about
+[00:58:23.940 - 00:58:25.940] the prices here
+[00:58:25.940 - 00:58:30.090] it's all bluff
+[00:58:30.090 - 00:58:32.090] there are points that are available here
+[00:58:32.090 - 00:58:34.090] in 388
+[00:58:34.090 - 00:58:41.660] it could be that it's a kind of retracement
+[00:58:41.660 - 00:58:47.080] it's still a big deal
+[00:58:47.080 - 00:58:49.080] from the point of view
+[00:58:49.080 - 00:58:51.080] if it's worth it
+[00:58:51.080 - 00:58:53.080] but still
+[00:58:53.080 - 00:58:59.590] I still think
+[00:58:59.590 - 00:59:01.590] that the prices are in the market
+[00:59:01.590 - 00:59:03.590] and if the prices are in the market
+[00:59:03.590 - 00:59:05.590] I'm
+[00:59:05.590 - 00:59:21.640] again, the markets
+[00:59:21.640 - 00:59:23.640] the bluff
+[00:59:23.640 - 00:59:25.640] that were here
+[00:59:25.640 - 00:59:27.640] there's no point that I'm going
+[00:59:27.640 - 00:59:29.640] against it
+[00:59:29.640 - 00:59:31.640] there's no point that I'm going
+[00:59:31.640 - 00:59:36.810] against it
+[00:59:36.810 - 00:59:50.140] I'm continuing to invest in convenience
+[00:59:50.140 - 00:59:52.140] this is a very good recovery
+[00:59:54.140 - 00:59:56.140] and
+[00:59:56.140 - 00:59:58.140] points that we need
+[00:59:58.140 - 01:00:00.140] to the left
+[01:00:00.140 - 01:00:29.750] first of all
+[01:00:29.750 - 01:00:31.750] let's say it's the first time
+[01:00:31.750 - 01:00:33.750] that we get to 420
+[01:00:33.750 - 01:00:35.750] all the way
+[01:00:35.750 - 01:00:37.750] we've invested a little
+[01:00:37.750 - 01:00:39.750] everything's fine
+[01:00:39.750 - 01:00:41.750] I don't think we need to feel
+[01:00:41.750 - 01:00:55.370] from this bluff
+[01:00:55.370 - 01:00:57.370] how do we
+[01:00:57.370 - 01:00:59.370] go to the market
+[01:00:59.370 - 01:01:01.370] that has already lost us
+[01:01:01.370 - 01:01:03.370] to sell all the blocks
+[01:01:03.370 - 01:01:05.370] we are the take profit
+[01:01:05.370 - 01:01:07.370] of us, it's very cool
+[01:01:07.370 - 01:01:09.370] we always want the first block
+[01:01:09.370 - 01:01:12.780] and to get out of here
+[01:01:12.780 - 01:01:14.780] the first block above us
+[01:01:14.780 - 01:01:16.780] there will be a price
+[01:01:16.780 - 01:01:18.780] it's possible to see
+[01:01:18.780 - 01:01:20.780] 102 minus points that are located here
+[01:01:20.780 - 01:01:22.780] it will be a very, very good
+[01:01:22.780 - 01:01:24.780] if we don't get here
+[01:01:24.780 - 01:01:26.780] and so
+[01:01:26.780 - 01:01:28.780] we won't get in the trade
+[01:01:28.780 - 01:01:30.780] only the right amount
+[01:01:30.780 - 01:01:51.910] come on, since the master is complete
+[01:01:51.910 - 01:01:53.910] give us our 420
+[01:01:53.910 - 01:02:02.760] in size
+[01:02:02.760 - 01:02:04.760] I can already do my top in 380
+[01:02:04.760 - 01:02:06.760] you see all the blocks
+[01:02:06.760 - 01:02:08.760] of these blocks
+[01:02:08.760 - 01:02:10.760] I don't want to look at them
+[01:02:10.760 - 01:02:12.760] I'm sorry
+[01:02:12.760 - 01:02:14.760] but once
+[01:02:14.760 - 01:02:16.760] I also want
+[01:02:16.760 - 01:02:18.760] to get 420 today
+[01:02:18.760 - 01:02:20.760] so I won't get all
+[01:02:20.760 - 01:02:22.760] but as I said
+[01:02:22.760 - 01:02:24.760] to get out of here
+[01:02:24.760 - 01:02:26.760] you need to
+[01:02:26.760 - 01:02:28.760] make a trail stop
+[01:02:28.760 - 01:02:30.760] and put it under the blocks
+[01:02:30.760 - 01:02:32.760] you see this block in 390
+[01:02:32.760 - 01:02:34.760] I don't want to see them
+[01:02:34.760 - 01:02:36.760] get out of here
+[01:02:36.760 - 01:02:38.760] you can also close the gap
+[01:02:38.760 - 01:02:40.760] in 1 to 7, 1 to 8
+[01:02:40.760 - 01:02:42.760] you can do a lot of things here
+[01:02:42.760 - 01:02:44.760] I'll talk about it later
+[01:02:44.760 - 01:02:46.760] in the next video
+[01:02:46.760 - 01:02:50.550] I'll talk about it later
+[01:02:50.550 - 01:02:52.550] in the market
+[01:02:52.550 - 01:02:54.550] if we manage to get them
+[01:02:54.550 - 01:02:56.550] to get 420
+[01:02:56.550 - 01:02:58.550] wow
+[01:02:58.550 - 01:03:00.550] a big piece of shit
+[01:03:00.550 - 01:03:02.550] I can tell you
+[01:03:02.550 - 01:03:04.550] if we don't get 420
+[01:03:04.550 - 01:03:06.550] it will
+[01:03:06.550 - 01:03:08.550] be very, very bad
+[01:03:08.550 - 01:03:10.550] that the 100 and 800
+[01:03:10.550 - 01:03:12.550] won't be
+[01:03:12.550 - 01:03:14.550] available in the market
+[01:03:14.550 - 01:03:16.550] I really
+[01:03:16.550 - 01:03:18.550] I'll try a lot
+[01:03:18.550 - 01:03:22.440] if it happens
+[01:03:22.440 - 01:03:24.440] as for the price
+[01:03:24.440 - 01:03:26.440] I already made 1 to 9 hours
+[01:03:26.440 - 01:03:30.300] even more
+[01:03:30.300 - 01:03:48.940] I have to get it
+[01:03:48.940 - 01:03:53.180] wow
+[01:03:53.180 - 01:03:55.180] oh my god
+[01:03:55.180 - 01:03:58.840] this is too deep
+[01:03:58.840 - 01:04:00.840] it's really, really
+[01:04:00.840 - 01:04:02.840] retracement
+[01:04:02.840 - 01:04:04.840] already it's
+[01:04:04.840 - 01:04:06.840] over retracement
+[01:04:06.840 - 01:04:08.840] but it's okay
+[01:04:08.840 - 01:04:10.840] our stop
+[01:04:10.840 - 01:04:12.840] it's really, really deep
+[01:04:12.840 - 01:04:14.840] but the prices here simply changed
+[01:04:14.840 - 01:04:16.840] wow
+[01:04:16.840 - 01:04:18.840] how hard it is
+[01:04:18.840 - 01:04:20.840] it's super, super hard
+[01:04:20.840 - 01:04:22.840] if I'm
+[01:04:22.840 - 01:04:24.840] interested in
+[01:04:24.840 - 01:04:26.840] I think it's even
+[01:04:26.840 - 01:04:28.840] not worth it
+[01:04:28.840 - 01:04:30.840] wow
+[01:04:30.840 - 01:04:32.840] how bad
+[01:04:32.840 - 01:04:34.840] of course
+[01:04:34.840 - 01:04:36.840] in a live show I was already
+[01:04:36.840 - 01:04:38.840] doing a real stop for a long time
+[01:04:38.840 - 01:04:40.840] but we said
+[01:04:40.840 - 01:04:42.840] we want to see the stop
+[01:04:42.840 - 01:04:44.840] full tp
+[01:04:44.840 - 01:04:46.840] still I'm happy that you learned
+[01:04:46.840 - 01:04:48.840] this stop a lot
+[01:04:48.840 - 01:04:50.840] you saw my church
+[01:04:50.840 - 01:04:52.840] you saw where I went
+[01:04:52.840 - 01:04:54.840] I'm dead
+[01:04:54.840 - 01:04:56.840] a point
+[01:04:56.840 - 01:05:03.420] wow
+[01:05:03.420 - 01:05:05.420] I really need
+[01:05:05.420 - 01:05:13.300] I'm dead
+[01:05:13.300 - 01:05:30.060] wow
+[01:05:30.060 - 01:05:32.060] wow
+[01:05:32.060 - 01:05:35.660] wow
+[01:05:35.660 - 01:05:41.300] wow
+[01:05:41.300 - 01:05:43.300] amazing
+[01:05:43.300 - 01:05:45.300] at the end of the stop
+[01:05:45.300 - 01:05:47.300] we are here
+[01:05:47.300 - 01:05:49.300] once again
+[01:05:49.300 - 01:05:51.300] I really
+[01:05:51.300 - 01:05:53.300] it's really, really, really, really
+[01:05:53.300 - 01:05:55.300] my last stop
+[01:05:55.300 - 01:05:57.300] but again
+[01:05:57.300 - 01:05:59.300] this stop is 1 to 9 to 4
+[01:05:59.300 - 01:06:01.300] of course I had to do a trail
+[01:06:01.300 - 01:06:03.300] of course I had to move forward
+[01:06:03.300 - 01:06:05.300] I didn't do it
+[01:06:05.300 - 01:06:07.300] I didn't do it
+[01:06:07.300 - 01:06:09.300] but
+[01:06:09.300 - 01:06:11.300] we can still
+[01:06:11.300 - 01:06:13.300] get here
+[01:06:13.300 - 01:06:15.300] it can be
+[01:06:15.300 - 01:06:17.300] that all this stop is really
+[01:06:17.300 - 01:06:19.300] some moment
+[01:06:19.300 - 01:06:21.300] some addition
+[01:06:21.300 - 01:06:23.300] some manipulation
+[01:06:23.300 - 01:06:26.810] we still go to the stop
+[01:06:26.810 - 01:06:28.810] what a stop
+[01:06:28.810 - 01:06:30.810] wow
+[01:06:30.810 - 01:06:32.810] one of the stops that were recorded live
+[01:06:32.810 - 01:06:34.810] we got to
+[01:06:34.810 - 01:06:36.810] two points
+[01:06:36.810 - 01:06:38.810] I needed two points
+[01:06:38.810 - 01:06:40.810] wow
+[01:06:40.810 - 01:06:42.810] this stop is really amazing
+[01:06:42.810 - 01:06:44.810] you saw that the stop was 10 points
+[01:06:44.810 - 01:06:46.810] and
+[01:06:46.810 - 01:06:48.810] I still managed to bring
+[01:06:48.810 - 01:06:50.810] 1 to 9 to 40
+[01:06:50.810 - 01:06:52.810] I stopped this stop as usual
+[01:06:52.810 - 01:06:54.810] don't do it
+[01:06:54.810 - 01:06:56.810] I had to do a trail
+[01:06:56.810 - 01:06:58.810] blocks that were created
+[01:06:58.810 - 01:07:00.810] I managed to go from 1 to 7 to 1 to 8
+[01:07:00.810 - 01:07:02.810] when I saw that he was standing there
+[01:07:02.810 - 01:07:04.810] I also took another trail
+[01:07:04.810 - 01:07:06.810] don't worry
+[01:07:06.810 - 01:07:08.810] I still need to get this stop
+[01:07:08.810 - 01:07:10.810] because I still have a plan
+[01:07:10.810 - 01:07:12.810] that we can get to the block with the stops
+[01:07:12.810 - 01:07:14.810] and so
+[01:07:14.810 - 01:07:16.810] I want to see a block that we
+[01:07:16.810 - 01:07:18.810] just met
+[01:07:18.810 - 01:07:20.810] I want to see a block that we will meet
+[01:07:20.810 - 01:07:22.810] the stop of the stop
+[01:07:22.810 - 01:07:24.810] and the stop of the stop
+[01:07:24.810 - 01:07:26.810] points that are used in the market
+[01:07:26.810 - 01:07:28.810] and everything is fine
+[01:07:28.810 - 01:07:30.810] I can take this trail
+[01:07:30.810 - 01:07:32.810] I took one
+[01:07:32.810 - 01:07:34.810] I also took the first block
+[01:07:34.810 - 01:07:36.810] with the two blocks that I entered
+[01:07:36.810 - 01:07:38.810] I would have to take this block
+[01:07:38.810 - 01:07:40.810] everything is fine
+[01:07:40.810 - 01:07:42.810] but you see
+[01:07:42.810 - 01:07:44.810] I already saw them
+[01:07:44.810 - 01:07:46.810] I'm not kidding
+[01:07:46.810 - 01:07:48.810] I already saw a block of 1 to 9
+[01:07:48.810 - 01:07:50.810] that I switched to
+[01:07:50.810 - 01:07:52.810] in a short time
+[01:07:52.810 - 01:07:54.810] now I want to show you
+[01:07:54.810 - 01:07:56.810] maybe if I manage to get an entry
+[01:07:56.810 - 01:07:58.810] wow the cvd
+[01:07:58.810 - 01:08:00.810] it's still a long way
+[01:08:00.810 - 01:08:02.810] I want to see the cvd
+[01:08:02.810 - 01:08:04.810] it's still a long way
+[01:08:04.810 - 01:08:06.810] it still says that the stops are here
+[01:08:06.810 - 01:08:08.810] but you can see the long way
+[01:08:08.810 - 01:08:10.810] and I want to
+[01:08:10.810 - 01:08:12.810] see a block
+[01:08:12.810 - 01:08:16.920] stop
+[01:08:16.920 - 01:08:18.920] and the stop
+[01:08:18.920 - 01:08:20.920] in the market again
+[01:08:20.920 - 01:08:22.920] and you see the strategy is the same
+[01:08:22.920 - 01:08:24.920] there is nothing new
+[01:08:24.920 - 01:08:26.920] wow
+[01:08:26.920 - 01:08:28.920] that's tough
+[01:08:28.920 - 01:08:30.920] one
+[01:08:30.920 - 01:08:32.920] that's tough
+[01:08:32.920 - 01:08:48.070] let's see
+[01:08:48.070 - 01:08:50.070] let's see what happens
+[01:08:50.070 - 01:08:52.070] from this block in 262
+[01:08:52.070 - 01:09:02.900] here again
+[01:09:02.900 - 01:09:06.540] I'm going to take a closer look
+[01:09:06.540 - 01:09:08.540] I was told to take a trail stop
+[01:09:08.540 - 01:09:10.540] to the market
+[01:09:10.540 - 01:09:12.540] with a stop below the blocks
+[01:09:12.540 - 01:09:14.540] ok
+[01:09:14.540 - 01:09:16.540] maybe he even created
+[01:09:16.540 - 01:09:21.350] a physics
+[01:09:21.350 - 01:09:23.350] I really wanted to have the 420
+[01:09:23.350 - 01:09:25.350] and I chose that
+[01:09:25.350 - 01:09:27.350] it's also important
+[01:09:27.350 - 01:09:29.350] that I want to get an entry
+[01:09:29.350 - 01:09:31.350] you can get an entry
+[01:09:31.350 - 01:09:33.350] because of these reasons
+[01:09:33.350 - 01:09:35.350] you can get all the security in the world
+[01:09:35.350 - 01:09:37.350] but in the end you just think differently
+[01:09:37.350 - 01:09:39.350] ok interesting
+[01:09:39.350 - 01:09:41.350] why is it interesting?
+[01:09:41.350 - 01:09:43.350] because I see that here
+[01:09:43.350 - 01:09:45.350] ok the one I'm interested in
+[01:09:45.350 - 01:09:49.300] it's back again
+[01:09:49.300 - 01:09:53.450] but here you can see that it was a block
+[01:09:53.450 - 01:09:55.450] wow
+[01:09:55.450 - 01:09:57.450] the workers
+[01:09:57.450 - 01:09:59.450] we were all standing there
+[01:09:59.450 - 01:10:01.450] with the 420
+[01:10:01.450 - 01:10:03.450] they made a trap
+[01:10:03.450 - 01:10:05.450] wow
+[01:10:05.450 - 01:10:08.950] ok
+[01:10:08.950 - 01:10:29.380] that's interesting
+[01:10:29.380 - 01:10:31.380] that's very interesting
+[01:10:31.380 - 01:10:33.380] ok
+[01:10:33.380 - 01:10:35.380] ok I see that the workers
+[01:10:35.380 - 01:10:37.380] the blocks here start to be used
+[01:10:37.380 - 01:10:39.380] they go to these blocks
+[01:10:39.380 - 01:10:41.380] blocks that start to be used in the market
+[01:10:41.380 - 01:10:43.380] I want to use
+[01:10:43.380 - 01:10:45.380] here in
+[01:10:45.380 - 01:10:51.480] 270
+[01:10:51.480 - 01:10:53.480] and my stop is a little below the 260
+[01:10:53.480 - 01:10:57.080] 10
+[01:10:57.080 - 01:11:01.220] stop
+[01:11:01.220 - 01:11:03.220] put a block like this
+[01:11:03.220 - 01:11:07.980] no, don't tell me that
+[01:11:07.980 - 01:11:09.980] it's a physics that I'll be here again
+[01:11:09.980 - 01:11:11.980] I'm dead
+[01:11:11.980 - 01:11:13.980] no
+[01:11:13.980 - 01:11:15.980] I wanted to use here
+[01:11:15.980 - 01:11:22.970] that's what I wanted
+[01:11:22.970 - 01:11:31.660] 272, 2 points
+[01:11:31.660 - 01:11:33.660] ok
+[01:11:33.660 - 01:11:35.660] put blocks that are ready to be used in the market
+[01:11:35.660 - 01:11:37.660] even more
+[01:11:37.660 - 01:11:39.660] I'll also move them to 280
+[01:11:39.660 - 01:11:43.000] and put a stop to 270
+[01:11:43.000 - 01:11:45.000] and a little below
+[01:11:45.000 - 01:11:47.000] put a block
+[01:11:47.000 - 01:11:49.000] you see how the workers are moving
+[01:11:49.000 - 01:11:51.000] you see how the workers are moving to the market
+[01:11:51.000 - 01:11:53.000] I don't believe it
+[01:11:53.000 - 01:11:55.000] what's happening today?
+[01:11:55.000 - 01:11:57.000] physics is moving again in 2 points
+[01:11:57.000 - 01:11:59.000] you see that the workers are moving
+[01:11:59.000 - 01:12:01.000] with these to the market
+[01:12:01.000 - 01:12:03.000] it means that they are ready to use even more
+[01:12:03.000 - 01:12:05.000] in the markets
+[01:12:05.000 - 01:12:07.000] I think I'll put a block here in 280
+[01:12:07.000 - 01:12:15.750] and the take
+[01:12:15.750 - 01:12:17.750] if we had some change
+[01:12:17.750 - 01:12:19.750] no, it's still 420
+[01:12:19.750 - 01:12:21.750] I'll put a block there
+[01:12:21.750 - 01:12:23.750] wow, they're moving to these blocks
+[01:12:23.750 - 01:12:25.750] the workers are ready
+[01:12:25.750 - 01:12:27.750] to use here in the market
+[01:12:27.750 - 01:12:32.410] in every market
+[01:12:32.410 - 01:12:34.410] 2.90, I'll also move to 2.90
+[01:12:34.410 - 01:12:37.780] and
+[01:12:37.780 - 01:12:39.780] a stop will also move to 2.80
+[01:12:39.780 - 01:12:41.780] a little below
+[01:12:41.780 - 01:12:43.780] below
+[01:12:43.780 - 01:12:45.780] wow, wow, wow
+[01:12:45.780 - 01:12:47.780] I saw them, I managed to use them again in 270
+[01:12:47.780 - 01:12:49.780] they moved me to 2 points there
+[01:12:49.780 - 01:12:51.780] but put them together, I'll explain
+[01:12:51.780 - 01:12:53.780] once again, I saw them here
+[01:12:53.780 - 01:12:55.780] put them together, we met a block of workers
+[01:12:55.780 - 01:12:57.780] a stop
+[01:12:57.780 - 01:12:59.780] an astronomical device in the market
+[01:12:59.780 - 01:13:01.780] points that are made
+[01:13:01.780 - 01:13:03.780] to prevent the workers
+[01:13:03.780 - 01:13:05.780] this is the reverse
+[01:13:05.780 - 01:13:07.780] now, we didn't have to use the reverse
+[01:13:07.780 - 01:13:09.780] because it didn't work for us
+[01:13:09.780 - 01:13:11.780] if you see this block
+[01:13:11.780 - 01:13:13.780] these points that want to prevent the workers
+[01:13:13.780 - 01:13:15.780] I want to use them too
+[01:13:15.780 - 01:13:17.780] let's see if we can make one more stop
+[01:13:17.780 - 01:13:19.780] one to nine
+[01:13:19.780 - 01:13:21.780] I already saw them here in live
+[01:13:21.780 - 01:13:23.780] we're moving
+[01:13:23.780 - 01:13:25.780] I don't see them moving
+[01:13:25.780 - 01:13:27.780] I see that this block is still moving
+[01:13:27.780 - 01:13:29.780] that's good
+[01:13:29.780 - 01:13:31.780] that's good
+[01:13:31.780 - 01:13:33.780] I saw them first, they started to move
+[01:13:33.780 - 01:13:35.780] very, very, very far
+[01:13:35.780 - 01:13:37.780] because they were ready to move
+[01:13:37.780 - 01:13:39.780] let's see if this is also a stop here
+[01:13:39.780 - 01:13:41.780] so it's not a stop here at the moment
+[01:13:41.780 - 01:13:43.780] they still move
+[01:13:43.780 - 01:13:45.780] the points in 2.90, I don't see them moving
+[01:13:45.780 - 01:13:47.780] here, now they're starting to move
+[01:13:47.780 - 01:13:49.780] no problem, we're moving with them
+[01:13:49.780 - 01:13:51.780] we're still moving with the blocks
+[01:13:51.780 - 01:13:53.780] there wasn't any change in the CVD
+[01:13:53.780 - 01:13:55.780] that they told us to think about
+[01:13:55.780 - 01:13:57.780] another block
+[01:13:57.780 - 01:13:59.780] that they're moving here and are ready to
+[01:13:59.780 - 01:14:01.780] move a block further away from this block
+[01:14:01.780 - 01:14:03.780] put them together
+[01:14:03.780 - 01:14:05.780] put them together
+[01:14:05.780 - 01:14:12.970] put them together
+[01:14:12.970 - 01:14:14.970] wow
+[01:14:14.970 - 01:14:24.200] what's going on here
+[01:14:24.200 - 01:14:26.200] ok
+[01:14:26.200 - 01:14:30.340] wow, I came to move
+[01:14:30.340 - 01:14:36.500] I think I should move
+[01:14:36.500 - 01:14:38.500] let's see if my block moves
+[01:14:38.500 - 01:14:40.500] wow
+[01:14:40.500 - 01:14:42.500] the aggressive workers are here
+[01:14:42.500 - 01:14:46.200] we hope
+[01:14:46.200 - 01:14:48.200] we hope very much that we're still on the right side
+[01:14:48.200 - 01:14:50.200] I do think I do
+[01:14:50.200 - 01:14:52.200] I do think I do
+[01:14:52.200 - 01:14:54.200] I do see here
+[01:14:54.200 - 01:14:56.200] the moving blocks
+[01:14:56.200 - 01:14:58.200] ok, here's a spike in the CVD
+[01:14:58.200 - 01:15:00.200] I'm going to move this thing
+[01:15:00.200 - 01:15:02.200] in the market
+[01:15:02.200 - 01:15:04.200] but my stop is here
+[01:15:04.200 - 01:15:06.200] I'm moving to 315
+[01:15:06.200 - 01:15:08.200] let's see if I can get
+[01:15:08.200 - 01:15:10.200] a stop
+[01:15:10.200 - 01:15:12.200] 315
+[01:15:12.200 - 01:15:14.200] as you can see
+[01:15:14.200 - 01:15:16.200] put the block in 315
+[01:15:16.200 - 01:15:18.200] that's what I want to take
+[01:15:18.200 - 01:15:20.200] I do believe that
+[01:15:20.200 - 01:15:22.200] the blocks are very aggressive
+[01:15:22.200 - 01:15:26.440] I just want to move
+[01:15:26.440 - 01:15:28.440] to the right side
+[01:15:28.440 - 01:15:30.440] I don't believe
+[01:15:32.440 - 01:15:34.440] I just want to move
+[01:15:34.440 - 01:15:36.440] oh, this block is moving
+[01:15:36.440 - 01:15:38.440] wow
+[01:15:38.440 - 01:15:41.980] I want to move here
+[01:15:41.980 - 01:15:43.980] now let's talk about take profit
+[01:15:43.980 - 01:15:45.980] I want to move
+[01:15:45.980 - 01:15:47.980] I want to move
+[01:15:47.980 - 01:15:49.980] see with the CVD
+[01:15:49.980 - 01:15:51.980] what's going on
+[01:15:51.980 - 01:15:55.220] I'm on the right side
+[01:15:55.220 - 01:15:57.220] oh, we're moving here in the market
+[01:15:57.220 - 01:15:59.220] that is so aggressive
+[01:15:59.220 - 01:16:01.220] I'm
+[01:16:01.220 - 01:16:08.060] oh my god
+[01:16:08.060 - 01:16:10.060] 337
+[01:16:10.060 - 01:16:13.660] there's a good block
+[01:16:13.660 - 01:16:15.660] I also want to move to the corner
+[01:16:15.660 - 01:16:17.660] I do it
+[01:16:17.660 - 01:16:19.660] in 330
+[01:16:19.660 - 01:16:21.660] and then stop
+[01:16:21.660 - 01:16:23.660] once down to 315
+[01:16:23.660 - 01:16:25.660] I have to move
+[01:16:25.660 - 01:16:27.660] under this block
+[01:16:27.660 - 01:16:29.660] let's do it even the 313
+[01:16:29.660 - 01:16:31.660] so that the block
+[01:16:31.660 - 01:16:33.660] doesn't hit me
+[01:16:33.660 - 01:16:35.660] wow, I just want to move
+[01:16:35.660 - 01:16:37.660] with you
+[01:16:37.660 - 01:16:39.660] oh, he always makes me
+[01:16:39.660 - 01:16:41.660] angry at me
+[01:16:41.660 - 01:16:45.000] wow
+[01:16:45.000 - 01:16:47.000] I only know that I moved here
+[01:16:47.000 - 01:16:49.000] to the most aggressive block of the day
+[01:16:49.000 - 01:16:53.300] what a crazy day
+[01:16:53.300 - 01:16:55.300] I want to move
+[01:16:55.300 - 01:16:57.300] where am I?
+[01:16:57.300 - 01:17:00.900] I'm here in 330
+[01:17:00.900 - 01:17:02.900] wow, this block
+[01:17:02.900 - 01:17:09.800] I'll tell you again
+[01:17:09.800 - 01:17:11.800] if I do it again, I'm going to be angry
+[01:17:11.800 - 01:17:13.800] I'll tell you what I'm going to do
+[01:17:13.800 - 01:17:15.800] it's like I saw before
+[01:17:15.800 - 01:17:17.800] the block that was there
+[01:17:17.800 - 01:17:19.800] the CVD was still strong
+[01:17:19.800 - 01:17:21.800] it means that we still have to move
+[01:17:21.800 - 01:17:23.800] I just wanted to get
+[01:17:23.800 - 01:17:25.800] a feel and move
+[01:17:25.800 - 01:17:27.800] and I didn't want to move in the market
+[01:17:27.800 - 01:17:31.370] because it would give me a feel today
+[01:17:31.370 - 01:17:33.370] let's do it 340
+[01:17:33.370 - 01:17:35.370] once to get a feel
+[01:17:35.370 - 01:17:37.370] normal
+[01:17:37.370 - 01:17:39.370] and you can't stop much longer
+[01:17:39.370 - 01:17:41.370] here
+[01:17:41.370 - 01:17:43.370] in 330 and 3
+[01:17:43.370 - 01:17:46.940] you see, 340
+[01:17:46.940 - 01:17:48.940] block
+[01:17:48.940 - 01:17:50.940] I'm looking for a block that I can move
+[01:17:50.940 - 01:17:52.940] and I'm still going to
+[01:17:52.940 - 01:17:56.220] move
+[01:17:56.220 - 01:17:58.220] 355
+[01:17:58.220 - 01:18:00.220] there's another block
+[01:18:00.220 - 01:18:02.220] I just moved from the most aggressive block
+[01:18:02.220 - 01:18:08.220] that's happening here
+[01:18:08.220 - 01:18:10.220] at the end of the life, 340
+[01:18:10.220 - 01:18:12.220] I think I'm already angry
+[01:18:12.220 - 01:18:14.220] really angry
+[01:18:14.220 - 01:18:17.750] ok, let's see
+[01:18:17.750 - 01:18:19.750] what happens in 350
+[01:18:19.750 - 01:18:23.830] ok, 350
+[01:18:23.830 - 01:18:28.420] you can also get a feel
+[01:18:28.420 - 01:18:30.420] stop, you need to move in this case
+[01:18:30.420 - 01:18:32.420] once to
+[01:18:32.420 - 01:18:34.420] 340
+[01:18:34.420 - 01:18:36.420] oh, I got a feel
+[01:18:36.420 - 01:18:38.420] that we moved
+[01:18:38.420 - 01:18:41.860] ok, I'm going to do
+[01:18:41.860 - 01:18:51.380] take and my block
+[01:18:51.380 - 01:18:53.380] that is 420
+[01:18:53.380 - 01:18:55.380] let's see
+[01:18:55.380 - 01:18:57.380] this time I managed to get a feel
+[01:18:57.380 - 01:19:11.160] at any time
+[01:19:11.160 - 01:19:13.160] I hope that I didn't move here
+[01:19:13.160 - 01:19:15.160] because of the aggressive block
+[01:19:15.160 - 01:19:17.160] I don't know, it's about 2
+[01:19:17.160 - 01:19:19.160] here in 340 block
+[01:19:19.160 - 01:19:21.160] that I can move
+[01:19:21.160 - 01:19:23.160] I hope that I didn't move here
+[01:19:23.160 - 01:19:25.160] because I really wanted to use
+[01:19:25.160 - 01:19:27.160] the blocks
+[01:19:27.160 - 01:19:29.160] I could see the aggressive
+[01:19:29.160 - 01:19:31.160] if I see a 360
+[01:19:31.160 - 01:19:33.160] here, I'm going to break
+[01:19:33.160 - 01:19:35.160] even
+[01:19:35.160 - 01:19:37.160] it's not interesting, it's a stop
+[01:19:37.160 - 01:19:39.160] it's $2
+[01:19:39.160 - 01:19:41.160] it's funny
+[01:19:41.160 - 01:19:43.160] ok, let's see
+[01:19:43.160 - 01:19:45.160] if I manage to break this block
+[01:19:45.160 - 01:19:55.960] I'm going to break
+[01:19:55.960 - 01:19:57.960] the blocks
+[01:19:57.960 - 01:19:59.960] let's see here
+[01:19:59.960 - 01:20:01.960] ok, break even
+[01:20:01.960 - 01:20:03.960] GG
+[01:20:03.960 - 01:20:05.960] this is the last block that I took
+[01:20:05.960 - 01:20:09.560] with you today
+[01:20:09.560 - 01:20:11.560] if it's a block, then a block
+[01:20:11.560 - 01:20:13.560] if it's not a block
+[01:20:13.560 - 01:20:15.560] 1 to 9 that I took
+[01:20:15.560 - 01:20:17.560] at the end of the break
+[01:20:17.560 - 01:20:19.560] 357
+[01:20:19.560 - 01:20:21.560] the break even is good
+[01:20:21.560 - 01:20:25.700] there's nothing to do there
+[01:20:25.700 - 01:20:27.700] the break even is good
+[01:20:27.700 - 01:20:34.790] and if we talk here
+[01:20:34.790 - 01:20:36.790] about 70 points
+[01:20:38.790 - 01:20:40.790] I said to get out of this day
+[01:20:40.790 - 01:20:50.980] let's go
+[01:20:50.980 - 01:21:11.580] to the UF
+[01:21:11.580 - 01:21:13.580] let's see if there's a tp in the area
+[01:21:13.580 - 01:21:15.580] more or less
+[01:21:15.580 - 01:21:17.580] 420
+[01:21:17.580 - 01:21:19.580] the same block
+[01:21:19.580 - 01:21:21.580] I'm going to the same block
+[01:21:21.580 - 01:21:28.440] I'm going to the same block
+[01:21:28.440 - 01:21:30.440] from the beginning
+[01:21:30.440 - 01:21:32.440] also here, my stop
+[01:21:32.440 - 01:21:34.440] wow, I didn't remember to break it
+[01:21:34.440 - 01:21:36.440] it was a little more than 340
+[01:21:36.440 - 01:21:38.440] but also here
+[01:21:38.440 - 01:21:40.440] this is my stop at 10 points
+[01:21:40.440 - 01:21:42.440] and
+[01:21:42.440 - 01:21:44.440] the break is not enough
+[01:21:44.440 - 01:21:46.440] let's see if the others
+[01:21:46.440 - 01:21:48.440] managed to get out of here
+[01:21:48.440 - 01:21:50.440] again, but you see
+[01:21:50.440 - 01:21:52.440] how always this session
+[01:21:52.440 - 01:21:54.440] I was always on the right side
+[01:21:54.440 - 01:21:56.440] the reason why I didn't get out
+[01:21:56.440 - 01:21:58.440] of this session
+[01:21:58.440 - 01:22:00.440] it's the first technical test
+[01:22:00.440 - 01:22:02.440] with a high score
+[01:22:02.440 - 01:22:04.440] and of course
+[01:22:04.440 - 01:22:06.440] a second test
+[01:22:06.440 - 01:22:08.440] but I'm sure you'll learn from it
+[01:22:08.440 - 01:22:10.440] I'm sure you'll learn from the hero
+[01:22:10.440 - 01:22:12.440] friends, get out
+[01:22:12.440 - 01:22:14.440] guys, here it is
+[01:22:14.440 - 01:22:16.440] it happened to me live
+[01:22:16.440 - 01:22:18.440] and in the end it didn't happen
+[01:22:18.440 - 01:22:20.440] so don't be a chemist
+[01:22:20.440 - 01:22:22.440] you'll get the results
+[01:22:22.440 - 01:22:24.440] in the course of the test
+[01:22:24.440 - 01:22:26.440] you'll see that it starts to go down there
+[01:22:26.440 - 01:22:28.440] and there will be physical errors
+[01:22:28.440 - 01:22:30.440] all good, you can get a physical error
+[01:22:30.440 - 01:22:32.440] that will be 1 to 7, 1 to 8
+[01:22:32.440 - 01:22:34.440] R, ok?
+[01:22:34.440 - 01:22:36.440] not an error of 1 to 2
+[01:22:36.440 - 01:22:38.440] to get a physical error
+[01:22:38.440 - 01:22:40.440] but an error that will be 1 to 7, 1 to 8
+[01:22:40.440 - 01:22:42.440] you can get a physical error
+[01:22:42.440 - 01:22:44.440] ok?
+[01:22:44.440 - 01:22:46.440] let's see
+[01:22:46.440 - 01:22:48.440] let's go here
+[01:22:48.440 - 01:22:50.440] to 420
+[01:22:50.440 - 01:23:10.170] if the score
+[01:23:10.170 - 01:23:12.170] is even
+[01:23:12.170 - 01:23:14.170] to 420
+[01:23:14.170 - 01:23:16.170] it's just an error
+[01:23:16.170 - 01:23:18.170] you just see it live
+[01:23:18.170 - 01:23:20.170] scores above the score, above the score
+[01:23:20.170 - 01:23:22.170] R, R, it's a psychological error
+[01:23:22.170 - 01:23:24.170] it's
+[01:23:24.170 - 01:23:28.060] especially what we do here
+[01:23:28.060 - 01:23:30.060] come on
+[01:23:30.060 - 01:23:42.100] give us the 420
+[01:23:42.100 - 01:23:44.100] scores above the score
+[01:23:44.100 - 01:23:46.100] the scores that you want to add to the score
+[01:23:46.100 - 01:23:49.420] let's see if
+[01:23:49.420 - 01:23:51.420] the scores
+[01:23:51.420 - 01:23:53.420] are good or not
+[01:23:53.420 - 01:23:55.420] my stop is 350
+[01:23:55.420 - 01:23:59.560] if we don't make it
+[01:23:59.560 - 01:24:01.560] to the score
+[01:24:01.560 - 01:24:03.560] I did it today, but by the way
+[01:24:03.560 - 01:24:05.560] it's a psychological day for me
+[01:24:05.560 - 01:24:07.560] of 1 to 9
+[01:24:07.560 - 01:24:09.560] what's live here
+[01:24:09.560 - 01:24:11.560] and it's simple
+[01:24:11.560 - 01:24:13.560] I just wanted to show you
+[01:24:13.560 - 01:24:15.560] the scores for the score
+[01:24:15.560 - 01:24:17.560] we have to move forward
+[01:24:17.560 - 01:24:19.560] in the next episodes
+[01:24:19.560 - 01:24:21.560] I'm starting to show you
+[01:24:21.560 - 01:24:23.560] the physical errors of scores
+[01:24:23.560 - 01:24:25.560] today you're also watching
+[01:24:25.560 - 01:24:27.560] a live performance
+[01:24:27.560 - 01:24:46.170] I think it's very good to see it
+[01:24:46.170 - 01:24:50.150] without the scores
+[01:24:50.150 - 01:24:52.150] it's amazing
+[01:24:52.150 - 01:24:54.150] let's see if 1 is always
+[01:24:54.150 - 01:24:56.150] we
+[01:24:56.150 - 01:24:58.150] are able to meet this block
+[01:24:58.150 - 01:25:00.150] let's see
+[01:25:00.150 - 01:25:40.200] a little bit of a moment
+[01:25:40.200 - 01:25:42.200] I like it
+[01:25:42.200 - 01:25:46.150] yes
+[01:25:46.150 - 01:25:48.150] the score of scores
+[01:25:48.150 - 01:25:50.150] scores are good
+[01:25:50.150 - 01:25:52.150] and we didn't have to break the block
+[01:25:52.150 - 01:25:54.150] it's a good score
+[01:25:54.150 - 01:25:59.420] scores for the scores
+[01:25:59.420 - 01:26:01.420] that they use here
+[01:26:01.420 - 01:26:03.420] and they limit on the score
+[01:26:03.420 - 01:26:06.820] are ready to get here
+[01:26:06.820 - 01:26:10.650] the scores
+[01:26:10.650 - 01:26:12.650] as I said, we want to meet
+[01:26:12.650 - 01:26:14.650] the 420
+[01:26:14.650 - 01:26:16.650] let's see if we can do this
+[01:26:18.650 - 01:26:20.650] 420
+[01:26:20.650 - 01:27:05.210] level
+[01:27:05.210 - 01:27:07.210] of the score of scores in the market
+[01:27:07.210 - 01:27:09.210] and scores in the market
+[01:27:09.210 - 01:27:11.210] again, according to all my calculations
+[01:27:11.210 - 01:27:13.210] and according to how I read the flow
+[01:27:13.210 - 01:27:15.210] it seems as if
+[01:27:15.210 - 01:27:17.210] the scores need to get here
+[01:27:17.210 - 01:27:21.480] and take our blocks to Mala
+[01:27:21.480 - 01:27:23.480] and we said it in the first episode
+[01:27:23.480 - 01:27:25.480] and you saw it
+[01:27:25.480 - 01:27:27.480] nothing to be afraid of
+[01:27:27.480 - 01:27:29.480] and so
+[01:27:29.480 - 01:27:31.480] whoever doesn't do the scores
+[01:27:31.480 - 01:27:33.480] and doesn't have any scores
+[01:27:33.480 - 01:27:35.480] and they will stop
+[01:27:35.480 - 01:27:37.480] and in small cases
+[01:27:37.480 - 01:27:39.480] like here
+[01:27:39.480 - 01:27:41.480] don't forget the physical score
+[01:27:41.480 - 01:27:43.480] in 1 to 9 hours
+[01:27:43.480 - 01:27:45.480] and they will get here
+[01:27:45.480 - 01:27:47.480] that's what I'm talking about
+[01:27:47.480 - 01:27:49.480] no money
+[01:27:49.480 - 01:27:51.480] no money
+[01:27:51.480 - 01:27:53.480] you have to know
+[01:27:53.480 - 01:27:55.480] to solve the score
+[01:27:55.480 - 01:27:57.480] and I'm one of the best
+[01:27:57.480 - 01:27:59.480] I did a good job
+[01:27:59.480 - 01:28:01.480] I didn't do much there
+[01:28:01.480 - 01:28:03.480] but this time it's a good idea
+[01:28:03.480 - 01:28:05.480] I wanted to continue to Mala
+[01:28:05.480 - 01:28:07.480] here again
+[01:28:07.480 - 01:28:09.480] you can see
+[01:28:09.480 - 01:28:11.480] blocks again
+[01:28:11.480 - 01:28:13.480] it's a block that said to save us
+[01:28:13.480 - 01:28:15.480] if the others here
+[01:28:15.480 - 01:28:17.480] managed to break
+[01:28:17.480 - 01:28:19.480] I can see a break in this equation
+[01:28:19.480 - 01:28:23.560] I don't want to see the others
+[01:28:23.560 - 01:28:29.270] trying to break there
+[01:28:29.270 - 01:28:31.270] I'm going to show you
+[01:28:31.270 - 01:28:33.270] 1 hour and 29 seconds
+[01:28:33.270 - 01:28:35.270] I did it once in the whole session
+[01:28:35.270 - 01:28:37.270] I didn't use the graphics
+[01:28:37.270 - 01:28:39.270] I'm just using the execution
+[01:29:50.170 - 01:29:52.170] this is the last part of the session
+[01:29:52.170 - 01:29:54.170] friends
+[01:29:56.170 - 01:29:58.170] I don't know how to use the execution
+[01:29:58.170 - 01:30:10.060] if I don't use this
+[01:30:10.060 - 01:30:12.060] the session is almost ready
+[01:30:12.060 - 01:30:14.060] 8 minutes
+[01:30:14.060 - 01:30:16.060] let's see if we can get the right amount
+[01:30:16.060 - 01:30:18.060] before the session
+[01:30:18.060 - 01:30:20.060] or
+[01:30:20.060 - 01:30:22.060] we can
+[01:30:22.060 - 01:30:24.060] get some extra points
+[01:30:24.060 - 01:30:26.060] because of the errors
+[01:30:26.060 - 01:30:28.060] that happened
+[01:30:30.060 - 01:30:36.060] on the way
+[01:30:36.060 - 01:30:38.060] I really liked this part
+[01:30:38.060 - 01:30:40.060] when AbuKmab and Tradingview
+[01:30:40.060 - 01:30:42.060] I think I'm going to stop it.
+[01:30:42.060 - 01:30:44.060] I think I'm going to keep going.
+[01:30:44.060 - 01:30:46.060] I'm going to turn off the camera.
+[01:30:46.060 - 01:31:00.630] I turned off the camera.
+[01:31:09.640 - 01:31:11.640] You can see in all the recordings
+[01:31:11.640 - 01:31:13.640] how I'm going to risk free.
+[01:31:13.640 - 01:31:15.640] How the R4 is just a psych,
+[01:31:15.640 - 01:31:17.640] I don't know the R4
+[01:31:17.640 - 01:31:19.640] because I don't remember, I didn't do the stop
+[01:31:19.640 - 01:31:21.640] with 340 or 335
+[01:31:21.640 - 01:31:23.640] but it doesn't matter.
+[01:31:23.640 - 01:31:25.640] I'm 1 to 3, 1 to 4
+[01:31:25.640 - 01:31:27.640] like water, like this.
+[01:31:27.640 - 01:31:29.640] So if you don't want to keep going
+[01:31:29.640 - 01:31:31.640] to the main block
+[01:31:31.640 - 01:31:33.640] you can turn off 1 to 3, 1 to 4
+[01:31:33.640 - 01:31:35.640] and you can see that it's coming like water.
+[01:31:35.640 - 01:31:37.640] I do want to show you
+[01:31:37.640 - 01:31:39.640] an idea and a guide
+[01:31:39.640 - 01:31:41.640] and how we get there
+[01:31:41.640 - 01:31:43.640] in the middle of the night.
+[01:31:43.640 - 01:31:45.640] But it's amazing that you can see
+[01:31:45.640 - 01:31:47.640] just live
+[01:31:47.640 - 01:31:49.640] and you can take recordings with
+[01:31:49.640 - 01:31:51.640] such a great record
+[01:31:51.640 - 01:31:53.640] that comes one a week
+[01:31:53.640 - 01:31:55.640] even though you can see
+[01:31:55.640 - 01:31:57.640] records in one session.
+[01:31:57.640 - 01:31:59.640] It changes
+[01:31:59.640 - 01:32:01.640] the life of a person, it changes
+[01:32:01.640 - 01:32:03.640] the reputation of a person.
+[01:32:03.640 - 01:32:05.640] Here too I can start
+[01:32:05.640 - 01:32:07.640] a trail stop under this block
+[01:32:07.640 - 01:32:09.640] but this time I won't do it.
+[01:32:09.640 - 01:32:11.640] I'm 1 to 420
+[01:32:11.640 - 01:32:13.640] and if it doesn't come today
+[01:32:13.640 - 01:32:15.640] then we're done.
+[01:32:15.640 - 01:32:17.640] In the next videos we're going to
+[01:32:17.640 - 01:32:19.640] make a big deal out of it.
+[01:32:19.640 - 01:32:21.640] We're going to make a big deal out of it.
+[01:32:21.640 - 01:32:23.640] We're going to make a big deal out of it.
+[01:32:23.640 - 01:32:25.640] Today we're going to make
+[01:32:25.640 - 01:32:27.640] a big deal out of it.
+[01:32:27.640 - 01:32:29.640] We're going to full take, once again.
+[01:32:29.640 - 01:32:31.640] But
+[01:32:31.640 - 01:32:33.640] I'm going to give you 110 seconds
+[01:32:33.640 - 01:32:35.640] and I'm going to make the record
+[01:32:35.640 - 01:32:37.640] more exciting
+[01:32:37.640 - 01:32:39.640] as necessary.
+[01:32:39.640 - 01:32:41.640] And let's see
+[01:32:41.640 - 01:32:43.640] let's see if we can get a push
+[01:32:43.640 - 01:32:45.640] from this one.
+[01:32:45.640 - 01:32:47.640] We still have two
+[01:32:47.640 - 01:32:49.640] blockings left.
+[01:32:49.640 - 01:32:51.640] We'll give you a second block
+[01:32:51.640 - 01:32:58.470] to 420.
+[01:32:58.470 - 01:33:00.470] Come on buddy.
+[01:33:00.470 - 01:33:02.470] Very good.
+[01:33:02.470 - 01:33:04.470] Let's see if we can break
+[01:33:04.470 - 01:33:06.470] the block
+[01:33:06.470 - 01:33:08.470] to 420.
+[01:33:08.470 - 01:33:10.470] It turns out that
+[01:33:10.470 - 01:33:12.470] I also moved here
+[01:33:12.470 - 01:33:14.470] but I really wanted to move
+[01:33:14.470 - 01:33:16.470] in these areas again.
+[01:33:16.470 - 01:33:18.470] Two points.
+[01:33:18.470 - 01:33:20.470] Whoever moved to this one and remember
+[01:33:20.470 - 01:33:22.470] I wanted to take it from here
+[01:33:22.470 - 01:33:24.470] and I wanted to take it from here.
+[01:33:24.470 - 01:33:26.470] I really wanted to take it from here
+[01:33:26.470 - 01:33:28.470] but again because I know
+[01:33:28.470 - 01:33:30.470] when to use it in the right way
+[01:33:30.470 - 01:33:32.470] I know to use it
+[01:33:32.470 - 01:33:34.470] in a way that's less good
+[01:33:34.470 - 01:33:36.470] because it's possible
+[01:33:36.470 - 01:33:38.470] and I still have to get it out of it
+[01:33:38.470 - 01:33:40.470] and I think my use in 350
+[01:33:40.470 - 01:33:42.470] is very different from all the
+[01:33:42.470 - 01:33:44.470] blocks I tried to make
+[01:33:44.470 - 01:33:46.470] in 330, 320, or even more
+[01:33:46.470 - 01:33:48.470] I think it's amazing.
+[01:33:48.470 - 01:33:50.470] You just received a great session
+[01:33:50.470 - 01:33:52.470] of understanding
+[01:33:52.470 - 01:33:54.470] and when to use it and when not.
+[01:33:54.470 - 01:33:56.470] 420 this day
+[01:33:56.470 - 01:33:58.470] will make me understand
+[01:33:58.470 - 01:34:00.470] really it will make me understand.
+[01:34:00.470 - 01:34:02.470] I don't believe that
+[01:34:02.470 - 01:34:04.470] these blockings make us understand
+[01:34:04.470 - 01:34:06.470] what's happening in 420.
+[01:34:06.470 - 01:34:10.470] What a great session.
+[01:34:10.470 - 01:34:12.470] Really.
+[01:34:12.470 - 01:34:14.470] Wow.
+[01:34:14.470 - 01:34:16.470] Imagine that I could use it here
+[01:34:16.470 - 01:34:18.470] and get to there.
+[01:34:18.470 - 01:34:22.070] It turns out that
+[01:34:22.070 - 01:34:24.070] the RR of the session
+[01:34:24.070 - 01:34:26.070] really
+[01:34:26.070 - 01:34:28.070] if it doesn't do 422
+[01:34:28.070 - 01:34:30.070] where it's from 4
+[01:34:30.070 - 01:34:36.390] blocks
+[01:34:36.390 - 01:34:38.390] or even here
+[01:34:38.390 - 01:34:40.390] you see
+[01:34:40.390 - 01:34:45.980] some people trying to break here
+[01:34:45.980 - 01:34:47.980] and didn't make it.
+[01:34:47.980 - 01:34:49.980] Come on, the last few minutes of the session
+[01:34:49.980 - 01:34:51.980] if this session also
+[01:34:51.980 - 01:34:53.980] is going to be
+[01:34:53.980 - 01:34:55.980] exciting
+[01:34:55.980 - 01:34:57.980] or that in the end
+[01:34:57.980 - 01:34:59.980] is going to be 420.
+[01:34:59.980 - 01:35:08.220] I don't believe
+[01:35:08.220 - 01:35:10.220] that this block that we met
+[01:35:10.220 - 01:35:12.220] here is amazing.
+[01:35:12.220 - 01:35:15.820] Again.
+[01:35:15.820 - 01:35:19.190] Amazing.
+[01:35:19.190 - 01:35:21.190] A great session.
+[01:35:21.190 - 01:35:23.190] Just a great session.
+[01:35:23.190 - 01:35:25.190] If it's 420 and these blocks don't come
+[01:35:25.190 - 01:35:27.190] out of nowhere
+[01:35:27.190 - 01:35:29.190] I like it, but
+[01:35:29.190 - 01:35:31.190] maybe I'm going to speed up
+[01:35:31.190 - 01:35:33.190] but it's really exciting.
+[01:35:33.190 - 01:35:35.190] It happens
+[01:35:35.190 - 01:35:37.190] again in the same day
+[01:35:37.190 - 01:35:41.590] it's really exciting.
+[01:35:41.590 - 01:35:55.180] Really exciting.
+[01:35:55.180 - 01:35:57.180] Again, you can see that the CVD
+[01:35:57.180 - 01:35:59.180] still has a big rock, the graph here
+[01:35:59.180 - 01:36:01.180] goes out.
+[01:36:01.180 - 01:36:03.180] It means that the aggressive blocks
+[01:36:03.180 - 01:36:05.180] still write the tone.
+[01:36:05.180 - 01:36:07.180] You can see that without
+[01:36:07.180 - 01:36:09.180] taking the flop once in a row
+[01:36:09.180 - 01:36:11.180] I knew who's going to
+[01:36:11.180 - 01:36:13.180] write the tone
+[01:36:13.180 - 01:36:15.180] and where to go
+[01:36:15.180 - 01:36:17.180] where to go
+[01:36:17.180 - 01:36:19.180] I'm going to go out today
+[01:36:19.180 - 01:36:21.180] a little bit here
+[01:36:21.180 - 01:36:23.180] there's something to compare
+[01:36:23.180 - 01:36:25.180] but if I want to
+[01:36:25.180 - 01:36:27.180] see in live this block
+[01:36:27.180 - 01:36:29.180] it receives
+[01:36:29.180 - 01:36:31.180] points of points
+[01:36:31.180 - 01:36:56.280] we'll see
+[01:36:56.280 - 01:36:58.280] how others
+[01:36:58.280 - 01:37:00.280] try to use here
+[01:37:00.280 - 01:37:02.280] the view
+[01:37:02.280 - 01:37:04.280] and they want to prevent
+[01:37:04.280 - 01:37:07.780] these areas
+[01:37:07.780 - 01:37:09.780] but if the points really
+[01:37:09.780 - 01:37:11.780] go to the market
+[01:37:11.780 - 01:37:13.780] we need to meet the
+[01:37:13.780 - 01:37:15.780] aggressive block
+[01:37:15.780 - 01:37:17.780] because it doesn't happen
+[01:37:17.780 - 01:37:19.780] and it's aggressive
+[01:37:19.780 - 01:37:21.780] again, another day today
+[01:37:21.780 - 01:37:23.780] maybe
+[01:37:23.780 - 01:37:25.780] it's going to be a little bit more exciting
+[01:37:25.780 - 01:37:27.780] to see such an amazing result
+[01:37:27.780 - 01:37:31.260] to this block
+[01:37:31.260 - 01:37:33.260] but as I said
+[01:37:33.260 - 01:37:35.260] through this session
+[01:37:35.260 - 01:37:40.580] about the quality here that you
+[01:37:40.580 - 01:37:50.140] received is much more important than
+[01:37:50.140 - 01:37:52.140] another 10 years of the session
+[01:37:52.140 - 01:37:54.140] but it doesn't matter, I'm just going to give it a try
+[01:37:54.140 - 01:37:56.140] come on, come on, don't come
+[01:37:56.140 - 01:37:58.140] it's not interesting, we're going to
+[01:37:58.140 - 01:38:03.400] make a deal
+[01:38:03.400 - 01:38:11.830] look, I really see here
+[01:38:11.830 - 01:38:13.830] these aggressive points in the market
+[01:38:13.830 - 01:38:15.830] they really try to attack
+[01:38:15.830 - 01:38:17.830] this block but
+[01:38:17.830 - 01:38:19.830] again and again, they're
+[01:38:19.830 - 01:38:21.830] blocking blocks and
+[01:38:21.830 - 01:38:23.830] they don't need to break, I do believe
+[01:38:23.830 - 01:38:25.830] that we can see that
+[01:38:25.830 - 01:38:27.830] it's an aggressive block
+[01:38:27.830 - 01:38:31.460] we can
+[01:38:31.460 - 01:38:33.460] try to do it really well
+[01:38:33.460 - 01:38:35.460] and to fight more aggressive and to do
+[01:38:35.460 - 01:38:37.460] rails but I
+[01:38:37.460 - 01:38:39.460] received 420
+[01:38:39.460 - 01:38:41.460] so I
+[01:38:41.460 - 01:38:43.460] I'm
+[01:38:43.460 - 01:38:45.460] really hoping that
+[01:38:45.460 - 01:39:15.620] this will also come
+[01:39:15.620 - 01:39:17.620] come on, let's see
+[01:39:17.620 - 01:39:19.620] what happens here
+[01:39:19.620 - 01:39:21.620] we can see very strong points
+[01:39:21.620 - 01:39:23.620] they want to protect these blocks
+[01:39:23.620 - 01:39:25.620] my top stop is here
+[01:39:25.620 - 01:39:27.620] about the aggressive points
+[01:39:27.620 - 01:39:29.620] I'm not saying
+[01:39:29.620 - 01:39:33.000] to be in trouble
+[01:39:33.000 - 01:39:35.000] we want to see
+[01:39:35.000 - 01:39:37.000] in the end, we want to see
+[01:39:37.000 - 01:39:39.000] the attacks in these blocks
+[01:39:39.000 - 01:39:41.000] and from here on, it will be a market
+[01:39:41.000 - 01:39:43.000] in the end as it happens now
+[01:39:43.000 - 01:39:45.000] and come on, let's see the 420
+[01:39:45.000 - 01:39:47.000] that all the session we
+[01:39:47.000 - 01:39:56.680] are fighting
+[01:39:56.680 - 01:39:58.680] all the session we're fighting
+[01:39:58.680 - 01:40:29.290] and we're fighting it
+[01:41:03.720 - 01:41:05.720] let's see what happens
+[01:41:05.720 - 01:41:11.530] there's not a lot of pressure
+[01:41:11.530 - 01:41:13.530] for you
+[01:41:13.530 - 01:41:15.530] there will be a market
+[01:41:15.530 - 01:41:17.530] very strong here
+[01:41:17.530 - 01:41:19.530] for
+[01:41:19.530 - 01:41:41.940] what
+[01:41:41.940 - 01:41:43.940] they don't need to
+[01:41:43.940 - 01:41:45.940] protect the block
+[01:41:45.940 - 01:41:49.900] very, very
+[01:41:49.900 - 01:41:51.900] not good
+[01:41:51.900 - 01:41:53.900] the problem
+[01:41:53.900 - 01:41:55.900] they don't need to protect
+[01:41:55.900 - 01:41:57.900] these blocks
+[01:41:57.900 - 01:41:59.900] it makes me very happy
+[01:41:59.900 - 01:42:01.900] to see what's going on here
+[01:42:01.900 - 01:42:03.900] happy that these blocks
+[01:42:03.900 - 01:42:05.900] are able to protect us
+[01:42:05.900 - 01:42:07.900] of course, the CVD is so
+[01:42:07.900 - 01:42:09.900] clear on the side of the blocks
+[01:42:09.900 - 01:42:11.900] I'm sorry
+[01:42:11.900 - 01:42:13.900] but that's the problem
+[01:42:13.900 - 01:42:15.900] it's the problem, you never know
+[01:42:15.900 - 01:42:17.900] and that's very important
+[01:42:17.900 - 01:42:19.900] I'll say it again
+[01:42:19.900 - 01:42:21.900] the most important issue of the trail stop
+[01:42:21.900 - 01:42:23.900] the most important issue of the date
+[01:42:23.900 - 01:42:25.900] when will you say ok, I'm fighting 1-7
+[01:42:25.900 - 01:42:27.900] 1-6
+[01:42:27.900 - 01:42:29.900] 1-7
+[01:42:29.900 - 01:42:31.900] and
+[01:42:31.900 - 01:42:33.900] the stop was a bit of a delay
+[01:42:33.900 - 01:42:35.900] I had to do a trail
+[01:42:35.900 - 01:42:37.900] I'll end the session today
+[01:42:37.900 - 01:42:39.900] and I'll talk about everything
+[01:42:39.900 - 01:42:51.050] that we had
+[01:42:51.050 - 01:43:11.160] it's hard, it's hard that there's no momentum
+[01:43:11.160 - 01:43:13.160] it's hard that there's no momentum
+[01:43:13.160 - 01:43:15.160] I think that this stop
+[01:43:15.160 - 01:43:17.160] we're fighting
+[01:43:17.160 - 01:43:19.160] no
+[01:43:19.160 - 01:43:21.160] the exit is empty
+[01:43:21.160 - 01:43:23.160] you can see that again and again
+[01:43:23.160 - 01:43:25.160] and again, here
+[01:43:25.160 - 01:43:27.160] also, where was it
+[01:43:27.160 - 01:43:29.160] here, there
+[01:43:29.160 - 01:43:31.160] these blocks are small
+[01:43:31.160 - 01:43:33.160] that's what happens to the Mala
+[01:43:33.160 - 01:43:35.160] that they manage to save
+[01:43:35.160 - 01:43:37.160] because it's a different day
+[01:43:37.160 - 01:43:39.160] and there's no enough volume to save
+[01:43:39.160 - 01:43:41.160] for the Mala
+[01:43:41.160 - 01:43:43.160] that's what happens
+[01:43:43.160 - 01:43:45.160] I'm sure that during the session
+[01:43:45.160 - 01:43:47.160] with the next 3, 4, 5, 6
+[01:43:47.160 - 01:43:49.160] you'll see what it is
+[01:43:49.160 - 01:43:51.160] what's Mala
+[01:43:51.160 - 01:43:53.160] it's easy to get there
+[01:43:53.160 - 01:43:55.160] sometimes I tell myself to stop
+[01:43:55.160 - 01:43:57.160] we can get there
+[01:43:57.160 - 01:43:59.160] but what happened in the session
+[01:43:59.160 - 01:44:01.160] it's easier
+[01:44:01.160 - 01:44:03.160] easier
+[01:44:03.160 - 01:44:05.160] and I think that the session
+[01:44:05.160 - 01:44:18.490] will be better
+[01:44:18.490 - 01:44:20.490] I really need to get used to it
+[01:44:20.490 - 01:44:22.490] I'll be here for another 2 hours
+[01:44:22.490 - 01:44:24.490] you don't have to go anywhere
+[01:44:24.490 - 01:44:26.490] I'll be there in a second
+[01:44:26.490 - 01:45:20.390] it's only for you that I'm here live
+[01:45:20.390 - 01:45:22.390] ok
+[01:45:22.390 - 01:45:24.390] I'm so tired
+[01:45:24.390 - 01:45:26.390] I'm so close to the room
+[01:45:26.390 - 01:45:28.390] so we're back
+[01:45:28.390 - 01:45:30.390] in time
+[01:45:30.390 - 01:45:32.390] so you can see that the situation
+[01:45:32.390 - 01:45:34.390] isn't that different
+[01:45:34.390 - 01:45:36.390] again
+[01:45:36.390 - 01:45:41.020] it's easy to get used to
+[01:45:41.020 - 01:45:43.020] of course
+[01:45:43.020 - 01:45:45.020] in the next videos
+[01:45:45.020 - 01:45:47.020] we're not going to get used to it
+[01:45:47.020 - 01:45:49.020] we're going to work on the details
+[01:45:49.020 - 01:45:51.020] today is the first time
+[01:45:51.020 - 01:45:53.020] that I'm filming you
+[01:45:53.020 - 01:45:55.020] so I'm going to do it as fun as possible
+[01:45:55.020 - 01:45:57.020] to get to full take
+[01:45:57.020 - 01:45:59.020] it doesn't happen
+[01:45:59.020 - 01:46:01.020] so we're doing some pro-towards
+[01:46:01.020 - 01:46:03.020] it's not cool
+[01:46:03.020 - 01:46:05.020] but I think I love it
+[01:46:05.020 - 01:46:07.020] I think I love that you see
+[01:46:07.020 - 01:46:09.020] what you don't need to do
+[01:46:09.020 - 01:46:11.020] and what I did today
+[01:46:11.020 - 01:46:13.020] is something you don't need to do
+[01:46:13.020 - 01:46:15.020] I had to work there
+[01:46:15.020 - 01:46:17.020] with trail stop
+[01:46:17.020 - 01:46:19.020] and I had to do my stop
+[01:46:19.020 - 01:46:21.020] and to get out of this stop
+[01:46:21.020 - 01:46:23.020] in a proper profit
+[01:46:23.020 - 01:46:25.020] 1 to 9, 1 to 8
+[01:46:25.020 - 01:46:27.020] minimum I would have to take it there
+[01:46:27.020 - 01:46:30.840] everything is fine
+[01:46:30.840 - 01:46:32.840] we don't need this stop
+[01:46:32.840 - 01:46:34.840] something like 1 to 7
+[01:46:34.840 - 01:46:36.840] what happened there
+[01:46:36.840 - 01:46:54.740] ok now
+[01:46:54.740 - 01:46:56.740] now it's interesting because there's nothing
+[01:46:56.740 - 01:46:58.740] that they said to stop
+[01:46:58.740 - 01:47:00.740] if they need to use it
+[01:47:00.740 - 01:47:02.740] here
+[01:47:02.740 - 01:47:04.740] there's almost nothing here
+[01:47:04.740 - 01:47:06.740] there's a lot of evidence
+[01:47:06.740 - 01:47:08.740] a lot of evidence
+[01:47:08.740 - 01:47:10.740] I said it once
+[01:47:10.740 - 01:47:12.740] but now
+[01:47:12.740 - 01:47:14.740] there's no blocks
+[01:47:14.740 - 01:47:16.740] it's only this block
+[01:47:16.740 - 01:47:18.740] in 415
+[01:47:18.740 - 01:47:20.740] and if again
+[01:47:20.740 - 01:47:22.740] this block again
+[01:47:22.740 - 01:47:24.740] this block again
+[01:47:24.740 - 01:47:26.740] this block again
+[01:47:26.740 - 01:47:28.740] with 104 points
+[01:47:28.740 - 01:47:30.740] with 104 minis
+[01:47:30.740 - 01:47:32.740] here
+[01:47:32.740 - 01:48:20.220] slowly and steady
+[01:48:20.220 - 01:48:22.220] slowly and steady
+[01:48:22.220 - 01:48:24.220] again you can see that
+[01:48:24.220 - 01:48:26.220] I've already removed the first block
+[01:48:26.220 - 01:48:28.220] so
+[01:48:28.220 - 01:48:30.220] wait
+[01:48:30.220 - 01:48:32.220] I'm going to break even today
+[01:48:32.220 - 01:48:34.220] if we get full take I'll get a break
+[01:48:34.220 - 01:48:36.220] from today
+[01:48:36.220 - 01:48:38.220] again I remember the day I almost did
+[01:48:38.220 - 01:48:40.220] all the possibility
+[01:48:40.220 - 01:48:42.220] the newlite
+[01:48:42.220 - 01:48:44.220] let's call it that
+[01:48:44.220 - 01:48:46.220] and you'll see that the best
+[01:48:46.220 - 01:48:48.220] and the worst
+[01:48:48.220 - 01:48:50.220] give me a break
+[01:48:50.220 - 01:48:52.220] and it's still going on
+[01:48:52.220 - 01:49:04.040] that's what we're doing
+[01:49:04.040 - 01:49:06.040] the next day
+[01:49:06.040 - 01:49:08.040] it's just the next day
+[01:49:08.040 - 01:49:10.040] come on I'm already checking
+[01:49:10.040 - 01:49:12.040] for this moment
+[01:49:12.040 - 01:49:14.040] that this block
+[01:49:14.040 - 01:49:16.040] that it's breaking
+[01:49:18.040 - 01:49:20.040] let's take too many times
+[01:49:20.040 - 01:50:03.860] we don't have enough points
+[01:50:03.860 - 01:50:05.860] to protect us
+[01:50:05.860 - 01:50:09.750] there's a block that is
+[01:50:09.750 - 01:50:11.750] in 380
+[01:50:11.750 - 01:50:13.750] let's move forward
+[01:50:13.750 - 01:50:15.750] my stop is 380
+[01:50:15.750 - 01:50:17.750] and in that
+[01:50:17.750 - 01:50:24.040] to save
+[01:50:24.040 - 01:50:28.920] as long as I think we're already there
+[01:50:28.920 - 01:50:30.920] interesting
+[01:50:30.920 - 01:50:35.420] no no
+[01:50:35.420 - 01:50:37.420] interesting
+[01:50:37.420 - 01:50:39.420] what this block is
+[01:50:39.420 - 01:50:41.420] I really hope that the others will
+[01:50:41.420 - 01:50:43.420] break it and
+[01:50:43.420 - 01:50:45.420] it will be great, there are 2 of these
+[01:50:45.420 - 01:50:47.420] still broken
+[01:50:47.420 - 01:50:49.420] just because we broke the block
+[01:50:49.420 - 01:51:02.840] come on
+[01:51:02.840 - 01:51:04.840] I think that with 380
+[01:51:04.840 - 01:51:06.840] we can save
+[01:51:06.840 - 01:51:08.840] and get to these areas
+[01:51:08.840 - 01:51:10.840] let's move forward
+[01:51:10.840 - 01:51:12.840] one of the most important
+[01:51:12.840 - 01:51:22.870] if we start to get
+[01:51:22.870 - 01:51:24.870] to these areas here
+[01:51:24.870 - 01:51:26.870] 410
+[01:51:26.870 - 01:51:28.870] and even if we get to the block of 415
+[01:51:28.870 - 01:51:30.870] that would be the moment that I say
+[01:51:30.870 - 01:51:32.870] ok I went to 380 I don't want to go back there
+[01:51:32.870 - 01:51:37.210] take more time
+[01:51:37.210 - 01:51:39.210] if there's no momentum
+[01:51:39.210 - 01:51:41.210] to get to 420
+[01:51:41.210 - 01:51:43.210] let's go to 420
+[01:51:43.210 - 01:51:48.340] from the side
+[01:51:48.340 - 01:51:50.340] but let's go
+[01:51:50.340 - 01:51:57.430] I want to see the points
+[01:51:57.430 - 01:51:59.430] that we need to save here
+[01:52:01.430 - 01:52:13.190] again, in every day
+[01:52:13.190 - 01:52:15.190] it just had to be easy take
+[01:52:15.190 - 01:52:17.190] it's just for me, because it's the other day
+[01:52:17.190 - 01:52:19.190] and it's the last day
+[01:52:19.190 - 01:52:21.190] that's the reason, in every other day
+[01:52:21.190 - 01:52:23.190] it has to be easy take
+[01:52:23.190 - 01:52:25.190] the 1 to 10 scale
+[01:52:25.190 - 01:52:27.190] it's just
+[01:52:27.190 - 01:52:29.190] a great hero
+[01:52:29.190 - 01:52:34.550] ok, the others used it
+[01:52:34.550 - 01:52:36.550] to save here
+[01:52:36.550 - 01:52:38.550] I can save with 420
+[01:52:38.550 - 01:52:42.820] my block
+[01:52:42.820 - 01:52:44.820] that I broke it
+[01:52:44.820 - 01:52:55.340] it's very, very, very big
+[01:52:55.340 - 01:52:57.340] not bad
+[01:52:57.340 - 01:52:59.340] save this session
+[01:52:59.340 - 01:53:02.710] by hand, if it doesn't work
+[01:53:02.710 - 01:53:04.710] if it does
+[01:53:04.710 - 01:53:06.710] if it fails to break it
+[01:53:06.710 - 01:53:27.720] if it doesn't work
+[01:53:27.720 - 01:53:29.720] ok, there's some change there
+[01:53:29.720 - 01:53:31.720] but
+[01:53:31.720 - 01:53:33.720] it's too deep, it's too deep
+[01:53:33.720 - 01:53:35.720] it doesn't seem to be able to see
+[01:53:35.720 - 01:53:37.720] what's happening
+[01:53:37.720 - 01:53:39.720] and again
+[01:53:39.720 - 01:53:41.720] we're getting a few
+[01:53:41.720 - 01:53:43.720] 8 points from the take
+[01:53:43.720 - 01:53:45.720] the original
+[01:53:45.720 - 01:53:47.720] and it doesn't happen
+[01:53:47.720 - 01:53:53.080] now I can see
+[01:53:53.080 - 01:53:55.080] the real interest
+[01:53:55.080 - 01:53:57.080] is in 430
+[01:53:57.080 - 01:53:59.080] at least
+[01:53:59.080 - 01:54:01.080] can you see that?
+[01:54:01.080 - 01:54:03.080] 420 is not interested
+[01:54:03.080 - 01:54:05.080] the interest is in 430
+[01:54:05.080 - 01:54:07.080] it's possible
+[01:54:07.080 - 01:54:09.080] to take
+[01:54:09.080 - 01:54:11.080] a few points
+[01:54:11.080 - 01:54:13.080] there's no reason
+[01:54:13.080 - 01:54:15.080] there's no reason to save
+[01:54:15.080 - 01:54:17.080] in 420, there's no way
+[01:54:17.080 - 01:54:19.080] there's no way
+[01:54:19.080 - 01:54:21.080] there's no way
+[01:54:21.080 - 01:54:23.080] the real block
+[01:54:23.080 - 01:54:25.080] ok, it's in 415
+[01:54:25.080 - 01:54:27.080] here
+[01:54:27.080 - 01:54:29.080] and it's in 430
+[01:54:29.080 - 01:54:31.080] I
+[01:54:31.080 - 01:54:33.080] I
+[01:54:33.080 - 01:54:35.080] decided to move the tip
+[01:54:35.080 - 01:54:37.080] to 425, right?
+[01:54:37.080 - 01:54:39.080] I don't have much to do there
+[01:54:39.080 - 01:54:41.080] I don't have much to do in 420
+[01:54:41.080 - 01:54:45.130] so it's just fine
+[01:54:45.130 - 01:54:47.130] so if I left
+[01:54:47.130 - 01:54:49.130] here, if I left more
+[01:54:49.130 - 01:54:51.130] it's a few points
+[01:54:51.130 - 01:54:55.240] let's see
+[01:54:55.240 - 01:54:57.240] if I left a few points
+[01:54:57.240 - 01:54:59.240] I can
+[01:54:59.240 - 01:55:01.240] take a few points in 430
+[01:55:01.240 - 01:55:03.240] but it's really going to be a comeback
+[01:55:03.240 - 01:55:05.240] I'm afraid of
+[01:55:05.240 - 01:55:07.240] I'm afraid of it, I'll tell you the truth
+[01:55:09.240 - 01:55:11.240] but
+[01:55:11.240 - 01:55:13.240] the block is in 430
+[01:55:13.240 - 01:55:15.240] if you're talking about Dugri
+[01:55:15.240 - 01:55:17.240] the block is in 430
+[01:55:17.240 - 01:55:19.240] let's not go back, let's try this day
+[01:55:19.240 - 01:55:21.240] let's try this day
+[01:55:21.240 - 01:55:23.240] let's try it
+[01:55:23.240 - 01:55:25.240] in 425
+[01:55:27.240 - 01:55:29.240] ok, I see that
+[01:55:29.240 - 01:55:31.240] people here are interested
+[01:55:31.240 - 01:55:34.580] again
+[01:55:34.580 - 01:55:36.580] let's try this day
+[01:55:40.120 - 01:55:42.120] let's try this day
+[01:55:42.120 - 01:55:44.120] come on bro
+[01:55:44.120 - 01:55:47.820] it looks like Dey is going to be a big volume
+[01:55:47.820 - 01:55:49.820] here
+[01:55:49.820 - 01:55:51.820] you see that the things are getting worse
+[01:55:51.820 - 01:55:53.820] at the moment
+[01:55:53.820 - 01:55:55.820] but again, at the moment it's in 420
+[01:55:55.820 - 01:55:57.820] and there are no other things
+[01:55:57.820 - 01:55:59.820] there's nothing, so why to go back
+[01:55:59.820 - 01:56:01.820] I can go back in 415
+[01:56:01.820 - 01:56:03.820] but since I left
+[01:56:03.820 - 01:56:05.820] until the moment
+[01:56:05.820 - 01:56:07.820] so
+[01:56:07.820 - 01:56:09.820] you see, we're not going to go back
+[01:56:09.820 - 01:56:11.820] we're already here
+[01:56:11.820 - 01:56:13.820] I'm even afraid to do
+[01:56:13.820 - 01:56:15.820] the typical in 430
+[01:56:15.820 - 01:56:17.820] like it looks at the moment
+[01:56:17.820 - 01:56:19.820] the original block is in 430
+[01:56:19.820 - 01:56:23.480] it's not going to be a comeback
+[01:56:23.480 - 01:56:25.480] every time it's going to be a comeback
+[01:56:25.480 - 01:56:27.480] it's going to be a retrace
+[01:56:27.480 - 01:56:29.480] and the others are going back
+[01:56:29.480 - 01:56:31.480] in the original block
+[01:56:31.480 - 01:56:43.780] here I want to see the comeback
+[01:56:47.780 - 01:56:49.780] I can't wait
+[01:56:49.780 - 01:56:51.780] I can't wait to do it today
+[01:56:51.780 - 01:56:56.470] let's go back
+[01:56:56.470 - 01:56:58.470] let's go back
+[01:56:58.470 - 01:57:00.470] it's going to happen in a lot of ways
+[01:57:00.470 - 01:57:03.750] you'll see in 10 years
+[01:57:03.750 - 01:57:05.750] let's see another day
+[01:57:05.750 - 01:57:07.750] it's going to be a comeback
+[01:57:07.750 - 01:58:05.140] that's the reason
+[01:58:05.140 - 01:58:13.540] wow
+[01:58:13.540 - 01:58:15.540] I think it's going to be a comeback
+[01:58:15.540 - 01:58:17.540] before we go back in 420
+[01:58:53.690 - 01:58:55.690] let's continue
+[01:58:55.690 - 01:58:57.690] except for Amtin
+[01:58:57.690 - 01:58:59.690] there's nothing we can do at the moment
+[01:58:59.690 - 01:59:01.690] I think in the moment we're already here
+[01:59:01.690 - 01:59:03.690] there's nothing we can do here
+[01:59:03.690 - 01:59:05.690] really
+[01:59:05.690 - 01:59:07.690] it's only for Amtin
+[01:59:07.690 - 01:59:09.690] we're going to the districts
+[01:59:09.690 - 01:59:11.690] it's not going to happen
+[01:59:11.690 - 01:59:18.360] I really think
+[01:59:18.360 - 01:59:20.360] that I'm going to go back to the whole session
+[01:59:20.360 - 01:59:22.360] that I recorded for you today
+[01:59:22.360 - 01:59:24.360] things that I just learned
+[01:59:24.360 - 01:59:26.360] and saw in live
+[01:59:26.360 - 01:59:28.360] that you won't see anywhere else
+[01:59:28.360 - 01:59:30.360] of course
+[01:59:30.360 - 01:59:33.640] as usual
+[01:59:33.640 - 01:59:35.640] and that's what matters to me
+[01:59:35.640 - 01:59:37.640] in my opinion more than the rest
+[01:59:37.640 - 01:59:39.640] let's say this one
+[01:59:41.640 - 01:59:43.640] that's it
+[01:59:43.640 - 01:59:45.640] let's say
+[01:59:45.640 - 01:59:50.970] we go back to the block
+[01:59:50.970 - 01:59:52.970] let's say
+[01:59:52.970 - 01:59:54.970] that's it
+[01:59:54.970 - 01:59:56.970] but let's see
+[01:59:56.970 - 01:59:58.970] we have to stop
+[01:59:58.970 - 02:00:00.970] we have 415 to continue
+[02:00:00.970 - 02:00:04.250] let's see
+[02:00:04.250 - 02:01:06.790] day 9
+[02:01:06.790 - 02:01:08.790] we really just went to
+[02:01:08.790 - 02:01:10.790] Dishdush's room
+[02:01:10.790 - 02:01:12.790] you can see
+[02:01:12.790 - 02:01:14.790] between block to block
+[02:01:14.790 - 02:01:16.790] between block to block
+[02:01:16.790 - 02:01:18.790] I think
+[02:01:18.790 - 02:01:20.790] if it's already on its own
+[02:01:20.790 - 02:01:22.790] then I think I'm going to physically
+[02:01:22.790 - 02:01:24.790] if we're going to be in a hurry
+[02:01:24.790 - 02:01:26.790] I thought
+[02:01:26.790 - 02:01:28.790] we're going to do it today
+[02:01:28.790 - 02:01:32.840] also because I'm here
+[02:01:32.840 - 02:01:34.840] already 2 hours
+[02:01:34.840 - 02:01:36.840] and it's way too much
+[02:01:36.840 - 02:01:38.840] than what I want to be in the session
+[02:01:38.840 - 02:01:40.840] and also because I'm already starting
+[02:01:40.840 - 02:01:42.840] really in the hope that
+[02:01:42.840 - 02:01:44.840] you'll see the results
+[02:01:44.840 - 02:02:18.870] I told you
+[02:02:18.870 - 02:02:20.870] 415
+[02:02:20.870 - 02:02:22.870] will be the same
+[02:02:22.870 - 02:02:26.280] if we break 415
+[02:02:26.280 - 02:02:28.280] it really
+[02:02:28.280 - 02:02:30.280] it really needs to go to the direction of the blocks
+[02:02:30.280 - 02:02:39.670] to the top
+[02:02:39.670 - 02:02:41.670] from time to time the numbers
+[02:02:41.670 - 02:02:43.670] I didn't mention it in the session
+[02:02:43.670 - 02:02:45.670] just let me see the important blocks
+[02:02:45.670 - 02:02:47.670] these little ones in this case
+[02:02:47.670 - 02:02:49.670] are the same
+[02:02:49.670 - 02:02:51.670] you want to see the really important blocks
+[02:02:51.670 - 02:02:53.670] and you do it in help
+[02:02:53.670 - 02:02:55.670] and repeat
+[02:02:55.670 - 02:02:57.670] ok
+[02:02:57.670 - 02:03:04.550] if we break 415
+[02:03:04.550 - 02:03:06.550] but
+[02:03:06.550 - 02:03:08.550] if we break the block
+[02:03:08.550 - 02:03:10.550] again
+[02:03:10.550 - 02:03:12.550] I want to see the result
+[02:03:12.550 - 02:03:14.550] but today
+[02:03:14.550 - 02:03:16.550] it's going to be on all the numbers
+[02:03:16.550 - 02:03:18.550] and I'm going to break
+[02:03:18.550 - 02:03:20.550] really in this block
+[02:03:20.550 - 02:03:22.550] and you do it
+[02:03:22.550 - 02:03:24.550] today
+[02:03:24.550 - 02:03:26.550] it's going to be
+[02:03:26.550 - 02:03:28.550] broken
+[02:03:28.550 - 02:03:34.390] broken
+[02:03:34.390 - 02:03:36.390] it's like I'm talking about
+[02:03:36.390 - 02:03:38.390] broken numbers
+[02:03:38.390 - 02:03:40.390] you're making fun of me
+[02:03:40.390 - 02:03:42.390] come on
+[02:03:42.390 - 02:03:44.390] the first time
+[02:03:44.390 - 02:03:54.870] break
+[02:03:54.870 - 02:04:07.050] 415
+[02:04:07.050 - 02:04:09.050] please don't break
+[02:04:09.050 - 02:04:11.050] ok
+[02:04:11.050 - 02:04:13.050] and please don't break
+[02:04:13.050 - 02:04:17.640] me
+[02:04:17.640 - 02:04:21.850] let's break this block
+[02:04:21.850 - 02:04:23.850] the old blocks
+[02:04:23.850 - 02:04:30.390] the old ones
+[02:04:30.390 - 02:04:32.390] we want
+[02:04:32.390 - 02:04:34.390] blocks that break
+[02:04:34.390 - 02:04:36.390] the block and break
+[02:04:36.390 - 02:04:38.390] to the direction of the block
+[02:04:38.390 - 02:04:40.390] we're going to break
+[02:04:40.390 - 02:04:42.390] in 425
+[02:04:42.390 - 02:04:44.390] break
+[02:04:44.390 - 02:04:46.390] in this little block
+[02:04:46.390 - 02:04:48.390] once again I think that's the result
+[02:04:48.390 - 02:04:50.390] I think if I'm going to keep going
+[02:04:50.390 - 02:04:52.390] I need to keep going to 430
+[02:04:52.390 - 02:04:54.390] but
+[02:04:54.390 - 02:04:58.180] let's keep going
+[02:04:58.180 - 02:05:00.180] and we're going to break
+[02:05:00.180 - 02:05:02.180] 5 points in the direction
+[02:05:02.180 - 02:05:04.180] and break
+[02:05:04.180 - 02:05:06.180] in this block
+[02:05:06.180 - 02:05:08.180] ok if I break
+[02:05:08.180 - 02:05:10.180] let me see
+[02:05:10.180 - 02:05:13.460] from the wall
+[02:05:13.460 - 02:05:15.460] when I say from the wall
+[02:05:15.460 - 02:05:17.460] I'm going to take profit
+[02:05:17.460 - 02:05:19.460] don't think that I found something
+[02:05:19.460 - 02:05:21.460] come on
+[02:05:21.460 - 02:05:23.460] ok we broke the block
+[02:05:23.460 - 02:05:25.460] if we can break it
+[02:05:25.460 - 02:05:29.510] if we can break it
+[02:05:29.510 - 02:05:34.140] I'm going to break it
+[02:05:34.140 - 02:05:36.140] ok I think there's a lock
+[02:05:36.140 - 02:05:38.140] and let's break
+[02:05:38.140 - 02:05:40.140] break
+[02:05:40.140 - 02:05:42.140] break
+[02:05:42.140 - 02:05:44.140] break
+[02:05:44.140 - 02:05:46.140] we need a little break
+[02:05:46.140 - 02:05:48.140] a little bit
+[02:05:48.140 - 02:05:51.610] a little bit
+[02:05:51.610 - 02:05:53.610] we don't want to see
+[02:05:53.610 - 02:05:55.610] that this block of broken blocks
+[02:05:55.610 - 02:05:57.610] break
+[02:05:57.610 - 02:05:59.610] break to the direction of the block
+[02:05:59.610 - 02:06:01.610] ok 420
+[02:06:01.610 - 02:06:05.430] break
+[02:06:05.430 - 02:06:08.710] and
+[02:06:08.710 - 02:06:10.710] we're going to break
+[02:06:10.710 - 02:06:12.710] 430
+[02:06:12.710 - 02:06:14.710] but we said
+[02:06:14.710 - 02:06:16.710] we're not going to break
+[02:06:16.710 - 02:06:18.710] we want to see 425
+[02:06:18.710 - 02:06:20.710] let's speak to him
+[02:06:20.710 - 02:06:22.710] in 420 it was very very much
+[02:06:22.710 - 02:06:24.710] it wasn't there anything
+[02:06:24.710 - 02:06:26.710] that should have come out
+[02:06:26.710 - 02:06:28.710] now 425 we can see
+[02:06:28.710 - 02:06:30.710] that there are other blocks here
+[02:06:30.710 - 02:06:32.710] on this level
+[02:06:32.710 - 02:06:34.710] it's a lot more than 425
+[02:06:34.710 - 02:06:36.710] one more
+[02:06:36.710 - 02:06:45.750] 425
+[02:06:45.750 - 02:06:47.750] we're going to break it
+[02:06:47.750 - 02:06:49.750] with the tricks that I did
+[02:06:49.750 - 02:06:51.750] I'm still going to break it
+[02:06:51.750 - 02:06:53.750] it's amazing
+[02:06:53.750 - 02:06:55.750] again I took two blocks
+[02:06:55.750 - 02:07:03.100] that it's going to break
+[02:07:03.100 - 02:07:05.100] no it's going to be more than enough
+[02:07:05.100 - 02:07:10.520] ok I'm going to break 420
+[02:07:10.520 - 02:07:18.470] I'm not going to read it again
+[02:07:18.470 - 02:07:25.110] come on
+[02:07:25.110 - 02:07:27.110] GG
+[02:07:27.110 - 02:07:29.110] we broke it today
+[02:07:29.110 - 02:07:31.110] great
+[02:07:31.110 - 02:07:33.110] great
+[02:07:33.110 - 02:07:35.110] let's see
+[02:07:35.110 - 02:07:37.110] today
+[02:07:37.110 - 02:07:39.110] ok PNL
+[02:07:39.110 - 02:07:41.110] 150
+[02:07:41.110 - 02:07:43.110] ok I had other tricks
+[02:07:43.110 - 02:07:45.110] I would have succeeded to break it
+[02:07:45.110 - 02:07:47.110] 4 times even more
+[02:07:47.110 - 02:07:49.110] but it's not interesting
+[02:07:49.110 - 02:07:51.110] in the end you saw
+[02:07:51.110 - 02:07:53.110] I didn't want to do it again
+[02:07:53.110 - 02:07:55.110] 30% great
+[02:07:55.110 - 02:07:57.110] I got a live session
+[02:07:57.110 - 02:07:59.110] just great
+[02:07:59.110 - 02:08:01.110] I didn't want to get to the point
+[02:08:01.110 - 02:08:03.110] and you know
+[02:08:03.110 - 02:08:05.110] I'm not naive
+[02:08:05.110 - 02:08:07.110] I already got some tricks
+[02:08:07.110 - 02:08:09.110] I broke it to 420
+[02:08:09.110 - 02:08:11.110] 420 we did
+[02:08:11.110 - 02:08:13.110] that's what I wanted you to see
+[02:08:13.110 - 02:08:15.110] so how am I going to show you
+[02:08:15.110 - 02:08:17.110] the session today
+[02:08:17.110 - 02:08:19.110] I hope you enjoy
+[02:08:19.110 - 02:08:21.110] I really saw them
+[02:08:21.110 - 02:08:23.110] great
+[02:08:23.110 - 02:08:25.110] you saw them too
+[02:08:25.110 - 02:08:27.110] even though I did the first break
+[02:08:27.110 - 02:08:29.110] I took 2 blocks
+[02:08:29.110 - 02:08:31.110] and then there was a lot
+[02:08:31.110 - 02:08:33.110] bigger than what I'm ready to break
+[02:08:33.110 - 02:08:35.110] I made this 1000
+[02:08:35.110 - 02:08:37.110] so I just broke 150
+[02:08:37.110 - 02:08:39.110] that's what I wanted to see
+[02:08:39.110 - 02:08:41.110] a lot of the world
+[02:08:41.110 - 02:08:43.110] that's what I wanted to see in my first session
+[02:08:43.110 - 02:08:45.110] that in the end
+[02:08:45.110 - 02:08:47.110] it's back to break even
+[02:08:47.110 - 02:08:49.110] the session ends
+[02:08:49.110 - 02:08:51.110] 1 to 10
+[02:08:51.110 - 02:08:53.110] of 2 points that came back to break
+[02:08:53.110 - 02:08:55.110] also here, if you remember
+[02:08:55.110 - 02:08:57.110] in these areas
+[02:08:57.110 - 02:08:59.110] I saw the story
+[02:08:59.110 - 02:09:01.110] I wanted to use a lot more
+[02:09:01.110 - 02:09:03.110] but it's all over
+[02:09:03.110 - 02:09:05.110] and I didn't get into the limit
+[02:09:05.110 - 02:09:07.110] I made
+[02:09:07.110 - 02:09:09.110] a great session
+[02:09:09.110 - 02:09:11.110] you can see how we met
+[02:09:11.110 - 02:09:13.110] with these blocks
+[02:09:13.110 - 02:09:15.110] and we're starting to play now
+[02:09:15.110 - 02:09:17.110] great, I recorded today
+[02:09:17.110 - 02:09:19.110] a great session
+[02:09:19.110 - 02:09:21.110] it's not what I'm going to focus on
+[02:09:21.110 - 02:09:23.110] I'm planning a week to teach you
+[02:09:23.110 - 02:09:25.110] I'm sure we'll do a lot more
+[02:09:25.110 - 02:09:27.110] than 150$
+[02:09:27.110 - 02:09:29.110] but you can see
+[02:09:29.110 - 02:09:31.110] if it's better
+[02:09:31.110 - 02:09:33.110] I put together a bunch
+[02:09:33.110 - 02:09:35.110] of blocks
+[02:09:35.110 - 02:09:37.110] you saw how it's better
+[02:09:37.110 - 02:09:39.110] and I promise you
+[02:09:39.110 - 02:09:41.110] that in the next session
+[02:09:41.110 - 02:09:43.110] I'll do a lot more
+[02:09:43.110 - 02:09:45.110] and we'll do a lot more
