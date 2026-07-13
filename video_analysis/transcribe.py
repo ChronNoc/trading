@@ -11,6 +11,9 @@ from typing import Iterable, Protocol
 
 MODEL_NAME = "small"
 COMPUTE_TYPE = "int8"
+# int8 is a CPU compute type; pinning the device stops faster-whisper from
+# auto-selecting a CUDA GPU whose runtime DLLs are not installed.
+DEVICE = "cpu"
 VAD_FILTER = True
 TRANSCRIPT_JSON_FILENAME = "transcript.json"
 TRANSCRIPT_TEXT_FILENAME = "transcript.txt"
@@ -139,7 +142,7 @@ def transcribe_video(
         raise FileNotFoundError(f"Video file not found: {source_path}")
 
     whisper_model_factory = model_factory or _load_whisper_model_class()
-    model = whisper_model_factory(MODEL_NAME, compute_type=COMPUTE_TYPE)
+    model = whisper_model_factory(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
     transcribe_kwargs: dict[str, object] = {"vad_filter": VAD_FILTER, "task": task}
     if language is not None:
         transcribe_kwargs["language"] = language

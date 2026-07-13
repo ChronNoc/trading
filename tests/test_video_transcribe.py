@@ -52,15 +52,15 @@ def test_transcribe_video_writes_json_and_text_with_mocked_model(tmp_path: Path)
     output_dir = tmp_path / "out"
     video_path.write_bytes(b"not a real video")
     fake_model = FakeWhisperModel()
-    factory_calls: list[tuple[str, str]] = []
+    factory_calls: list[tuple[str, str, str]] = []
 
-    def fake_model_factory(model_size_or_path: str, *, compute_type: str) -> FakeWhisperModel:
-        factory_calls.append((model_size_or_path, compute_type))
+    def fake_model_factory(model_size_or_path: str, *, device: str, compute_type: str) -> FakeWhisperModel:
+        factory_calls.append((model_size_or_path, device, compute_type))
         return fake_model
 
     outputs = transcribe.transcribe_video(video_path, output_dir, model_factory=fake_model_factory)
 
-    assert factory_calls == [("small", "int8")]
+    assert factory_calls == [("small", "cpu", "int8")]
     assert fake_model.calls == [(str(video_path), True, 'transcribe', None)]
     assert outputs.json_path == output_dir / "transcript.json"
     assert outputs.text_path == output_dir / "transcript.txt"
@@ -87,8 +87,9 @@ def test_cli_uses_mocked_whisper_model(
     video_path.write_bytes(b"not a real video")
     fake_model = FakeWhisperModel()
 
-    def fake_model_factory(model_size_or_path: str, *, compute_type: str) -> FakeWhisperModel:
+    def fake_model_factory(model_size_or_path: str, *, device: str, compute_type: str) -> FakeWhisperModel:
         assert model_size_or_path == "small"
+        assert device == "cpu"
         assert compute_type == "int8"
         return fake_model
 
