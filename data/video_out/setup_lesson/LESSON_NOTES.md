@@ -82,3 +82,44 @@ repeated hard numbers agree with the lesson:
 Still unconfirmed after two videos: exact wall-size number, CVD-flip
 magnitude, wall-solidity duration. Worth targeting these in the remaining
 Bookmap videos (אסטרטגיות_מסחר_בוקמאפ, ניהול_סיכונים).
+
+## Bookmap strategies video (video 3) — findings
+
+Transcript: `data/video_out/bookmap_strategies/`.
+
+- **Stop = 10 points confirmed a THIRD time** — ~10 more mentions (10:45,
+  14:13, 29:02, 40:54, 43:27, 59:00, 63:55...). Across three videos this is
+  now the single most-repeated, bulletproof rule. There is also a **tighter
+  5-point stop variant** in one cluster (44:00–45:20) — a different/smaller
+  setup; needs human review of which context uses 5 vs 10.
+- **Targets remain R-multiple based**: 1:3 ("we see once a week, it's
+  enough"), up to 1:10 ("the dream"), also 1:7 mentioned. Consistent with
+  session #1's 1:6/1:10.
+- **IMPORTANT methodology note** (00:15–01:13): the mentor states he trades
+  **both** ICT (he names IFVG, SMT) on TradingView **and** Bookmap order flow
+  together — "half and half." So the ICT videos in the library (FVG, SMT,
+  IFVG, daily bias) are the SAME trader's complementary confluence layer, not
+  a separate system. For THIS bot, the Bookmap order-flow concepts (walls,
+  absorption, CVD) are what map to the engine; the ICT layer would be a
+  separate future feature, not part of the current spec.
+
+## Why no strategy_v*.yaml has been proposed yet (honest status)
+
+Three videos in, the ENTRY thresholds are still not numerically defined:
+
+- **Wall size** — the mentor judges it visually by heatmap color intensity
+  ("the redder the bigger"), never a fixed contract count. This may be
+  inherently discretionary, which is a real automation problem: an
+  order-flow engine needs a number. Candidate approach: measure resting size
+  at the wall in your own recorded sessions and pick a percentile threshold.
+- **CVD-flip magnitude** — examples given (−800/−1000 → 0) but no rule.
+- **Aggressive-volume minimum / reload count / reclaim ticks** — described
+  qualitatively, never numerically.
+
+Resolving the spec now would mean GUESSING these values, which AGENTS.md
+forbids ("every field resolved by a human; no black-box output"). The
+disciplined path: leave them `unresolved` in the spec, then MEASURE them
+from your recorded Stage-C sessions (compare real setups vs lookalikes),
+and let the discovery pipeline search the ranges. The videos give the
+STRUCTURE and the risk rules (stop 10, targets 1:3–1:10); the recorded
+data must supply the entry NUMBERS.

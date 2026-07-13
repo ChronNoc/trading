@@ -1,0 +1,15 @@
+# DRAFT strategy-spec candidates extracted from a video transcript.
+# Review every value against the video before using any of it.
+# This file is NOT a valid config and must never be copied into config/ as-is.
+
+exit.stop_method:
+  - value: "10"  # at 10:45
+  - value: "10"  # at 14:13
+  - value: "10"  # at 29:02
+  - value: "10"  # at 40:54
+  - value: "10"  # at 43:27
+  - value: "5"  # at 44:00
+  - value: "5"  # at 44:08
+  - value: "5"  # at 45:18
+  - value: "10"  # at 59:00
+  - value: "10"  # at 63:55
