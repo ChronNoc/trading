@@ -225,3 +225,28 @@ def test_zero_size_updates_do_not_trigger_book_repair() -> None:
         state = state.update(event)
 
     assert state.best_ask == Decimal("29560.00")
+
+
+def test_cumulative_volume_delta_tracks_aggressor_flow() -> None:
+    """CVD is aggressive buys minus aggressive sells, updated per trade."""
+    state = MarketState()
+    trades = (
+        ("sell", "500"),
+        ("sell", "300"),
+        ("buy", "600"),
+    )
+    for index, (side, size) in enumerate(trades):
+        state = state.update(
+            {
+                "timestamp_ns": 100 + index,
+                "price": "29770.00",
+                "size": size,
+                "aggressor_side": side,
+                "instrument": "MNQ",
+                "sequence_id": index + 1,
+            },
+        )
+
+    assert state.cumulative_volume_delta == Decimal("-200")
+    assert state.executed_buy_volume == Decimal("600")
+    assert state.executed_sell_volume == Decimal("800")

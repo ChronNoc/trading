@@ -1,0 +1,60 @@
+# Setup lesson — reconstructed rules (איך לזהות סטאפ אמיתי לעסקה)
+
+Source: mentor's Bookmap course video, machine-translated Hebrew → English.
+Translation glossary: "block" = liquidity wall (large resting limit orders),
+"Adam/red" = warm heatmap color = large size, "customers" = buyers,
+"grandiosy number" = large printed size. **Every rule below must be verified
+against the video by a human before entering any config.**
+
+## The setup, as taught (with video timestamps)
+
+1. **A large resting liquidity wall at a meaningful level** (04:16–05:16).
+   Identified in Bookmap by heatmap color intensity (the redder, the bigger)
+   plus a large printed size number at the level. Wall + big number = "bingo,
+   that's your area."
+2. **Aggressive market orders attack the wall and FAIL to break it**
+   (05:53–06:21) — absorption. Proof of failure: price does not trade
+   through the level.
+3. **A series of aggressive orders appears on the other side** (07:20–07:33)
+   — the reversal begins.
+4. **CVD confirmation** (08:25–09:02): if CVD was deeply negative (mentor's
+   examples: −800, −1000) and snaps back toward zero during the absorption,
+   aggressive buyers are flipping the tape → "ten out of ten, bingo."
+   Explicit warning (01:52–02:04): CVD alone is NOT the setup — a rising CVD
+   without the wall/absorption context means nothing.
+5. **A new wall is created live at the entry level** (09:34–10:09): the
+   defenders sell at market AND place fresh limits, building a new wall.
+   Entry: limit order at that newly formed wall (10:33–10:39).
+6. **Wall quality filter** (12:05–12:35): walls that flash in and out are
+   algorithmic spoofing — irrelevant. The wall must be SOLID (persist).
+   The entry wall being solid made the example "A+."
+
+## Risk rules stated
+
+- **Stop: 10 points** (10:09–10:27). Rationale: "if it doesn't work at 10
+  points it won't work at 15 or 20; more than 10 and the setup is done —
+  take the stop, wait for the next setup."
+  - MNQ: 10 points = **40 ticks** (current prototype spec uses 8 ticks —
+    must be reviewed/changed when resolving the real spec).
+- Expectancy thinking in R-multiples; a great session ≈ 1:10 R, normal
+  sessions 1:5/1:6; "not every day is a 1:10 day" (02:46–03:00).
+
+## Mapping to the engine
+
+| Mentor's rule | Engine condition | Status |
+| --- | --- | --- |
+| Wall at meaningful level | at_important_level + liquidity_minimum | exists |
+| Absorption (attack fails) | aggressive_sell_volume + downward_progress_ticks | exists |
+| Wall holds / reloads | bid_reload_count | exists |
+| Opposite-side aggression | (partially reclaimed_level) | partial |
+| CVD flip confirmation | MarketState.cumulative_volume_delta | **added — condition not yet in spec** |
+| Wall solidity (anti-spoof) | — | **missing — future feature** |
+| Stop 10 points (40 ticks) | exit.stop_method | **spec says 8 ticks — review** |
+
+## Open questions for the human
+
+- Exact wall size threshold ("grandiosy number") — not stated numerically in
+  this lesson; check the live-session videos.
+- CVD flip magnitude that counts as confirmation (−800→0 was an example, not
+  a rule).
+- How long a wall must persist to count as "solid."

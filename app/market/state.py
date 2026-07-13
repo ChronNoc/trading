@@ -33,6 +33,16 @@ class MarketState:
     timestamp_ns: int = 0
 
     @property
+    def cumulative_volume_delta(self) -> Decimal:
+        """CVD: cumulative aggressive buy volume minus aggressive sell volume.
+
+        The mentor's confirmation signal (setup lesson, 08:25-09:02): a CVD
+        that was deeply negative (e.g. -800/-1000) snapping back toward zero
+        during the absorption proves aggressive buyers are flipping the tape.
+        """
+        return self.executed_buy_volume - self.executed_sell_volume
+
+    @property
     def depth(self) -> dict[str, tuple[DepthLevel, ...]]:
         """Return visible bid and ask depth keyed by book side."""
         return {
