@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from datetime import tzinfo
@@ -139,7 +140,15 @@ def _as_utc(instant: datetime) -> datetime:
     return instant.astimezone(UTC)
 
 
+@functools.lru_cache(maxsize=32)
 def _timezone(name: str) -> tzinfo:
+    """Resolve a timezone, cached so tzdata is loaded once, not per event.
+
+    ``ZoneInfo(name)`` re-reads the timezone database from disk on every
+    call; session resolution invokes this ~14 times per market event, which
+    throttled the live pipeline to ~128 events/sec and dropped bursts. The
+    cache makes it effectively free after the first lookup.
+    """
     try:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError:
