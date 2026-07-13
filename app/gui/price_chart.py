@@ -17,6 +17,7 @@ _LINE_COLOR = QColor(96, 165, 250)
 _ACCEPTED_COLOR = QColor(74, 222, 128)
 _REJECTED_COLOR = QColor(248, 113, 113)
 _GRID_COLOR = QColor(51, 65, 85)
+_LABEL_COLOR = QColor(148, 163, 184)
 
 
 class PriceChartWidget(QWidget):
@@ -115,4 +116,13 @@ class PriceChartWidget(QWidget):
             painter.setPen(QPen(color, 2))
             painter.setBrush(color)
             painter.drawEllipse(position(index), 5.0, 5.0)
+
+        # Price scale + latest value so the line is readable, not just a shape.
+        painter.setPen(QPen(_LABEL_COLOR, 1))
+        high_text = f"{high.normalize():f}"
+        low_text = f"{low.normalize():f}"
+        last_text = f"last {self._points[-1].normalize():f}"
+        painter.drawText(QPointF(4, margin + 4), high_text)
+        painter.drawText(QPointF(4, height - 4), low_text)
+        painter.drawText(QPointF(width - 8 - 7 * len(last_text), margin + 4), last_text)
         painter.end()
