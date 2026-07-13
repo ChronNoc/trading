@@ -1,0 +1,7 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-13T11:36:05.476414+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T11:36:05.476473+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-13T11:37:08.518471+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T11:37:08.527945+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-13T11:37:08.527968+00:00"}
+{"component":"bookmap","message":"dropped messages reported: 0","status":"data_gap","timestamp_utc":"2026-07-13T11:37:08.529659+00:00"}
+{"component":"bookmap","message":"Bookmap replay stream detected","status":"replay_started","timestamp_utc":"2026-07-13T11:37:08.529680+00:00"}

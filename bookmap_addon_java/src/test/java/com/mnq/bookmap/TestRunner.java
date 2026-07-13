@@ -46,6 +46,7 @@ public final class TestRunner {
         testTradeSideAndSequence();
         testJsonSchemas();
         testQueueDropAndDataGap();
+        testQueueGapMarkersAreRateLimited();
         testReconnectBackoff();
         testLoopbackPolicy();
         testRuntimeReplayLiveLifecycle();
@@ -116,6 +117,30 @@ public final class TestRunner {
         assertEquals(1L, queue.droppedCount(), "drop count");
         String payload = queue.take(1, TimeUnit.SECONDS);
         assertContains(payload, "\"type\":\"data_gap\"", "data gap message");
+        testsRun++;
+    }
+
+    private void testQueueGapMarkersAreRateLimited() throws Exception {
+        ForwardingQueue queue = new ForwardingQueue(1, factory());
+
+        assertTrue(queue.enqueue("{\"type\":\"first\"}"), "first enqueue");
+        long failures = 0;
+        for (int i = 0; i < 500; i++) {
+            if (!queue.enqueue("{\"type\":\"burst\"}")) {
+                failures++;
+            }
+        }
+        assertTrue(failures > 0, "burst caused drops");
+        assertEquals(failures, queue.droppedCount(), "every failed enqueue counted");
+
+        long gapMarkers = 0;
+        String payload;
+        while ((payload = queue.take(50, TimeUnit.MILLISECONDS)) != null) {
+            if (payload.contains("\"type\":\"data_gap\"")) {
+                gapMarkers++;
+            }
+        }
+        assertEquals(1L, gapMarkers, "one rate-limited gap marker for the burst");
         testsRun++;
     }
 

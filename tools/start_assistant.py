@@ -7,13 +7,15 @@ import asyncio
 import json
 import sys
 import threading
-from collections.abc import Sequence
+import traceback
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from app.database.recorder import MarketSessionRecorder
 from app.machine_learning.daily_learning import analyze_and_write_daily_learning_report
+from app.market.feed_guard import FeedGuard, FeedGuardConfig
 from app.runtime.controller import AutomaticRuntimeController
 from tools.start_receiver import ReceiverServerConfig, start_receiver_websocket_server, startup_message
 
@@ -85,18 +87,58 @@ def validate_runtime_environment(repo_root: Path, *, gui: bool) -> None:
         raise AssistantStartupError("Missing config/session_profiles.yaml.")
 
 
+def resilient_handler(
+    handler: Callable[[dict[str, object]], None],
+    label: str,
+) -> Callable[[dict[str, object]], None]:
+    """Wrap a controller callback so one bad event cannot kill the session.
+
+    Recording happens upstream of these callbacks, so a controller error
+    must never tear down the WebSocket connection and lose the recording
+    session. The first error prints a full traceback; afterwards every
+    500th error prints one summary line.
+    """
+    error_count = 0
+
+    def wrapped(event: dict[str, object]) -> None:
+        nonlocal error_count
+        try:
+            handler(event)
+        except Exception as error:  # noqa: BLE001 - deliberate resilience boundary
+            error_count += 1
+            if error_count == 1:
+                print(f"{label} handler error (recording continues):", file=sys.stderr, flush=True)
+                traceback.print_exc()
+            elif error_count % 500 == 0:
+                print(
+                    f"{label} handler error #{error_count}: {type(error).__name__}: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+    return wrapped
+
+
 async def run_headless_assistant(config: AssistantConfig, controller: AutomaticRuntimeController) -> None:
     """Run the receiver/recorder/controller service until interrupted."""
     controller.start()
     delayed_events = _delayed_control_events(config.delayed_data_minutes)
     for event in delayed_events:
         controller.handle_control_event(event)
+    feed_guard = FeedGuard(FeedGuardConfig(source_mode="live"))
     server = await start_receiver_websocket_server(
         config.receiver_config,
-        on_market_event=lambda event: controller.handle_market_event(event),
-        on_control_event=lambda event: controller.handle_control_event(event),
+        on_market_event=resilient_handler(
+            lambda event: controller.handle_market_event(event),
+            "market-event",
+        ),
+        on_control_event=resilient_handler(
+            lambda event: controller.handle_control_event(event),
+            "control-event",
+        ),
         initial_control_events=delayed_events,
         on_session_finalized=lambda recorder: _finalize_assistant_session(controller, config, recorder),
+        feed_guard=feed_guard,
     )
     actual_config = ReceiverServerConfig(
         host=config.host,

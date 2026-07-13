@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -140,8 +141,10 @@ async def start_receiver_websocket_server(
                 ),
                 on_schema_error=feed_guard.record_malformed if feed_guard is not None else None,
             )
-        except Exception:
-            recorder.finalize(clean_shutdown=False, reason="receiver_error")
+        except Exception as error:
+            detail = f"receiver_error: {type(error).__name__}: {error}"[:300]
+            print(f"Receiver session ended with an error: {detail}", file=sys.stderr, flush=True)
+            recorder.finalize(clean_shutdown=False, reason=detail)
             raise
         finally:
             recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
