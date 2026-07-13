@@ -11,19 +11,31 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_REPORT_ROOT = Path("logs/self_check")
-DEFAULT_PYTEST_BASETEMP = Path(".pytest-tmp/self-check-pytest")
 _OUTPUT_TAIL_LINES = 40
 
 CheckRunner = Callable[[], tuple[int, str]]
 
 
-def _run_pytest(*, basetemp: Path = DEFAULT_PYTEST_BASETEMP) -> tuple[int, str]:
+def _fresh_basetemp() -> Path:
+    """Create a unique pytest basetemp under the SYSTEM temp directory.
+
+    Never inside the repository: a repo-local temp folder with broken
+    Windows ACLs once errored 90 tests at setup. A fresh mkdtemp per run
+    cannot collide with or inherit a poisoned directory.
+    """
+    return Path(tempfile.mkdtemp(prefix="mnq-self-check-"))
+
+
+def _run_pytest(*, basetemp: Path | None = None) -> tuple[int, str]:
     """Run the full pytest suite and capture its output."""
+    if basetemp is None:
+        basetemp = _fresh_basetemp()
     basetemp.parent.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run(
         [
@@ -47,7 +59,7 @@ def run_self_check(
     *,
     runner: CheckRunner | None = None,
     report_root: Path = DEFAULT_REPORT_ROOT,
-    pytest_basetemp: Path = DEFAULT_PYTEST_BASETEMP,
+    pytest_basetemp: Path | None = None,
     now: datetime | None = None,
 ) -> Path:
     """Run the check, write a markdown report, and return the report path."""
@@ -86,7 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point for the nightly self-check."""
     parser = argparse.ArgumentParser(description="Run the MNQ assistant self-check and write a status report.")
     parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
-    parser.add_argument("--pytest-basetemp", type=Path, default=DEFAULT_PYTEST_BASETEMP)
+    parser.add_argument("--pytest-basetemp", type=Path, default=None)
     args = parser.parse_args(argv)
     report_path = run_self_check(report_root=args.report_root, pytest_basetemp=args.pytest_basetemp)
     content = report_path.read_text(encoding="utf-8")
