@@ -291,8 +291,8 @@ def _rows(path: Path) -> list[dict[str, object]]:
     return pq.read_table(path).to_pylist()
 
 
-def test_session_recorder_flush_makes_buffered_rows_readable(tmp_path: Path) -> None:
-    """Buffered rows are not on disk until flush; flush writes them all."""
+def test_session_recorder_flush_streams_rows_and_finalize_makes_readable(tmp_path: Path) -> None:
+    """Buffered rows stream on flush; the partition is readable after finalize."""
     start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
     recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
     base_ns = _timestamp_ns(2026, 7, 10, 14, 30)
@@ -310,10 +310,13 @@ def test_session_recorder_flush_makes_buffered_rows_readable(tmp_path: Path) -> 
             },
         )
 
-    # Below the flush threshold: nothing written yet.
+    # Below the flush threshold: nothing streamed yet.
     assert not recorder.depth_path.exists()
 
+    # flush() streams a row group but does not write the footer; readable only
+    # after finalize() closes the writer.
     recorder.flush()
+    recorder.finalize(clean_shutdown=True)
     assert len(_rows(recorder.depth_path)) == 50
 
 
@@ -342,3 +345,36 @@ def test_session_recorder_batches_large_streams_without_reread(tmp_path: Path) -
 
     assert recorder.depth_updates == total
     assert len(_rows(recorder.depth_path)) == total
+
+
+def test_session_recorder_never_rereads_existing_parquet(tmp_path: Path, monkeypatch) -> None:
+    """Acceptance gate: recording streams row groups and never rereads the file."""
+    import app.database.recorder as recorder_module
+
+    def _forbidden_read(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("recorder must not reread the existing Parquet file")
+
+    monkeypatch.setattr(recorder_module.pq, "read_table", _forbidden_read)
+
+    start = datetime(2026, 7, 10, 14, 30, tzinfo=UTC)
+    recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    base_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+
+    # More than several flush batches so a reread would definitely be triggered
+    # by the old read-modify-write path.
+    for index in range(1500):
+        recorder.record(
+            {
+                "type": "depth_update",
+                "timestamp": base_ns + index,
+                "symbol": "MNQ",
+                "side": "bid",
+                "price": "100.00",
+                "previous_size": "0",
+                "new_size": str((index % 90) + 1),
+            },
+        )
+    recorder.finalize(clean_shutdown=True)
+
+    # read_table is patched to fail, so reading uses ParquetFile metadata only.
+    assert pq.ParquetFile(recorder.depth_path).metadata.num_rows == 1500

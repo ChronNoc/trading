@@ -120,6 +120,8 @@ class MarketSessionRecorder:
     finalized: bool = field(init=False, default=False)
     _depth_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
     _trade_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
+    _depth_writer: "pq.ParquetWriter | None" = field(init=False, default=None)
+    _trade_writer: "pq.ParquetWriter | None" = field(init=False, default=None)
     utc_end: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
@@ -161,9 +163,10 @@ class MarketSessionRecorder:
     def record(self, event: Mapping[str, object]) -> Path:
         """Buffer one raw market event; flushed to Parquet in batches.
 
-        Rows land on disk when a buffer reaches ``PARQUET_FLUSH_THRESHOLD``
-        or on :meth:`flush`/:meth:`finalize`. Call :meth:`flush` before
-        reading a partition mid-session.
+        Rows stream to disk as Parquet row groups when a buffer reaches
+        ``PARQUET_FLUSH_THRESHOLD`` or on :meth:`flush`/:meth:`finalize`.
+        The existing file is never reread. A partition is readable only
+        after :meth:`finalize` writes the Parquet footer.
         """
         normalized_event = normalize_market_event(event)
         event_kind = market_event_kind(normalized_event)
@@ -186,20 +189,46 @@ class MarketSessionRecorder:
         return output_path
 
     def flush(self) -> None:
-        """Write all buffered rows to their Parquet partitions."""
+        """Stream buffered rows to their Parquet writers (no file reread).
+
+        Partitions become readable after :meth:`finalize` closes the writers.
+        """
         self._flush_depth()
         self._flush_trades()
         self._write_manifest()
 
     def _flush_depth(self) -> None:
-        if self._depth_buffer:
-            _append_parquet(self.depth_path, DEPTH_SCHEMA, self._depth_buffer)
-            self._depth_buffer = []
+        if not self._depth_buffer:
+            return
+        batch = pa.Table.from_pylist(self._depth_buffer, schema=DEPTH_SCHEMA)
+        if self._depth_writer is None:
+            self._depth_writer = pq.ParquetWriter(self.depth_path, DEPTH_SCHEMA)
+        self._depth_writer.write_table(batch)
+        self._depth_buffer = []
 
     def _flush_trades(self) -> None:
-        if self._trade_buffer:
-            _append_parquet(self.trades_path, TRADE_SCHEMA, self._trade_buffer)
-            self._trade_buffer = []
+        if not self._trade_buffer:
+            return
+        batch = pa.Table.from_pylist(self._trade_buffer, schema=TRADE_SCHEMA)
+        if self._trade_writer is None:
+            self._trade_writer = pq.ParquetWriter(self.trades_path, TRADE_SCHEMA)
+        self._trade_writer.write_table(batch)
+        self._trade_buffer = []
+
+    def _close_writers(self) -> None:
+        """Close open Parquet writers, finalizing readable single-file parts.
+
+        Streaming row groups via a persistent ParquetWriter never rereads the
+        existing file (was O(n^2) per flush). The footer is written on close,
+        so a partition becomes readable only after finalize() - which is the
+        session-end boundary, before any reader (Replay/daily report) opens it.
+        """
+        if self._depth_writer is not None:
+            self._depth_writer.close()
+            self._depth_writer = None
+        if self._trade_writer is not None:
+            self._trade_writer.close()
+            self._trade_writer = None
 
     def record_control_event(self, event: Mapping[str, object]) -> Path:
         """Append one Java bridge control event and update session metadata."""
@@ -220,6 +249,7 @@ class MarketSessionRecorder:
             return
         self._flush_depth()
         self._flush_trades()
+        self._close_writers()
         self.clean_shutdown = clean_shutdown
         if not clean_shutdown:
             self.continuity_status = reason or "incomplete"
