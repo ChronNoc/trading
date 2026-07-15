@@ -177,8 +177,12 @@ class AutomaticRuntimeController:
             self.health.mark_bookmap_disconnected(reason, now=now)
             self.lifecycle.connection_lost(now=now)
         elif event_type in {"replay_started", "historical_mode"}:
-            self.source_mode = "replay"
-            self.health.record_event("bookmap", event_type, "Bookmap replay stream detected", now=now)
+            if self.source_mode != "delayed":
+                self.source_mode = "replay"
+                message = "Bookmap replay stream detected"
+            else:
+                message = "Bookmap delayed entitlement entered replay playback"
+            self.health.record_event("bookmap", event_type, message, now=now)
         elif event_type == "prototype_mode":
             self.source_mode = "prototype"
             self.threshold_summary = "PROVISIONAL/SYNTHETIC dynamic thresholds from warm-up events"

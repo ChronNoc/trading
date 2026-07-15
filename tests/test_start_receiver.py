@@ -12,6 +12,7 @@ import pyarrow.parquet as pq
 import websockets
 
 from app.market.receiver import CurrentMarketState
+from app.market.feed_guard import FeedGuard, FeedGuardConfig
 from bookmap_addon.events import event_to_json, format_depth_update, format_trade
 from tools.start_receiver import (
     ReceiverServerConfig,
@@ -60,6 +61,11 @@ def test_server_records_mock_bookmap_client_messages(tmp_path: Path) -> None:
 def test_server_injects_initial_delayed_mode_control_event(tmp_path: Path) -> None:
     """The assistant can mark every Bookmap-free connection as delayed before data arrives."""
     asyncio.run(_server_injects_delayed_mode(tmp_path))
+
+
+def test_server_persists_feed_quality_failures(tmp_path: Path) -> None:
+    """Malformed, rejected, and sequence-gap counters reach the session manifest."""
+    asyncio.run(_server_persists_quality_failures(tmp_path))
 
 
 async def _server_records_messages(tmp_path: Path) -> None:
@@ -120,8 +126,9 @@ async def _server_records_messages(tmp_path: Path) -> None:
             "symbol": "MNQ",
             "side": "bid",
             "price": "100.00",
-            "previous_size": "0",
-            "new_size": "10",
+                "previous_size": "0",
+                "new_size": "10",
+                "receive_sequence": 1,
         },
     ]
     assert trade_rows == [
@@ -131,7 +138,8 @@ async def _server_records_messages(tmp_path: Path) -> None:
             "size": "3",
             "aggressor_side": "buy",
             "instrument": "MNQ",
-            "sequence_id": 1,
+                "sequence_id": 1,
+                "receive_sequence": 2,
         },
     ]
     manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
@@ -170,6 +178,48 @@ async def _server_injects_delayed_mode(tmp_path: Path) -> None:
     assert manifest["source_mode"] == "delayed"
     assert manifest["data_delay_minutes"] == 15
     assert manifest["valid_for_live_decisions"] is False
+
+
+async def _server_persists_quality_failures(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    guard = FeedGuard(FeedGuardConfig(source_mode="replay"), now_ns=lambda: timestamp_ns)
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+        feed_guard=guard,
+        initial_control_events=({"type": "connected", "timestamp_ns": timestamp_ns},),
+    )
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send("{not-json")
+            await websocket.send(event_to_json(format_depth_update(
+                timestamp=timestamp_ns + 2, symbol="MNQ", side="bid", price="100",
+                previous_size="0", new_size="10",
+            )))
+            await websocket.send(event_to_json(format_depth_update(
+                timestamp=timestamp_ns + 1, symbol="MNQ", side="bid", price="100",
+                previous_size="10", new_size="9",
+            )))
+            await websocket.send(event_to_json(format_trade(
+                timestamp_ns=timestamp_ns + 3, price="100", size="1", aggressor_side="buy",
+                instrument="MNQ", sequence_id=1,
+            )))
+            await websocket.send(event_to_json(format_trade(
+                timestamp_ns=timestamp_ns + 4, price="100", size="1", aggressor_side="buy",
+                instrument="MNQ", sequence_id=4,
+            )))
+            await websocket.send(json.dumps({"type": "session_ended", "timestamp_ns": timestamp_ns + 5}))
+        session_dir = await _wait_for_session_dir(tmp_path)
+        await _wait_for_path(session_dir / "session_manifest.json")
+    finally:
+        await server.close()
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    quality = manifest["data_quality"]
+    assert quality["malformed_events"] == 1
+    assert quality["rejected_events"] == 1
+    assert quality["out_of_order_events"] == 1
+    assert quality["trade_sequence_gaps"] == 1
+    assert quality["missed_trade_events"] == 2
+    assert manifest["valid_for_order_flow_replay"] is False
 
 
 async def _wait_for_path(path: Path) -> None:

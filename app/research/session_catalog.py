@@ -39,9 +39,13 @@ class SessionEntry:
     depth_updates: int
     trades: int
     dropped_message_count: int
+    malformed_event_count: int
+    rejected_event_count: int
+    missed_trade_event_count: int
     utc_start: str | None
     utc_end: str | None
     eligible_for_analysis: bool
+    eligible_for_order_flow_replay: bool
     valid_for_live_decisions: bool
     reasons: tuple[str, ...]
 
@@ -66,6 +70,10 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
     depth_updates = _as_int(counts.get("depth_updates")) or 0
     trades = _as_int(counts.get("trades")) or 0
     dropped = _as_int(manifest.get("dropped_message_count")) or 0
+    quality = manifest.get("data_quality", {}) if isinstance(manifest.get("data_quality"), dict) else {}
+    malformed = _as_int(quality.get("malformed_events")) or 0
+    rejected = _as_int(quality.get("rejected_events")) or 0
+    missed_trades = _as_int(quality.get("missed_trade_events")) or 0
 
     reasons: list[str] = []
     if synthetic:
@@ -82,6 +90,12 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         reasons.append("no trades recorded (depth-only)")
     if dropped > 0:
         reasons.append(f"bridge reported {dropped} dropped messages")
+    if malformed > 0:
+        reasons.append(f"receiver rejected {malformed} malformed messages")
+    if rejected > 0:
+        reasons.append(f"feed guard rejected {rejected} market events")
+    if missed_trades > 0:
+        reasons.append(f"trade sequence indicates {missed_trades} missing events")
 
     eligible = (
         finalized
@@ -89,6 +103,14 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         and provenance in _REAL_PROVENANCES
         and continuity == "continuous"
         and depth_updates > 0
+    )
+    order_flow_eligible = (
+        eligible
+        and trades > 0
+        and dropped == 0
+        and malformed == 0
+        and rejected == 0
+        and missed_trades == 0
     )
     # A delayed feed is valid for offline analysis but NEVER for live decisions.
     valid_live = provenance == PROVENANCE_REAL_REALTIME and eligible and not is_delayed
@@ -104,9 +126,13 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         depth_updates=depth_updates,
         trades=trades,
         dropped_message_count=dropped,
+        malformed_event_count=malformed,
+        rejected_event_count=rejected,
+        missed_trade_event_count=missed_trades,
         utc_start=_as_str(manifest.get("utc_start")),
         utc_end=_as_str(utc_end),
         eligible_for_analysis=eligible,
+        eligible_for_order_flow_replay=order_flow_eligible,
         valid_for_live_decisions=valid_live,
         reasons=tuple(reasons),
     )
@@ -134,9 +160,13 @@ def build_catalog(raw_root: Path) -> tuple[SessionEntry, ...]:
                     depth_updates=0,
                     trades=0,
                     dropped_message_count=0,
+                    malformed_event_count=0,
+                    rejected_event_count=0,
+                    missed_trade_event_count=0,
                     utc_start=None,
                     utc_end=None,
                     eligible_for_analysis=False,
+                    eligible_for_order_flow_replay=False,
                     valid_for_live_decisions=False,
                     reasons=("manifest unreadable: active or truncated",),
                 ),
@@ -159,6 +189,9 @@ def eligibility_report(entries: Iterable[SessionEntry]) -> dict[str, object]:
         "synthetic": sum(1 for entry in items if entry.provenance == PROVENANCE_SYNTHETIC),
         "real_delayed": sum(1 for entry in items if entry.provenance == PROVENANCE_REAL_DELAYED),
         "eligible_for_analysis": len(eligible),
+        "eligible_for_order_flow_replay": sum(
+            1 for entry in items if entry.eligible_for_order_flow_replay
+        ),
         "valid_for_live_decisions": sum(1 for entry in items if entry.valid_for_live_decisions),
     }
 

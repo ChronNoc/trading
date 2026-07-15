@@ -1,0 +1,52 @@
+{
+  "accepted_candidates": 0,
+  "ambiguous": 0,
+  "builder_version": "real-episodes-v2",
+  "completed": 0,
+  "data_quality_ok": false,
+  "duplicate_candidates": 0,
+  "entry_rejections": 0,
+  "evaluations": 20,
+  "events": 11684,
+  "ledger_eligible": 0,
+  "ordering_ambiguous": false,
+  "provenance": "REAL_DELAYED",
+  "rejected_condition_tally": {
+    "absorption_confirmed": 20,
+    "aggressive_side_failed": 20,
+    "clear_take_profit": 3,
+    "continuation_confirmed": 20,
+    "controlling_side_known": 20,
+    "cvd_supports_direction": 20,
+    "defending_block_holds": 20,
+    "defending_block_stable": 20,
+    "durable_defending_block": 20,
+    "entry_after_reaction": 20,
+    "loading_confirmed": 18,
+    "market_bubbles_support_direction": 20,
+    "market_not_too_fast": 8,
+    "opening_observation_complete": 20,
+    "reload_confirmed": 20,
+    "valid_stop_location": 20
+  },
+  "replay_quality": {
+    "continuity_ok": false,
+    "missed_receive_events": 0,
+    "missed_trade_events": 196,
+    "nonmonotonic_receive_sequences": 0,
+    "nonmonotonic_trade_sequences": 0,
+    "ordering_mode": "timestamp_fallback",
+    "receive_order_available": false,
+    "receive_sequence_gaps": 0,
+    "same_timestamp_collisions": 0,
+    "timestamp_regressions": 0,
+    "trade_sequence_gaps": 196
+  },
+  "session_id": "session_20260715T002231Z",
+  "source_file_hashes": {
+    "depth.parquet": "347d97626d853e16252b87e695a87a9b5f599d11ac9782ae724505dae4987027",
+    "trades.parquet": "87805ae835bcd6c59945656811cdfa9ed5b1208593821c439fe75c97766c7ab6"
+  },
+  "strategy_version": "order-flow-plan-v1",
+  "unfinished": 0
+}

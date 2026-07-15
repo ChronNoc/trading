@@ -547,15 +547,32 @@ def test_paper_trading_r_column_is_rounded(qtbot: object, tmp_path: Path) -> Non
         "entry_ts_ns": base_ns + 1_000_000_000,
         "exit_ts_ns": base_ns + 60_000_000_000,
         "defended_price": "29450.00",
+        "entry_reference_price": "29451.00",
         "entry": "29451.25",
         "stop": "29441.25",
         "target": "29471.25",
-        "exit": "29471.25",
+        "exit_reference_price": "29471.25",
+        "exit": "29471.00",
+        "commission": "1.24",
+        "slippage_cost": "1.00",
+        "gross_pnl_per_contract": "40.50",
+        "net_pnl_per_contract": "38.26",
+        "risk_per_contract": "22.24",
         "r_multiple": "1.4481242038012959",
         "outcome": "target_first",
-        "strategy_version": "order_flow-v1",
+        "strategy_version": "order-flow-plan-v1",
+        "builder_version": "real-episodes-v2",
+        "source_event_range": [1, 200],
+        "decision_hash": "d" * 64,
+        "input_hash": "i" * 64,
+        "ordering_mode": "receive_sequence",
+        "ordering_ambiguous": False,
+        "data_quality_ok": True,
+        "eligible_for_ledger": True,
+        "decision": "accepted",
+        "strategy_accepted": True,
     }
-    (processed / "outcomes.jsonl").write_text(_json.dumps(outcome) + "\n", encoding="utf-8")
+    (processed / "outcomes.episodes.jsonl").write_text(_json.dumps(outcome) + "\n", encoding="utf-8")
 
     win = MainWindow(processed_root=processed, mode_supervisor=ModeSupervisor(tmp_path / "prod.yaml"))
     qtbot.addWidget(win)
@@ -563,6 +580,6 @@ def test_paper_trading_r_column_is_rounded(qtbot: object, tmp_path: Path) -> Non
 
     table = win.findChild(QTableWidget, "paper_trades_table")
     assert table is not None and table.rowCount() > 0
-    # R column is now index 5 (Source session, Trading day, Direction, E/S/T, Contracts, R, Balance).
-    r_text = table.item(0, 5).text()
+    # R column is index 11 in the full lineage/economics ledger.
+    r_text = table.item(0, 11).text()
     assert "." in r_text and len(r_text.split(".")[-1]) <= 2

@@ -219,6 +219,10 @@ def test_session_recorder_writes_unique_session_manifest_events_and_parquet(tmp_
     }
     assert manifest["clean_shutdown"] is True
     assert manifest["valid_for_analysis"] is True
+    assert manifest["receive_order"]["available"] is True
+    assert manifest["receive_order"]["last_sequence"] == 2
+    assert manifest["storage"]["format"] == "closed_parquet_parts_v1"
+    assert manifest["valid_for_order_flow_replay"] is True
 
 
 def test_session_recorder_marks_data_gap_session_invalid(tmp_path: Path) -> None:
@@ -313,11 +317,15 @@ def test_session_recorder_flush_streams_rows_and_finalize_makes_readable(tmp_pat
     # Below the flush threshold: nothing streamed yet.
     assert not recorder.depth_path.exists()
 
-    # flush() streams a row group but does not write the footer; readable only
-    # after finalize() closes the writer.
+    # flush() publishes a closed part that is readable while the session is active.
     recorder.flush()
+    parts = tuple(recorder.depth_parts_dir.glob("part-*.parquet"))
+    assert len(parts) == 1
+    assert len(_rows(parts[0])) == 50
+    assert not recorder.depth_path.exists()
     recorder.finalize(clean_shutdown=True)
     assert len(_rows(recorder.depth_path)) == 50
+    assert _rows(recorder.depth_path)[0]["receive_sequence"] == 1
 
 
 def test_session_recorder_batches_large_streams_without_reread(tmp_path: Path) -> None:
@@ -408,3 +416,30 @@ def test_delayed_provenance_is_sticky_through_playback_phases(tmp_path: Path) ->
     assert manifest["valid_for_live_decisions"] is False
     # ...but a clean finalized delayed session remains valid for OFFLINE analysis.
     assert manifest["valid_for_analysis"] is True
+
+
+def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None:
+    """Malformed/rejected/gap counters are explicit and invalidate strategy replay."""
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 15, 0, 22, tzinfo=UTC),
+    )
+    recorder.note_malformed_event("bad json")
+    recorder.note_rejected_event("out-of-order depth update")
+    recorder.update_feed_quality(
+        sequence_gaps=2,
+        missed_events=7,
+        malformed_events=1,
+        out_of_order_events=1,
+        clock_drift_alerts=0,
+    )
+    recorder.finalize(clean_shutdown=True)
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    quality = manifest["data_quality"]
+    assert quality["malformed_events"] == 1
+    assert quality["rejected_events"] == 1
+    assert quality["trade_sequence_gaps"] == 2
+    assert quality["missed_trade_events"] == 7
+    assert quality["ok"] is False
+    assert manifest["valid_for_order_flow_replay"] is False
+    assert not recorder.manifest_path.with_suffix(".json.tmp").exists()

@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import logging
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -122,6 +122,21 @@ async def start_receiver_websocket_server(
             await connection.close(code=1008, reason=f"expected {config.path}")
             return
         recorder = recorder_factory() if recorder_factory is not None else MarketSessionRecorder(root_dir=config.output_root)
+        quality_baseline = feed_guard.status() if feed_guard is not None else None
+
+        def _filter_market_event(event: Mapping[str, object]) -> bool:
+            if feed_guard is None:
+                return True
+            accepted, reason = feed_guard.ingest_market_event(event)
+            if not accepted:
+                recorder.note_rejected_event(reason or "feed guard rejected event")
+            return accepted
+
+        def _record_schema_error(reason: str) -> None:
+            recorder.note_malformed_event(reason)
+            if feed_guard is not None:
+                feed_guard.record_malformed(reason)
+
         try:
             for control_event in initial_control_events:
                 event = _fresh_control_event(control_event)
@@ -134,12 +149,8 @@ async def start_receiver_websocket_server(
                 on_state=on_state,
                 on_market_event=on_market_event,
                 on_control_event=_guarded_control_event,
-                event_filter=(
-                    (lambda event: feed_guard.ingest_market_event(event)[0])
-                    if feed_guard is not None
-                    else None
-                ),
-                on_schema_error=feed_guard.record_malformed if feed_guard is not None else None,
+                event_filter=_filter_market_event if feed_guard is not None else None,
+                on_schema_error=_record_schema_error,
             )
         except Exception as error:
             detail = f"receiver_error: {type(error).__name__}: {error}"[:300]
@@ -147,6 +158,21 @@ async def start_receiver_websocket_server(
             recorder.finalize(clean_shutdown=False, reason=detail)
             raise
         finally:
+            if feed_guard is not None and quality_baseline is not None:
+                quality = feed_guard.status()
+                recorder.update_feed_quality(
+                    sequence_gaps=max(0, quality.sequence_gaps - quality_baseline.sequence_gaps),
+                    missed_events=max(0, quality.missed_events - quality_baseline.missed_events),
+                    malformed_events=max(0, quality.malformed_events - quality_baseline.malformed_events),
+                    out_of_order_events=max(
+                        0,
+                        quality.out_of_order_events - quality_baseline.out_of_order_events,
+                    ),
+                    clock_drift_alerts=max(
+                        0,
+                        quality.clock_drift_alerts - quality_baseline.clock_drift_alerts,
+                    ),
+                )
             recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
             if on_session_finalized is not None:
                 on_session_finalized(recorder)

@@ -85,6 +85,15 @@ def test_backoff_rejects_invalid_parameters() -> None:
         ExponentialBackoff(base_seconds=1.0, max_seconds=0.5)
 
 
+def test_delayed_source_mode_does_not_raise_false_clock_drift_alert() -> None:
+    """A known 15-minute entitlement delay is not treated as broken live time."""
+    clock = FakeClock(start_ns=2_000_000_000_000)
+    guard = _connected_guard(clock, source_mode="delayed")
+    accepted, reason = guard.ingest_market_event(_trade(1_000_000_000_000, 1))
+    assert accepted is True and reason is None
+    assert guard.status().clock_drift_alerts == 0
+
+
 def test_sequence_gap_detector_counts_missed_events() -> None:
     """Skipped sequence ids are detected and totaled."""
     detector = SequenceGapDetector()

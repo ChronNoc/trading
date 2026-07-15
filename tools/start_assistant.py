@@ -125,7 +125,8 @@ async def run_headless_assistant(config: AssistantConfig, controller: AutomaticR
     delayed_events = _delayed_control_events(config.delayed_data_minutes)
     for event in delayed_events:
         controller.handle_control_event(event)
-    feed_guard = FeedGuard(FeedGuardConfig(source_mode="live"))
+    guard_source_mode = "delayed" if config.delayed_data_minutes > 0 else "live"
+    feed_guard = FeedGuard(FeedGuardConfig(source_mode=guard_source_mode))
     server = await start_receiver_websocket_server(
         config.receiver_config,
         on_market_event=resilient_handler(

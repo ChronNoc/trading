@@ -46,6 +46,13 @@ TRADE_SCHEMA = pa.schema(
     ],
 )
 
+# The network protocol remains the exact Bookmap event schema.  The receiver
+# adds this local monotonic sequence only after validation, at the disk
+# boundary, so new recordings can be replayed in the order Python received
+# them even when exchange timestamps collide.
+SESSION_DEPTH_SCHEMA = DEPTH_SCHEMA.append(pa.field("receive_sequence", pa.int64()))
+SESSION_TRADE_SCHEMA = TRADE_SCHEMA.append(pa.field("receive_sequence", pa.int64()))
+
 
 @dataclass(frozen=True, slots=True)
 class RecorderWriteSummary:
@@ -106,6 +113,12 @@ class MarketSessionRecorder:
     trades: int = field(init=False, default=0)
     connection_events: int = field(init=False, default=0)
     dropped_message_count: int = field(init=False, default=0)
+    malformed_event_count: int = field(init=False, default=0)
+    rejected_event_count: int = field(init=False, default=0)
+    out_of_order_event_count: int = field(init=False, default=0)
+    trade_sequence_gap_count: int = field(init=False, default=0)
+    missed_trade_event_count: int = field(init=False, default=0)
+    clock_drift_alert_count: int = field(init=False, default=0)
     alias: str | None = field(init=False, default=None)
     symbol: str | None = field(init=False, default=None)
     addon_version: str | None = field(init=False, default=None)
@@ -125,8 +138,9 @@ class MarketSessionRecorder:
     finalized: bool = field(init=False, default=False)
     _depth_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
     _trade_buffer: list[dict[str, object]] = field(init=False, default_factory=list)
-    _depth_writer: "pq.ParquetWriter | None" = field(init=False, default=None)
-    _trade_writer: "pq.ParquetWriter | None" = field(init=False, default=None)
+    _receive_sequence: int = field(init=False, default=0)
+    _depth_part_index: int = field(init=False, default=0)
+    _trade_part_index: int = field(init=False, default=0)
     utc_end: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
@@ -156,6 +170,16 @@ class MarketSessionRecorder:
         return self.session_dir / "trades.parquet"
 
     @property
+    def depth_parts_dir(self) -> Path:
+        """Return the directory containing readable depth parts."""
+        return self.session_dir / "depth_parts"
+
+    @property
+    def trade_parts_dir(self) -> Path:
+        """Return the directory containing readable trade parts."""
+        return self.session_dir / "trade_parts"
+
+    @property
     def connection_events_path(self) -> Path:
         """Return the append-only connection event log path."""
         return self.session_dir / "connection_events.jsonl"
@@ -166,17 +190,20 @@ class MarketSessionRecorder:
         return self.session_dir / "session_manifest.json"
 
     def record(self, event: Mapping[str, object]) -> Path:
-        """Buffer one raw market event; flushed to Parquet in batches.
+        """Buffer one raw market event with local receive-order provenance.
 
-        Rows stream to disk as Parquet row groups when a buffer reaches
-        ``PARQUET_FLUSH_THRESHOLD`` or on :meth:`flush`/:meth:`finalize`.
-        The existing file is never reread. A partition is readable only
-        after :meth:`finalize` writes the Parquet footer.
+        Rows are flushed as atomically closed Parquet parts.  Every completed
+        part is readable while Bookmap continues recording and survives an
+        unclean process exit.  Finalization also creates the historical
+        single-file paths for existing replay and GUI consumers.
         """
+        if self.finalized:
+            raise RuntimeError("cannot record market events after session finalization")
         normalized_event = normalize_market_event(event)
         event_kind = market_event_kind(normalized_event)
+        self._receive_sequence += 1
         if event_kind == "depth":
-            self._depth_buffer.append(_depth_row(normalized_event))
+            self._depth_buffer.append(_depth_row(normalized_event, self._receive_sequence))
             self.depth_updates += 1
             self.symbol = str(normalized_event["symbol"])
             output_path = self.depth_path
@@ -184,7 +211,7 @@ class MarketSessionRecorder:
                 self._flush_depth()
                 self._write_manifest()
         else:
-            self._trade_buffer.append(_trade_row(normalized_event))
+            self._trade_buffer.append(_trade_row(normalized_event, self._receive_sequence))
             self.trades += 1
             self.symbol = str(normalized_event["instrument"])
             output_path = self.trades_path
@@ -194,10 +221,7 @@ class MarketSessionRecorder:
         return output_path
 
     def flush(self) -> None:
-        """Stream buffered rows to their Parquet writers (no file reread).
-
-        Partitions become readable after :meth:`finalize` closes the writers.
-        """
+        """Write buffered rows as atomically closed, immediately readable parts."""
         self._flush_depth()
         self._flush_trades()
         self._write_manifest()
@@ -205,35 +229,55 @@ class MarketSessionRecorder:
     def _flush_depth(self) -> None:
         if not self._depth_buffer:
             return
-        batch = pa.Table.from_pylist(self._depth_buffer, schema=DEPTH_SCHEMA)
-        if self._depth_writer is None:
-            self._depth_writer = pq.ParquetWriter(self.depth_path, DEPTH_SCHEMA)
-        self._depth_writer.write_table(batch)
+        batch = pa.Table.from_pylist(self._depth_buffer, schema=SESSION_DEPTH_SCHEMA)
+        _write_parquet_part(
+            self.depth_parts_dir,
+            self._depth_part_index,
+            batch,
+        )
+        self._depth_part_index += 1
         self._depth_buffer = []
 
     def _flush_trades(self) -> None:
         if not self._trade_buffer:
             return
-        batch = pa.Table.from_pylist(self._trade_buffer, schema=TRADE_SCHEMA)
-        if self._trade_writer is None:
-            self._trade_writer = pq.ParquetWriter(self.trades_path, TRADE_SCHEMA)
-        self._trade_writer.write_table(batch)
+        batch = pa.Table.from_pylist(self._trade_buffer, schema=SESSION_TRADE_SCHEMA)
+        _write_parquet_part(
+            self.trade_parts_dir,
+            self._trade_part_index,
+            batch,
+        )
+        self._trade_part_index += 1
         self._trade_buffer = []
 
-    def _close_writers(self) -> None:
-        """Close open Parquet writers, finalizing readable single-file parts.
+    def note_malformed_event(self, reason: str) -> None:
+        """Count one malformed inbound message without storing its payload."""
+        del reason
+        self.malformed_event_count += 1
 
-        Streaming row groups via a persistent ParquetWriter never rereads the
-        existing file (was O(n^2) per flush). The footer is written on close,
-        so a partition becomes readable only after finalize() - which is the
-        session-end boundary, before any reader (Replay/daily report) opens it.
-        """
-        if self._depth_writer is not None:
-            self._depth_writer.close()
-            self._depth_writer = None
-        if self._trade_writer is not None:
-            self._trade_writer.close()
-            self._trade_writer = None
+    def note_rejected_event(self, reason: str) -> None:
+        """Count one feed-guard rejection and classify out-of-order rejects."""
+        self.rejected_event_count += 1
+        if "out-of-order" in reason.lower():
+            self.out_of_order_event_count += 1
+
+    def update_feed_quality(
+        self,
+        *,
+        sequence_gaps: int,
+        missed_events: int,
+        malformed_events: int,
+        out_of_order_events: int,
+        clock_drift_alerts: int,
+    ) -> None:
+        """Merge per-connection feed-guard counters into the session manifest."""
+        self.trade_sequence_gap_count = max(self.trade_sequence_gap_count, sequence_gaps)
+        self.missed_trade_event_count = max(self.missed_trade_event_count, missed_events)
+        self.malformed_event_count = max(self.malformed_event_count, malformed_events)
+        self.out_of_order_event_count = max(self.out_of_order_event_count, out_of_order_events)
+        self.clock_drift_alert_count = max(self.clock_drift_alert_count, clock_drift_alerts)
+        if self.finalized:
+            self._write_manifest()
 
     def record_control_event(self, event: Mapping[str, object]) -> Path:
         """Append one Java bridge control event and update session metadata."""
@@ -254,7 +298,8 @@ class MarketSessionRecorder:
             return
         self._flush_depth()
         self._flush_trades()
-        self._close_writers()
+        _merge_parquet_parts(self.depth_parts_dir, self.depth_path, SESSION_DEPTH_SCHEMA)
+        _merge_parquet_parts(self.trade_parts_dir, self.trades_path, SESSION_TRADE_SCHEMA)
         self.clean_shutdown = clean_shutdown
         if not clean_shutdown:
             self.continuity_status = reason or "incomplete"
@@ -307,11 +352,21 @@ class MarketSessionRecorder:
             self.finalize(clean_shutdown=True)
 
     def _manifest(self) -> dict[str, object]:
+        quality_counters = {
+            "malformed_events": self.malformed_event_count,
+            "rejected_events": self.rejected_event_count,
+            "out_of_order_events": self.out_of_order_event_count,
+            "trade_sequence_gaps": self.trade_sequence_gap_count,
+            "missed_trade_events": self.missed_trade_event_count,
+            "clock_drift_alerts": self.clock_drift_alert_count,
+            "bridge_dropped_messages": self.dropped_message_count,
+        }
+        quality_ok = all(value == 0 for value in quality_counters.values())
         valid_for_analysis = (
             self.finalized
             and self.clean_shutdown
             and self.continuity_status == "continuous"
-            and self.dropped_message_count == 0
+            and quality_ok
         )
         return {
             "alias": self.alias,
@@ -331,6 +386,22 @@ class MarketSessionRecorder:
                 "trades": self.trades,
                 "connection_events": self.connection_events,
             },
+            "storage": {
+                "format": "closed_parquet_parts_v1",
+                "depth_parts": self._depth_part_index,
+                "trade_parts": self._trade_part_index,
+                "finalized_single_files": self.finalized,
+            },
+            "receive_order": {
+                "field": "receive_sequence",
+                "available": True,
+                "last_sequence": self._receive_sequence,
+                "scope": "validated market events within this receiver session",
+            },
+            "data_quality": {
+                "ok": quality_ok,
+                **quality_counters,
+            },
             "dropped_message_count": self.dropped_message_count,
             "continuity_status": self.continuity_status,
             "clean_shutdown": self.clean_shutdown,
@@ -338,6 +409,9 @@ class MarketSessionRecorder:
             "provenance": _provenance(self.synthetic, self.is_delayed, self.source_mode),
             "valid_for_analysis": valid_for_analysis,
             "valid_for_real_training": False if self.synthetic else valid_for_analysis,
+            "valid_for_order_flow_replay": (
+                valid_for_analysis and self.depth_updates > 0 and self.trades > 0
+            ),
             # A delayed entitlement can never authorize live decisions, no matter
             # what playback phase Bookmap reached.
             "valid_for_live_decisions": (
@@ -347,10 +421,12 @@ class MarketSessionRecorder:
         }
 
     def _write_manifest(self) -> None:
-        self.manifest_path.write_text(
+        temporary = self.manifest_path.with_suffix(".json.tmp")
+        temporary.write_text(
             json.dumps(self._manifest(), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        temporary.replace(self.manifest_path)
 
 
 def normalize_market_event(event: Mapping[str, object]) -> RawMarketEvent:
@@ -385,6 +461,35 @@ def _append_parquet(path: Path, schema: pa.Schema, rows: list[dict[str, object]]
         existing_table = pq.read_table(path, schema=schema)
         new_table = pa.concat_tables([existing_table, new_table])
     pq.write_table(new_table, path)
+
+
+def _write_parquet_part(parts_dir: Path, part_index: int, table: pa.Table) -> Path:
+    """Atomically publish one closed and readable Parquet part."""
+    parts_dir.mkdir(parents=True, exist_ok=True)
+    destination = parts_dir / f"part-{part_index:06d}.parquet"
+    temporary = destination.with_suffix(".parquet.tmp")
+    pq.write_table(table, temporary)
+    temporary.replace(destination)
+    return destination
+
+
+def _merge_parquet_parts(parts_dir: Path, destination: Path, schema: pa.Schema) -> None:
+    """Build a legacy single Parquet file from closed parts using bounded batches."""
+    parts = tuple(sorted(parts_dir.glob("part-*.parquet"))) if parts_dir.is_dir() else ()
+    if not parts:
+        return
+    temporary = destination.with_suffix(".parquet.tmp")
+    writer: pq.ParquetWriter | None = None
+    try:
+        writer = pq.ParquetWriter(temporary, schema)
+        for part in parts:
+            parquet = pq.ParquetFile(part)
+            for batch in parquet.iter_batches(batch_size=PARQUET_FLUSH_THRESHOLD):
+                writer.write_batch(batch)
+    finally:
+        if writer is not None:
+            writer.close()
+    temporary.replace(destination)
 
 
 def _unique_session_dir(parent: Path, base_session_id: str) -> Path:
@@ -446,8 +551,11 @@ def _provenance(synthetic: bool, is_delayed: bool, source_mode: str) -> str:
     return PROVENANCE_UNKNOWN
 
 
-def _depth_row(event: Mapping[str, object]) -> dict[str, object]:
-    return {
+def _depth_row(
+    event: Mapping[str, object],
+    receive_sequence: int | None = None,
+) -> dict[str, object]:
+    row: dict[str, object] = {
         "timestamp": int(event["timestamp"]),
         "symbol": str(event["symbol"]),
         "side": str(event["side"]),
@@ -455,10 +563,16 @@ def _depth_row(event: Mapping[str, object]) -> dict[str, object]:
         "previous_size": str(event["previous_size"]),
         "new_size": str(event["new_size"]),
     }
+    if receive_sequence is not None:
+        row["receive_sequence"] = receive_sequence
+    return row
 
 
-def _trade_row(event: Mapping[str, object]) -> dict[str, object]:
-    return {
+def _trade_row(
+    event: Mapping[str, object],
+    receive_sequence: int | None = None,
+) -> dict[str, object]:
+    row: dict[str, object] = {
         "timestamp_ns": int(event["timestamp_ns"]),
         "price": str(event["price"]),
         "size": str(event["size"]),
@@ -466,3 +580,6 @@ def _trade_row(event: Mapping[str, object]) -> dict[str, object]:
         "instrument": str(event["instrument"]),
         "sequence_id": int(event["sequence_id"]),
     }
+    if receive_sequence is not None:
+        row["receive_sequence"] = receive_sequence
+    return row

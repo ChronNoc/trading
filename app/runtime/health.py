@@ -88,13 +88,15 @@ class HealthMonitor:
         now: datetime | None = None,
     ) -> None:
         """Track the maximum dropped-message count reported by the bridge."""
-        self.dropped_message_count = max(self.dropped_message_count, dropped_message_count)
-        self.record_event(
-            "bookmap",
-            "data_gap",
-            f"dropped messages reported: {self.dropped_message_count}",
-            now=now,
-        )
+        previous = self.dropped_message_count
+        self.dropped_message_count = max(previous, dropped_message_count)
+        if self.dropped_message_count > previous:
+            self.record_event(
+                "bookmap",
+                "data_gap",
+                f"dropped messages reported: {self.dropped_message_count}",
+                now=now,
+            )
 
     def data_age_ns(self, current_timestamp_ns: int | None) -> int | None:
         """Return the latest market data age in nanoseconds."""
@@ -128,4 +130,3 @@ class HealthMonitor:
             for event in self.events:
                 handle.write(json.dumps(asdict(event), sort_keys=True, separators=(",", ":")) + "\n")
         return path
-

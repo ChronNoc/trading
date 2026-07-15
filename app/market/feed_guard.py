@@ -7,9 +7,9 @@ data arriving trustworthy?" (data quality). The combined
 ``risk/limits.py`` connection-health check - that protected module is not
 modified.
 
-The guard runs identically against live Bookmap data and Bookmap Replay
-data (``source_mode``); only the wall-clock drift check is disabled for
-replay, because historical timestamps are expected to differ from now.
+The guard runs against live, delayed, and Bookmap Replay data. Wall-clock
+drift is meaningful only for a true live entitlement, so it is disabled for
+delayed and replay data.
 """
 
 from __future__ import annotations
@@ -47,8 +47,8 @@ class FeedGuardConfig:
             raise ValueError("snapshot_ring_size must be positive")
         if self.replay_buffer_size <= 0:
             raise ValueError("replay_buffer_size must be positive")
-        if self.source_mode not in ("live", "replay"):
-            raise ValueError("source_mode must be 'live' or 'replay'")
+        if self.source_mode not in ("live", "delayed", "replay"):
+            raise ValueError("source_mode must be 'live', 'delayed', or 'replay'")
 
 
 class ExponentialBackoff:

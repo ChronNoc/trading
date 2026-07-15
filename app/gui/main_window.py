@@ -47,9 +47,6 @@ from app.agents.narrator import narrate_decision
 from app.agents.records import DecisionRecord, canonical_condition_name, parse_explanation_lines
 from app.agents.session_reviewer import write_review
 from app.agents.watchdog import SEVERITY_OK, SEVERITY_WARNING, Watchdog, WatchdogReport
-from app.discovery.metrics import TradeResult
-from app.discovery.paper_account import PaperAccountConfig, run_single_account, single_account_summary
-from app.research.real_episodes import CompletedRealOutcome, load_completed_real_outcomes
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.automations import AUTOMATION_DEFINITIONS, AutomationEngine
 from app.gui.price_chart import PriceChartWidget
@@ -65,6 +62,8 @@ from app.gui.theme import (
 from app.market.receiver import get_current_market_state
 from app.market.state import MarketState
 from app.prototype.scenarios import PrototypeDashboardSnapshot, empty_prototype_dashboard_snapshot
+from app.research.paper_ledger import real_paper_summary, run_real_paper_ledger
+from app.research.real_episodes import load_completed_real_outcomes
 from app.risk.limits import EntryLimitState
 from app.runtime.controller import RuntimeSnapshot
 from app.strategy.setups import SetupConditionResult, SetupEvaluationResult
@@ -1561,10 +1560,25 @@ class MainWindow(QMainWindow):
         progress.setMaximumHeight(220)
         layout.addWidget(_group("Ledger summary (real outcomes only)", progress))
 
-        table = QTableWidget(0, 7)
+        table = QTableWidget(0, 14)
         table.setObjectName("paper_trades_table")
         table.setHorizontalHeaderLabels(
-            ["Source session", "Trading day", "Direction", "Entry / Stop / Target", "Contracts", "R", "Balance"],
+            [
+                "Source session",
+                "Setup ID",
+                "Decision (UTC)",
+                "Trading day",
+                "Direction",
+                "Entry",
+                "Stop",
+                "Target",
+                "Exit",
+                "Costs / contract",
+                "Contracts",
+                "Net R",
+                "P&L",
+                "Balance",
+            ],
         )
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
@@ -1599,35 +1613,31 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # One fixed $100k account over the real outcomes in chronological order.
-        ordered = sorted(outcomes, key=lambda o: o.decision_ts_ns)
-        trades = tuple(
-            TradeResult(
-                r_multiple=o.r_multiple,
-                session=o.session_id,
-                regime_tag=o.provenance,
-                trade_date=o.trading_day,
-            )
-            for o in ordered
-        )
-        account = run_single_account(trades, PaperAccountConfig())
-        for line in single_account_summary(account, synthetic=False):
+        account = run_real_paper_ledger(outcomes)
+        for line in real_paper_summary(account):
             progress.addItem(line)
 
         table.setRowCount(len(account.trades))
-        for row, (sim, outcome) in enumerate(zip(account.trades, ordered, strict=False)):
+        for row, trade in enumerate(account.trades):
             cells = [
-                outcome.session_id,
-                outcome.trading_day,
-                outcome.direction,
-                f"{outcome.entry} / {outcome.stop} / {outcome.target}",
-                str(sim.contracts),
-                str(outcome.r_multiple.quantize(Decimal("0.01"))),
-                _format_money(sim.balance_after),
+                trade.session_id,
+                trade.setup_id,
+                _format_timestamp_ns(trade.decision_ts_ns),
+                trade.trading_day,
+                trade.direction,
+                str(trade.entry),
+                str(trade.stop),
+                str(trade.target),
+                str(trade.exit),
+                _format_money(trade.costs_per_contract),
+                str(trade.contracts),
+                str(trade.r_multiple.quantize(Decimal("0.01"))),
+                _format_money(trade.pnl),
+                _format_money(trade.balance_after),
             ]
             for column, value in enumerate(cells):
                 item = _read_only_item(value)
-                item.setForeground(QColor(74, 222, 128) if sim.won else QColor(248, 113, 113))
+                item.setForeground(QColor(74, 222, 128) if trade.won else QColor(248, 113, 113))
                 table.setItem(row, column, item)
 
     def _build_ask_tab(self) -> QWidget:

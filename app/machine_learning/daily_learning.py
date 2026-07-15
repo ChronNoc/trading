@@ -5,20 +5,19 @@ from __future__ import annotations
 import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
-import pyarrow.parquet as pq
-
-from app.market.features import compute_market_features
 from app.market.state import MarketState
+from app.research.real_episodes import load_completed_real_outcomes
+from app.research.replay_loader import stream_session_events_with_stats
+from app.research.session_catalog import SessionEntry, classify_manifest
 
 NANOSECONDS_PER_SECOND = 1_000_000_000
 OBSERVE_ONLY_NOTICE = (
-    "Observe-only learning report. It records market behavior and consistency, "
+    "Observe-only learning report. It records data quality and market behavior, "
     "but it does not retrain a live model or authorize trading."
 )
 
@@ -70,11 +69,18 @@ class SessionLearningSummary:
     possible_short_absorption: bool
     dominant_side: str
     notes: tuple[str, ...]
+    provenance: str = "UNKNOWN"
+    finalized: bool = False
+    data_quality_ok: bool = False
+    ordering_mode: str = "unknown"
+    same_timestamp_collisions: int = 0
+    trade_sequence_gaps: int = 0
+    missed_trade_events: int = 0
 
 
 @dataclass(frozen=True, slots=True)
 class DailyConsistencySummary:
-    """Whole-day consistency summary across all recorded sessions for a date."""
+    """Whole-day report with quality, observation, and performance separated."""
 
     trading_date: date
     generated_at_utc: datetime
@@ -83,10 +89,18 @@ class DailyConsistencySummary:
     total_trades: int
     valid_session_count: int
     delayed_session_count: int
-    consistency_score: Decimal
+    market_observation_score: Decimal
     recurring_patterns: tuple[str, ...]
     blockers: tuple[str, ...]
     safety_notes: tuple[str, ...]
+    completed_strategy_outcomes: int = 0
+    ledger_eligible_outcomes: int = 0
+    strategy_performance_status: str = "not_available_no_completed_real_outcomes"
+
+    @property
+    def consistency_score(self) -> Decimal:
+        """Backward-compatible alias for the non-performance observation score."""
+        return self.market_observation_score
 
     def to_json_dict(self) -> dict[str, object]:
         """Return this summary as JSON-compatible values."""
@@ -101,7 +115,27 @@ class DailyConsistencySummary:
             "session_count": len(self.sessions),
             "valid_session_count": self.valid_session_count,
             "delayed_session_count": self.delayed_session_count,
-            "consistency_score": _decimal_text(self.consistency_score),
+            "data_quality": {
+                "valid_sessions": self.valid_session_count,
+                "total_sessions": len(self.sessions),
+                "depth_updates": self.total_depth_updates,
+                "trades": self.total_trades,
+                "delayed_sessions": self.delayed_session_count,
+                "quality_clean": bool(self.sessions) and all(
+                    session.data_quality_ok for session in self.sessions
+                ),
+            },
+            "market_observations": {
+                "descriptive_score": _decimal_text(self.market_observation_score),
+                "is_performance_metric": False,
+                "recurring_patterns": list(self.recurring_patterns),
+            },
+            "strategy_performance": {
+                "status": self.strategy_performance_status,
+                "completed_outcomes": self.completed_strategy_outcomes,
+                "ledger_eligible_outcomes": self.ledger_eligible_outcomes,
+                "profitability_claim_available": False,
+            },
             "recurring_patterns": list(self.recurring_patterns),
             "blockers": list(self.blockers),
             "safety_notes": list(self.safety_notes),
@@ -123,6 +157,7 @@ def analyze_recorded_day(
     trading_date: date,
     *,
     config: DailyLearningConfig | None = None,
+    processed_root: str | Path | None = None,
 ) -> DailyConsistencySummary:
     """Analyze all recorded Bookmap sessions under ``raw_root/YYYY-MM-DD``."""
     learning_config = config or DailyLearningConfig()
@@ -131,7 +166,18 @@ def analyze_recorded_day(
         _analyze_session(session, learning_config)
         for session in _discover_session_dirs(date_dir)
     )
-    return build_daily_consistency_summary(trading_date, sessions)
+    derived_processed_root = Path(processed_root) if processed_root is not None else Path(raw_root).parent / "processed"
+    outcomes = tuple(
+        outcome
+        for outcome in load_completed_real_outcomes(derived_processed_root)
+        if outcome.trading_day == trading_date.isoformat()
+    )
+    return build_daily_consistency_summary(
+        trading_date,
+        sessions,
+        completed_strategy_outcomes=len(outcomes),
+        ledger_eligible_outcomes=len(outcomes),
+    )
 
 
 def build_daily_consistency_summary(
@@ -139,6 +185,8 @@ def build_daily_consistency_summary(
     sessions: Sequence[SessionLearningSummary],
     *,
     generated_at_utc: datetime | None = None,
+    completed_strategy_outcomes: int = 0,
+    ledger_eligible_outcomes: int = 0,
 ) -> DailyConsistencySummary:
     """Build a consistency summary from already-analyzed sessions."""
     session_tuple = tuple(sessions)
@@ -146,8 +194,11 @@ def build_daily_consistency_summary(
     total_trades = sum(session.trades for session in session_tuple)
     valid_count = sum(1 for session in session_tuple if session.valid_for_analysis)
     delayed_count = sum(1 for session in session_tuple if session.source_mode == "delayed")
-    consistency_score = _consistency_score(session_tuple)
-    patterns, blockers = _patterns_and_blockers(session_tuple)
+    observation_score = _consistency_score(session_tuple)
+    patterns, base_blockers = _patterns_and_blockers(session_tuple)
+    blockers = list(base_blockers)
+    if ledger_eligible_outcomes == 0:
+        blockers.append("No completed quality-gated real strategy outcomes exist for this trading day.")
     safety_notes = (
         OBSERVE_ONLY_NOTICE,
         "Bookmap delayed/free data is valid for review and threshold research only.",
@@ -161,10 +212,17 @@ def build_daily_consistency_summary(
         total_trades=total_trades,
         valid_session_count=valid_count,
         delayed_session_count=delayed_count,
-        consistency_score=consistency_score,
+        market_observation_score=observation_score,
         recurring_patterns=patterns,
-        blockers=blockers,
+        blockers=tuple(blockers),
         safety_notes=safety_notes,
+        completed_strategy_outcomes=completed_strategy_outcomes,
+        ledger_eligible_outcomes=ledger_eligible_outcomes,
+        strategy_performance_status=(
+            "preliminary_real_outcomes_not_validated"
+            if ledger_eligible_outcomes > 0
+            else "not_available_no_completed_real_outcomes"
+        ),
     )
 
 
@@ -191,9 +249,15 @@ def analyze_and_write_daily_learning_report(
     trading_date: date,
     *,
     config: DailyLearningConfig | None = None,
+    processed_root: str | Path | None = None,
 ) -> DailyLearningReportPaths:
     """Analyze a recorded day and write the daily learning report artifacts."""
-    summary = analyze_recorded_day(raw_root, trading_date, config=config)
+    summary = analyze_recorded_day(
+        raw_root,
+        trading_date,
+        config=config,
+        processed_root=processed_root,
+    )
     return write_daily_learning_report(summary, report_root)
 
 
@@ -204,20 +268,33 @@ def render_daily_learning_markdown(summary: DailyConsistencySummary) -> str:
         "",
         f"> {OBSERVE_ONLY_NOTICE}",
         "",
-        "## Consistency",
+        "## Data quality and coverage",
         "",
-        f"- Consistency score: {summary.consistency_score} / 100",
         f"- Sessions analyzed: {len(summary.sessions)}",
         f"- Valid sessions: {summary.valid_session_count}",
         f"- Delayed/free-data sessions: {summary.delayed_session_count}",
         f"- Depth updates: {summary.total_depth_updates}",
         f"- Trades: {summary.total_trades}",
         "",
+        "## Market observations (descriptive, not strategy performance)",
+        "",
+        f"- Observation coverage score: {summary.market_observation_score} / 100",
+        "- This score describes recording/market features; it is not win rate, expectancy, or profitability.",
+        "",
     ]
     if summary.recurring_patterns:
         lines += ["## Recurring patterns", "", *[f"- {pattern}" for pattern in summary.recurring_patterns], ""]
     if summary.blockers:
         lines += ["## Blockers", "", *[f"- {blocker}" for blocker in summary.blockers], ""]
+    lines += [
+        "## Strategy performance",
+        "",
+        f"- Status: {summary.strategy_performance_status}",
+        f"- Completed real outcomes: {summary.completed_strategy_outcomes}",
+        f"- Ledger-eligible outcomes: {summary.ledger_eligible_outcomes}",
+        "- No profitability claim is available from this daily observation report.",
+        "",
+    ]
     lines += [
         "## Session table",
         "",
@@ -250,75 +327,287 @@ def render_daily_learning_markdown(summary: DailyConsistencySummary) -> str:
     return "\n".join(lines)
 
 
+@dataclass(slots=True)
+class _StreamingSessionAccumulator:
+    """Constant-memory descriptive statistics for one replay stream."""
+
+    config: DailyLearningConfig
+    state: MarketState = field(default_factory=MarketState)
+    depth_updates: int = 0
+    trades: int = 0
+    start_timestamp_ns: int | None = None
+    end_timestamp_ns: int | None = None
+    first_price: Decimal | None = None
+    last_price: Decimal | None = None
+    high_price: Decimal | None = None
+    low_price: Decimal | None = None
+    aggressive_buy: Decimal = Decimal("0")
+    aggressive_sell: Decimal = Decimal("0")
+    liquidity_added: Decimal = Decimal("0")
+    liquidity_cancelled: Decimal = Decimal("0")
+    bid_reload_count: int = 0
+    ask_reload_count: int = 0
+    price_count: int = 0
+    price_mean: Decimal = Decimal("0")
+    price_m2: Decimal = Decimal("0")
+    _above_threshold: dict[tuple[str, Decimal], bool] = field(default_factory=dict)
+    _waiting_reload: dict[tuple[str, Decimal], bool] = field(default_factory=dict)
+    _large_bid_prices: set[Decimal] = field(default_factory=set)
+    _large_ask_prices: set[Decimal] = field(default_factory=set)
+
+    def apply(self, event_kind: str, timestamp_ns: int, payload: Mapping[str, object]) -> None:
+        """Apply one replay event and update constant-memory statistics."""
+        self.start_timestamp_ns = timestamp_ns if self.start_timestamp_ns is None else min(self.start_timestamp_ns, timestamp_ns)
+        self.end_timestamp_ns = timestamp_ns if self.end_timestamp_ns is None else max(self.end_timestamp_ns, timestamp_ns)
+        if event_kind == "depth":
+            self.depth_updates += 1
+            side = str(payload["side"]).lower()
+            price = _decimal(payload["price"])
+            previous_size = _decimal(payload["previous_size"])
+            new_size = _decimal(payload["new_size"])
+            change = new_size - previous_size
+            if change > 0:
+                self.liquidity_added += change
+            elif change < 0:
+                self.liquidity_cancelled += -change
+            key = (side, price)
+            was_above = self._above_threshold.get(key, False)
+            is_above = new_size >= self.config.reload_threshold
+            if was_above and not is_above:
+                self._waiting_reload[key] = True
+            elif self._waiting_reload.get(key, False) and is_above:
+                if side == "bid":
+                    self.bid_reload_count += 1
+                else:
+                    self.ask_reload_count += 1
+                self._waiting_reload[key] = False
+            self._above_threshold[key] = is_above
+            if new_size >= self.config.large_block_size:
+                (self._large_bid_prices if side == "bid" else self._large_ask_prices).add(price)
+        else:
+            self.trades += 1
+            size = _decimal(payload["size"])
+            if str(payload["aggressor_side"]).lower() == "buy":
+                self.aggressive_buy += size
+            else:
+                self.aggressive_sell += size
+            self.observe_price(_decimal(payload["price"]))
+        self.state = self.state.update(payload)
+        if self.state.mid_price is not None:
+            self.observe_price(self.state.mid_price)
+
+    def observe_price(self, price: Decimal) -> None:
+        """Update first/last/extremes and Welford variance."""
+        if self.first_price is None:
+            self.first_price = price
+            self.high_price = price
+            self.low_price = price
+        self.last_price = price
+        self.high_price = price if self.high_price is None else max(self.high_price, price)
+        self.low_price = price if self.low_price is None else min(self.low_price, price)
+        self.price_count += 1
+        delta = price - self.price_mean
+        self.price_mean += delta / Decimal(self.price_count)
+        self.price_m2 += delta * (price - self.price_mean)
+
+    @property
+    def volatility(self) -> Decimal:
+        """Return population volatility of all observed reference prices."""
+        if self.price_count < 2:
+            return Decimal("0")
+        return (self.price_m2 / Decimal(self.price_count)).sqrt()
+
+    @property
+    def book_imbalance(self) -> Decimal:
+        """Return final visible-book imbalance."""
+        bids = sum((level.size for level in self.state.bid_depth), Decimal("0"))
+        asks = sum((level.size for level in self.state.ask_depth), Decimal("0"))
+        total = bids + asks
+        return (bids - asks) / total if total > 0 else Decimal("0")
+
+    @property
+    def trade_velocity(self) -> Decimal:
+        """Return aggressive contracts per second over the analyzed span."""
+        if self.start_timestamp_ns is None or self.end_timestamp_ns is None:
+            return Decimal("0")
+        elapsed = Decimal(self.end_timestamp_ns - self.start_timestamp_ns) / Decimal(NANOSECONDS_PER_SECOND)
+        return (self.aggressive_buy + self.aggressive_sell) / elapsed if elapsed > 0 else Decimal("0")
+
+
 def _analyze_session(session_dir: Path, config: DailyLearningConfig) -> SessionLearningSummary:
-    manifest = _read_manifest(session_dir / "session_manifest.json")
-    depth_rows = _read_parquet_rows(session_dir / "depth.parquet")
-    trade_rows = _read_parquet_rows(session_dir / "trades.parquet")
-    events = _events_from_rows(depth_rows, trade_rows)
-    snapshots = _snapshots_from_events(events)
-    prices = _price_series(snapshots, trade_rows)
-    features = _features_from_snapshots(snapshots, config)
-    aggressive_buy = sum(
-        (_decimal(row.get("size")) for row in trade_rows if str(row.get("aggressor_side")).lower() == "buy"),
-        Decimal("0"),
+    manifest_path = session_dir / "session_manifest.json"
+    manifest = _read_manifest(manifest_path)
+    entry = classify_manifest(manifest, manifest_path) if manifest_path.exists() else None
+    if entry is not None and entry.finalized and not entry.eligible_for_analysis:
+        return _manifest_only_summary(
+            session_dir,
+            manifest,
+            entry,
+            "manifest-only coverage; raw replay skipped because session is invalid",
+        )
+    has_closed_parts = any(
+        any((session_dir / name).glob("part-*.parquet"))
+        for name in ("depth_parts", "trade_parts")
     )
-    aggressive_sell = sum(
-        (_decimal(row.get("size")) for row in trade_rows if str(row.get("aggressor_side")).lower() == "sell"),
-        Decimal("0"),
+    if entry is not None and entry.active and not has_closed_parts:
+        return _manifest_only_summary(
+            session_dir,
+            manifest,
+            entry,
+            "manifest-only coverage; legacy active session has no safely closed parts",
+        )
+    iterator, replay_stats = stream_session_events_with_stats(session_dir)
+    accumulator = _StreamingSessionAccumulator(config)
+    for event in iterator:
+        accumulator.apply(event.kind, event.timestamp_ns, event.payload)
+
+    source_mode = (
+        "delayed"
+        if entry is not None and entry.is_delayed
+        else str(manifest.get("source_mode", "unknown"))
     )
-    cvd_delta = aggressive_buy - aggressive_sell
+    provenance = entry.provenance if entry is not None else "UNKNOWN"
+    analysis_scope = "delayed_market_data" if source_mode == "delayed" else str(manifest.get("analysis_scope", "unknown"))
+    manifest_quality = manifest.get("data_quality", {})
+    manifest_quality_ok = (
+        bool(manifest_quality.get("ok", True))
+        if isinstance(manifest_quality, dict)
+        else True
+    )
+    data_quality_ok = replay_stats.continuity_ok and manifest_quality_ok
+    valid_for_analysis = bool(entry and entry.eligible_for_analysis and data_quality_ok)
+    cvd_delta = accumulator.aggressive_buy - accumulator.aggressive_sell
+    prices = tuple(
+        price
+        for price in (accumulator.first_price, accumulator.last_price)
+        if price is not None
+    )
     price_direction = _price_direction(prices)
     cvd_direction = _signed_direction(cvd_delta)
     price_cvd_aligned = _price_cvd_aligned(price_direction, cvd_direction)
-    bid_reload_count = _side_reload_count(depth_rows, side="bid", threshold=config.reload_threshold)
-    ask_reload_count = _side_reload_count(depth_rows, side="ask", threshold=config.reload_threshold)
-    large_bid_blocks = _large_block_count(depth_rows, side="bid", threshold=config.large_block_size)
-    large_ask_blocks = _large_block_count(depth_rows, side="ask", threshold=config.large_block_size)
-    dominant_side = _dominant_side(aggressive_buy, aggressive_sell, config)
-    notes = _session_notes(
-        manifest,
-        depth_rows,
-        trade_rows,
-        price_cvd_aligned=price_cvd_aligned,
-        bid_reload_count=bid_reload_count,
-        ask_reload_count=ask_reload_count,
-        dominant_side=dominant_side,
-    )
+    dominant_side = _dominant_side(accumulator.aggressive_buy, accumulator.aggressive_sell, config)
+    notes: list[str] = []
+    if source_mode == "delayed":
+        notes.append("delayed data: review only")
+    if entry is not None and entry.active:
+        notes.append("active session: closed parts only, partial coverage")
+    if not valid_for_analysis:
+        notes.append("not analysis-clean")
+    if accumulator.depth_updates == 0:
+        notes.append("no depth data")
+    if accumulator.trades == 0:
+        notes.append("no trade prints")
+    if not price_cvd_aligned:
+        notes.append("price/CVD divergence")
+    if accumulator.bid_reload_count or accumulator.ask_reload_count:
+        notes.append("reload behavior observed")
+    if dominant_side in {"buyers", "sellers"}:
+        notes.append(f"{dominant_side} controlled tape")
+    if replay_stats.ordering_ambiguous:
+        notes.append("old recording has same-timestamp ordering ambiguity")
+    if replay_stats.missed_trade_events:
+        notes.append(f"trade sequence indicates {replay_stats.missed_trade_events} missing event(s)")
 
     return SessionLearningSummary(
         session_label=_session_label(session_dir),
-        source_mode=str(manifest.get("source_mode", "unknown")),
-        analysis_scope=str(manifest.get("analysis_scope", "unknown")),
-        valid_for_analysis=bool(manifest.get("valid_for_analysis", False)),
-        valid_for_real_training=bool(manifest.get("valid_for_real_training", False)),
-        valid_for_live_decisions=bool(manifest.get("valid_for_live_decisions", False)),
-        depth_updates=len(depth_rows),
-        trades=len(trade_rows),
-        start_timestamp_ns=_min_timestamp(events),
-        end_timestamp_ns=_max_timestamp(events),
-        first_price=prices[0] if prices else None,
-        last_price=prices[-1] if prices else None,
-        high_price=max(prices) if prices else None,
-        low_price=min(prices) if prices else None,
+        source_mode=source_mode,
+        analysis_scope=analysis_scope,
+        valid_for_analysis=valid_for_analysis,
+        valid_for_real_training=bool(entry and entry.eligible_for_order_flow_replay and data_quality_ok),
+        valid_for_live_decisions=bool(entry and entry.valid_for_live_decisions and data_quality_ok),
+        depth_updates=accumulator.depth_updates,
+        trades=accumulator.trades,
+        start_timestamp_ns=accumulator.start_timestamp_ns,
+        end_timestamp_ns=accumulator.end_timestamp_ns,
+        first_price=accumulator.first_price,
+        last_price=accumulator.last_price,
+        high_price=accumulator.high_price,
+        low_price=accumulator.low_price,
         price_direction=price_direction,
-        aggressive_buy_volume=aggressive_buy,
-        aggressive_sell_volume=aggressive_sell,
+        aggressive_buy_volume=accumulator.aggressive_buy,
+        aggressive_sell_volume=accumulator.aggressive_sell,
         cvd_delta=cvd_delta,
         cvd_direction=cvd_direction,
         price_cvd_aligned=price_cvd_aligned,
-        book_imbalance=features["book_imbalance"],
-        liquidity_added=features["liquidity_added"],
-        liquidity_cancelled=features["liquidity_cancelled"],
-        trade_velocity=features["trade_velocity"],
-        short_term_volatility=features["short_term_volatility"],
-        bid_reload_count=bid_reload_count,
-        ask_reload_count=ask_reload_count,
-        large_bid_blocks=large_bid_blocks,
-        large_ask_blocks=large_ask_blocks,
-        possible_long_absorption=bid_reload_count > 0 and aggressive_sell >= aggressive_buy,
-        possible_short_absorption=ask_reload_count > 0 and aggressive_buy >= aggressive_sell,
+        book_imbalance=accumulator.book_imbalance,
+        liquidity_added=accumulator.liquidity_added,
+        liquidity_cancelled=accumulator.liquidity_cancelled,
+        trade_velocity=accumulator.trade_velocity,
+        short_term_volatility=accumulator.volatility,
+        bid_reload_count=accumulator.bid_reload_count,
+        ask_reload_count=accumulator.ask_reload_count,
+        large_bid_blocks=len(accumulator._large_bid_prices),
+        large_ask_blocks=len(accumulator._large_ask_prices),
+        possible_long_absorption=(
+            accumulator.bid_reload_count > 0 and accumulator.aggressive_sell >= accumulator.aggressive_buy
+        ),
+        possible_short_absorption=(
+            accumulator.ask_reload_count > 0 and accumulator.aggressive_buy >= accumulator.aggressive_sell
+        ),
         dominant_side=dominant_side,
-        notes=notes,
+        notes=tuple(notes),
+        provenance=provenance,
+        finalized=bool(entry and entry.finalized),
+        data_quality_ok=data_quality_ok,
+        ordering_mode=replay_stats.ordering_mode,
+        same_timestamp_collisions=replay_stats.same_timestamp_collisions,
+        trade_sequence_gaps=replay_stats.trade_sequence_gaps,
+        missed_trade_events=replay_stats.missed_trade_events,
+    )
+
+
+def _manifest_only_summary(
+    session_dir: Path,
+    manifest: Mapping[str, object],
+    entry: SessionEntry,
+    coverage_note: str,
+) -> SessionLearningSummary:
+    """Represent a session from its manifest without opening unsafe raw files."""
+    source_mode = "delayed" if entry.is_delayed else str(manifest.get("source_mode", "unknown"))
+    notes = (
+        coverage_note,
+        *entry.reasons,
+    )
+    return SessionLearningSummary(
+        session_label=_session_label(session_dir),
+        source_mode=source_mode,
+        analysis_scope=(
+            "delayed_market_data" if source_mode == "delayed" else str(manifest.get("analysis_scope", "unknown"))
+        ),
+        valid_for_analysis=False,
+        valid_for_real_training=False,
+        valid_for_live_decisions=False,
+        depth_updates=entry.depth_updates,
+        trades=entry.trades,
+        start_timestamp_ns=None,
+        end_timestamp_ns=None,
+        first_price=None,
+        last_price=None,
+        high_price=None,
+        low_price=None,
+        price_direction="unknown",
+        aggressive_buy_volume=Decimal("0"),
+        aggressive_sell_volume=Decimal("0"),
+        cvd_delta=Decimal("0"),
+        cvd_direction="flat",
+        price_cvd_aligned=False,
+        book_imbalance=Decimal("0"),
+        liquidity_added=Decimal("0"),
+        liquidity_cancelled=Decimal("0"),
+        trade_velocity=Decimal("0"),
+        short_term_volatility=Decimal("0"),
+        bid_reload_count=0,
+        ask_reload_count=0,
+        large_bid_blocks=0,
+        large_ask_blocks=0,
+        possible_long_absorption=False,
+        possible_short_absorption=False,
+        dominant_side="unknown",
+        notes=tuple(str(note) for note in notes),
+        provenance=entry.provenance,
+        finalized=entry.finalized,
+        data_quality_ok=False,
+        ordering_mode="not_replayed_invalid_manifest",
     )
 
 
@@ -332,7 +621,14 @@ def _discover_session_dirs(date_dir: Path) -> tuple[Path, ...]:
     return tuple(
         child
         for child in sorted(date_dir.iterdir())
-        if child.is_dir() and ((child / "depth.parquet").exists() or (child / "trades.parquet").exists())
+        if child.is_dir()
+        and (
+            (child / "session_manifest.json").exists()
+            or (child / "depth.parquet").exists()
+            or (child / "trades.parquet").exists()
+            or (child / "depth_parts").is_dir()
+            or (child / "trade_parts").is_dir()
+        )
     )
 
 
@@ -352,115 +648,6 @@ def _read_manifest(path: Path) -> dict[str, object]:
             "valid_for_live_decisions": False,
         }
     return dict(json.loads(path.read_text(encoding="utf-8")))
-
-
-def _read_parquet_rows(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-    return [dict(row) for row in pq.read_table(path).to_pylist()]
-
-
-def _events_from_rows(
-    depth_rows: Sequence[Mapping[str, object]],
-    trade_rows: Sequence[Mapping[str, object]],
-) -> tuple[dict[str, object], ...]:
-    events: list[dict[str, object]] = []
-    for row in depth_rows:
-        events.append(
-            {
-                "type": "depth_update",
-                "timestamp": int(row["timestamp"]),
-                "symbol": str(row["symbol"]),
-                "side": str(row["side"]),
-                "price": str(row["price"]),
-                "previous_size": str(row["previous_size"]),
-                "new_size": str(row["new_size"]),
-            },
-        )
-    for row in trade_rows:
-        events.append(
-            {
-                "type": "trade",
-                "timestamp_ns": int(row["timestamp_ns"]),
-                "price": str(row["price"]),
-                "size": str(row["size"]),
-                "aggressor_side": str(row["aggressor_side"]),
-                "instrument": str(row["instrument"]),
-                "sequence_id": int(row["sequence_id"]),
-            },
-        )
-    return tuple(sorted(events, key=_event_timestamp_ns))
-
-
-def _snapshots_from_events(events: Sequence[Mapping[str, object]]) -> tuple[MarketState, ...]:
-    state = MarketState()
-    snapshots: list[MarketState] = []
-    for event in events:
-        state = state.update(event)
-        snapshots.append(state)
-    return tuple(snapshots)
-
-
-def _features_from_snapshots(snapshots: Sequence[MarketState], config: DailyLearningConfig) -> dict[str, Decimal]:
-    if not snapshots:
-        return {
-            "book_imbalance": Decimal("0"),
-            "liquidity_added": Decimal("0"),
-            "liquidity_cancelled": Decimal("0"),
-            "trade_velocity": Decimal("0"),
-            "short_term_volatility": Decimal("0"),
-        }
-    features = compute_market_features(snapshots, bid_reload_threshold=config.reload_threshold)
-    return {
-        "book_imbalance": features.book_imbalance,
-        "liquidity_added": features.liquidity_added,
-        "liquidity_cancelled": features.liquidity_cancelled,
-        "trade_velocity": features.trade_velocity,
-        "short_term_volatility": features.short_term_volatility,
-    }
-
-
-def _price_series(
-    snapshots: Sequence[MarketState],
-    trade_rows: Sequence[Mapping[str, object]],
-) -> tuple[Decimal, ...]:
-    values: list[tuple[int, Decimal]] = []
-    for snapshot in snapshots:
-        if snapshot.mid_price is not None:
-            values.append((snapshot.timestamp_ns, snapshot.mid_price))
-    for row in trade_rows:
-        values.append((int(row["timestamp_ns"]), _decimal(row["price"])))
-    return tuple(value for _timestamp, value in sorted(values, key=lambda item: item[0]))
-
-
-def _side_reload_count(rows: Sequence[Mapping[str, object]], *, side: str, threshold: Decimal) -> int:
-    by_price: dict[Decimal, bool] = {}
-    waiting_for_reload: dict[Decimal, bool] = {}
-    reload_count = 0
-    sorted_rows = sorted(rows, key=lambda row: int(row["timestamp"]))
-    for row in sorted_rows:
-        if str(row.get("side")).lower() != side:
-            continue
-        price = _decimal(row["price"])
-        size = _decimal(row["new_size"])
-        was_at_or_above = by_price.get(price, False)
-        is_at_or_above = size >= threshold
-        if was_at_or_above and not is_at_or_above:
-            waiting_for_reload[price] = True
-        elif waiting_for_reload.get(price, False) and is_at_or_above:
-            reload_count += 1
-            waiting_for_reload[price] = False
-        by_price[price] = is_at_or_above
-    return reload_count
-
-
-def _large_block_count(rows: Sequence[Mapping[str, object]], *, side: str, threshold: Decimal) -> int:
-    prices = {
-        _decimal(row["price"])
-        for row in rows
-        if str(row.get("side")).lower() == side and _decimal(row.get("new_size")) >= threshold
-    }
-    return len(prices)
 
 
 def _price_direction(prices: Sequence[Decimal]) -> str:
@@ -502,34 +689,6 @@ def _dominant_side(
     if dominance < config.cvd_dominance_fraction:
         return "balanced"
     return "buyers" if aggressive_buy > aggressive_sell else "sellers"
-
-
-def _session_notes(
-    manifest: Mapping[str, object],
-    depth_rows: Sequence[Mapping[str, object]],
-    trade_rows: Sequence[Mapping[str, object]],
-    *,
-    price_cvd_aligned: bool,
-    bid_reload_count: int,
-    ask_reload_count: int,
-    dominant_side: str,
-) -> tuple[str, ...]:
-    notes: list[str] = []
-    if str(manifest.get("source_mode", "unknown")) == "delayed":
-        notes.append("delayed data: review only")
-    if not bool(manifest.get("valid_for_analysis", False)):
-        notes.append("not analysis-clean")
-    if not depth_rows:
-        notes.append("no depth data")
-    if not trade_rows:
-        notes.append("no trade prints")
-    if not price_cvd_aligned:
-        notes.append("price/CVD divergence")
-    if bid_reload_count or ask_reload_count:
-        notes.append("reload behavior observed")
-    if dominant_side in {"buyers", "sellers"}:
-        notes.append(f"{dominant_side} controlled tape")
-    return tuple(notes)
 
 
 def _patterns_and_blockers(
@@ -582,24 +741,6 @@ def _consistency_score(sessions: Sequence[SessionLearningSummary]) -> Decimal:
     return score.quantize(Decimal("0.01"))
 
 
-def _event_timestamp_ns(event: Mapping[str, object]) -> int:
-    if "timestamp_ns" in event:
-        return int(event["timestamp_ns"])
-    return int(event["timestamp"])
-
-
-def _min_timestamp(events: Sequence[Mapping[str, object]]) -> int | None:
-    if not events:
-        return None
-    return min(_event_timestamp_ns(event) for event in events)
-
-
-def _max_timestamp(events: Sequence[Mapping[str, object]]) -> int | None:
-    if not events:
-        return None
-    return max(_event_timestamp_ns(event) for event in events)
-
-
 def _session_to_json(session: SessionLearningSummary) -> dict[str, object]:
     return {
         "session_label": session.session_label,
@@ -635,6 +776,13 @@ def _session_to_json(session: SessionLearningSummary) -> dict[str, object]:
         "possible_short_absorption": session.possible_short_absorption,
         "dominant_side": session.dominant_side,
         "notes": list(session.notes),
+        "provenance": session.provenance,
+        "finalized": session.finalized,
+        "data_quality_ok": session.data_quality_ok,
+        "ordering_mode": session.ordering_mode,
+        "same_timestamp_collisions": session.same_timestamp_collisions,
+        "trade_sequence_gaps": session.trade_sequence_gaps,
+        "missed_trade_events": session.missed_trade_events,
     }
 
 

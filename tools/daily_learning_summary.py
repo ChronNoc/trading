@@ -18,6 +18,7 @@ class DailyLearningSummaryConfig:
 
     raw_root: Path = Path("data/raw")
     report_root: Path = Path("data/reports")
+    processed_root: Path = Path("data/processed")
     trading_date: date = datetime.now(UTC).date()
 
 
@@ -26,6 +27,7 @@ def parse_args(argv: Sequence[str] | None = None) -> DailyLearningSummaryConfig:
     parser = argparse.ArgumentParser(description="Write an observe-only daily market learning summary.")
     parser.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     parser.add_argument("--report-root", type=Path, default=Path("data/reports"))
+    parser.add_argument("--processed-root", type=Path, default=Path("data/processed"))
     parser.add_argument(
         "--date",
         dest="trading_date",
@@ -37,6 +39,7 @@ def parse_args(argv: Sequence[str] | None = None) -> DailyLearningSummaryConfig:
     return DailyLearningSummaryConfig(
         raw_root=Path(args.raw_root),
         report_root=Path(args.report_root),
+        processed_root=Path(args.processed_root),
         trading_date=args.trading_date,
     )
 
@@ -49,6 +52,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             config.raw_root,
             config.report_root,
             config.trading_date,
+            processed_root=config.processed_root,
         )
     except Exception as error:
         print(f"Daily learning summary failed: {error}", file=sys.stderr)

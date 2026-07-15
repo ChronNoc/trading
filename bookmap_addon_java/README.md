@@ -15,28 +15,33 @@ credentials.
 
 ## API Version
 
-This project uses the official Bookmap Maven repository:
+Production compilation prefers the API jars from the installed Bookmap build:
 
 ```text
-https://maven.bookmap.com/maven2/releases/
+C:\Program Files\Bookmap\lib\bm-l1api.jar
+C:\Program Files\Bookmap\lib\bm-simplified-api-wrapper.jar
 ```
 
-The Bookmap API artifacts are pinned to `7.6.0.20`, matching the current
-official `BookmapAPI/DemoStrategies` build file inspected for this bridge. This
-intentionally avoids the older `7.1.0.35` API referenced in stale examples.
+The current machine was verified against Bookmap 7.7.0 build 22. If those
+installed jars are unavailable, Gradle falls back to the official Maven API
+artifacts pinned to `7.6.0.20`.
 
-The source includes minimal compile-time stubs for the exact Bookmap interfaces
-and annotations used by this bridge. They mirror the inspected `7.6.0.20`
-signatures and are excluded from the built add-on JAR, because Bookmap provides
-the real API classes when it loads the plugin.
+Production source is not compiled against the handwritten stubs. Bookmap API
+classes are compile-only and excluded from the final add-on JAR because Bookmap
+provides those classes when it loads the plugin.
 
 ## Build
 
 From the repository root:
 
 ```powershell
-.\bookmap_addon_java\gradlew.bat -p .\bookmap_addon_java clean test shadowJar
+$env:JAVA_HOME='C:\path\to\jdk-17'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\bookmap_addon_java\gradlew.bat -p .\bookmap_addon_java --no-daemon clean test shadowJar
 ```
+
+Use a full JDK with `javac`; Bookmap's bundled runtime alone is not sufficient
+to compile the add-on.
 
 The loadable JAR is:
 
@@ -49,7 +54,7 @@ bookmap_addon_java\build\libs\mnq-bookmap-forwarder-all.jar
 In a second terminal, start the local recorder before enabling the add-on:
 
 ```powershell
-python tools\start_receiver.py
+.\.venv\Scripts\python.exe -m tools.start_receiver
 ```
 
 Expected startup text:
@@ -62,11 +67,14 @@ Each Bookmap connection creates a new session folder:
 
 ```text
 data/raw/YYYY-MM-DD/session_<UTC timestamp>/
-  depth.parquet
-  trades.parquet
+  depth_parts/part-*.parquet
+  trade_parts/part-*.parquet
   session_manifest.json
   connection_events.jsonl
 ```
+
+Closed parts are readable while recording. A clean session shutdown also
+creates the compatible `depth.parquet` and `trades.parquet` files.
 
 ## Manual Bookmap Installation
 
@@ -87,7 +95,9 @@ Live data:
 1. Start the Python receiver.
 2. Load the add-on on MNQ.
 3. Confirm `connection_events.jsonl` receives `connected` and `heartbeat`.
-4. Confirm `depth.parquet` and `trades.parquet` receive rows.
+4. Confirm closed files appear under `depth_parts/` and `trade_parts/`.
+5. Stop the Bookmap stream cleanly and confirm `depth.parquet`,
+   `trades.parquet`, and the finalized manifest exist.
 
 Replay data:
 

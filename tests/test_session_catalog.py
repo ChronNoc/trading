@@ -34,6 +34,7 @@ def test_delayed_session_mislabeled_live_is_reclassified_offline_only(tmp_path: 
     assert entry.is_delayed is True
     assert entry.valid_for_live_decisions is False  # never live-ready
     assert entry.eligible_for_analysis is True  # but valid offline
+    assert entry.eligible_for_order_flow_replay is True
 
 
 def test_synthetic_session_excluded_from_real_metrics(tmp_path: Path) -> None:
@@ -82,3 +83,18 @@ def test_build_catalog_and_report_over_a_tree(tmp_path: Path) -> None:
     assert report["synthetic"] == 1
     assert report["eligible_for_analysis"] == 1
     assert report["valid_for_live_decisions"] == 0
+
+
+def test_feed_quality_gap_blocks_strategy_replay_but_remains_catalogued(tmp_path: Path) -> None:
+    manifest = {
+        "source_mode": "delayed", "data_delay_minutes": 15, "synthetic": False,
+        "clean_shutdown": True, "utc_end": "x", "continuity_status": "continuous",
+        "event_counts": {"depth_updates": 100, "trades": 10}, "dropped_message_count": 0,
+        "data_quality": {
+            "malformed_events": 0, "rejected_events": 0, "missed_trade_events": 4,
+        },
+    }
+    entry = classify_manifest(manifest, tmp_path / "m.json")
+    assert entry.eligible_for_analysis is True
+    assert entry.eligible_for_order_flow_replay is False
+    assert any("missing events" in reason for reason in entry.reasons)

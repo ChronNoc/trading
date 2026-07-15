@@ -38,19 +38,20 @@ If you later move to verified real-time data, explicitly pass `--delayed-data-mi
 
 ## Java bridge build
 
-Selected Bookmap API artifacts:
+Production compilation prefers the installed Bookmap 7.7.0 build 22 API jars:
 
 ```text
-com.bookmap.api:api-core:7.6.0.20
-com.bookmap.api:api-simplified:7.6.0.20
+C:\Program Files\Bookmap\lib\bm-l1api.jar
+C:\Program Files\Bookmap\lib\bm-simplified-api-wrapper.jar
 ```
+
+When those jars are absent, Gradle falls back to the official Maven API
+artifacts `api-core:7.6.0.20` and `api-simplified:7.6.0.20`.
 
 Build and test the Java add-on on Windows:
 
 ```powershell
-$env:JAVA_HOME=(Resolve-Path '..\work\jdk-21.0.11+10')
-$workRoot=(Resolve-Path '..\work').Path
-$env:GRADLE_USER_HOME=Join-Path $workRoot 'gradle-home-jdk21'
+$env:JAVA_HOME='C:\path\to\jdk-17'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\bookmap_addon_java\gradlew.bat -p .\bookmap_addon_java --no-daemon clean test shadowJar
 ```
@@ -112,10 +113,10 @@ data/reports/daily_learning/YYYY-MM-DD/daily_learning.json
 data/reports/daily_learning/YYYY-MM-DD/daily_learning.md
 ```
 
-The daily report summarizes consistency across the day's recorded sessions: CVD,
-price/CVD alignment, large blocks, reload behavior, possible absorption candidates,
-recurring patterns, and data-quality blockers. It is not a live model retrain and it
-never makes delayed Bookmap data decision-ready.
+The daily report separates recording/data quality, descriptive market observations
+(CVD, blocks, reloads, and possible absorption), and completed strategy outcomes. The
+observation score is not win rate or profitability. It is not a live model retrain and
+it never makes delayed Bookmap data decision-ready.
 
 Manual daily report command:
 
@@ -148,8 +149,10 @@ Live smoke test:
 4. Confirm the GUI shows Bookmap `connected`, recording `yes`, the exact contract,
    source mode `delayed`, data delay `15 minutes delayed`, and decisions `no`.
 5. Let it run for the intended soak period.
-6. Stop the Bookmap stream and confirm the GUI shows connection lost while the app
-   remains open.
+6. Confirm readable files appear under the session's `depth_parts/` and
+   `trade_parts/` directories while recording.
+7. Stop the Bookmap stream and confirm the GUI shows connection lost while the app
+   remains open, then confirm finalized `depth.parquet` and `trades.parquet` files exist.
 
 Replay smoke test:
 

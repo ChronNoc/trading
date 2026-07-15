@@ -153,6 +153,7 @@ def test_runtime_controller_blocks_duplicates_writes_reports_and_stays_shadow_on
     assert controller.start().state == RuntimeState.WAITING_FOR_BOOKMAP.value
     controller.handle_control_event({"type": "connected", "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30)})
     controller.handle_control_event({"type": "realtime_started", "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30)})
+    controller.handle_control_event({"type": "replay_started", "timestamp_ns": _timestamp_ns(2026, 7, 10, 13, 30)})
     for event in _book_events():
         controller.handle_market_event(event, current_timestamp_ns=_event_timestamp(event))
 
@@ -230,6 +231,15 @@ def test_runtime_delayed_bookmap_mode_records_only_and_blocks_shadow_decisions(t
     assert snapshot.state == RuntimeState.RECORDING_ONLY.value
     assert decision["decision"] == "rejected"
     assert decision["reason"] == ["runtime blocked decisions"]
+
+
+def test_zero_bridge_drops_do_not_create_false_data_gap() -> None:
+    """Heartbeat counters at zero stay healthy and do not pollute daily reports."""
+    controller = AutomaticRuntimeController.from_config("config/session_profiles.yaml")
+    controller.handle_control_event({"type": "connected", "timestamp_ns": 1, "dropped_message_count": 0})
+    controller.handle_control_event({"type": "heartbeat", "timestamp_ns": 2, "dropped_message_count": 0})
+    assert controller.health.dropped_message_count == 0
+    assert not any(event.status == "data_gap" for event in controller.health.events)
 
 
 def test_start_assistant_parses_config_and_batch_uses_local_venv_python() -> None:

@@ -98,7 +98,7 @@ class PaperAccountConfig:
     ticks_per_point: Decimal = MNQ_TICKS_PER_POINT
     max_trades_per_day: int = DEFAULT_MAX_TRADES_PER_DAY
     max_losses_per_day: int = DEFAULT_MAX_LOSSES_PER_DAY
-    daily_loss_fraction: Decimal = Decimal("0.03")
+    daily_loss_fraction: Decimal = Decimal("0.01")
     commission: Decimal = DEFAULT_COMMISSION
     slippage_ticks: Decimal = DEFAULT_SLIPPAGE_TICKS
     max_account_attempts: int = 50
