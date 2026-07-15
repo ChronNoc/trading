@@ -8,12 +8,30 @@ import os
 os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
-from PySide6.QtWidgets import QListWidget, QProgressBar
+from PySide6.QtWidgets import QLabel, QListWidget, QProgressBar, QPushButton
 
+from app.database.recorder import MarketSessionRecorder
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.main_window import MainWindow
+
+
+def _finalized_session(raw_root: Path) -> None:
+    rec = MarketSessionRecorder(root_dir=raw_root, session_start_utc=datetime(2026, 7, 15, 0, 22, tzinfo=UTC))
+    rec.record_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    base = 1_752_537_751_000_000_000
+    price = Decimal("29500.00")
+    for i in range(200):
+        price += Decimal("0.25") if i % 2 == 0 else Decimal("-0.25")
+        rec.record({"type": "depth_update", "timestamp": base + i * 1_000_000, "symbol": "MNQ",
+                    "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
+                    "previous_size": "0", "new_size": str(i % 40 + 1)})
+        rec.record({"timestamp_ns": base + i * 1_000_000 + 1, "price": f"{price:.2f}", "size": "1",
+                    "aggressor_side": "buy" if i % 2 else "sell", "instrument": "MNQ", "sequence_id": i + 1})
+    rec.finalize(clean_shutdown=True)
 
 
 def _window(qtbot: object, tmp_path: Path) -> MainWindow:
@@ -72,3 +90,23 @@ def test_pipeline_reflects_built_sessions_with_zero_completed_setups(qtbot: obje
     completed_line = next(t for t in texts if "6. Completed paper outcomes" in t)
     assert "[BLOCKED]" in completed_line
     assert "durable_defending_block" in completed_line
+
+
+def test_analyze_button_builds_finalized_session_in_background(qtbot: object, tmp_path: Path) -> None:
+    """The Analyze button runs an idempotent background build and refreshes honestly."""
+    _finalized_session(tmp_path / "raw")
+    window = _window(qtbot, tmp_path)
+    button = window.findChild(QPushButton, "analyze_sessions_button")
+    assert button is not None
+
+    window._analyze_finalized_sessions()
+    thread = window._build_thread
+    thread.join(timeout=30)  # deterministic wait for the daemon worker
+    assert not thread.is_alive()
+    window._poll_build_thread(window._build_poll_timer)  # drive the completion path
+
+    status = window.findChild(QLabel, "analyze_status_label")
+    assert status is not None and "Build complete" in status.text()
+    # A build summary was produced for the finalized session (idempotency artifact).
+    assert list((tmp_path / "processed").glob("*.build.json"))
+

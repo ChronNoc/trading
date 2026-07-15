@@ -1562,7 +1562,19 @@ class MainWindow(QMainWindow):
         refresh_button.setObjectName("pipeline_refresh_button")
         refresh_button.clicked.connect(self._refresh_pipeline_and_progress)
         button_row.addWidget(refresh_button)
+        analyze_button = QPushButton("Analyze finalized sessions")
+        analyze_button.setObjectName("analyze_sessions_button")
+        analyze_button.clicked.connect(self._analyze_finalized_sessions)
+        button_row.addWidget(analyze_button)
+        folder_button = QPushButton("Open recording folder")
+        folder_button.setObjectName("open_recording_folder_button")
+        folder_button.clicked.connect(self._open_recording_folder)
+        button_row.addWidget(folder_button)
         layout.addLayout(button_row)
+
+        self._analyze_status = _named_label("analyze_status_label", "")
+        self._analyze_status.setWordWrap(True)
+        layout.addWidget(self._analyze_status)
 
         # STAGE 3: nine-stage pipeline visibility - what stage the user is in.
         pipeline_list = QListWidget()
@@ -1763,6 +1775,77 @@ class MainWindow(QMainWindow):
                 )
             for caveat in progress.caveats:
                 gate_list.addItem(f"Note: {caveat}")
+
+    def _analyze_finalized_sessions(self) -> None:
+        """Build episodes for finalized sessions in the background; keep GUI responsive.
+
+        Idempotent: unchanged session/version pairs are skipped. Never opens an
+        active recording. Polls a daemon worker with a timer, then refreshes the
+        pipeline, meter, and ledger on the GUI thread when the build completes.
+        """
+        from app.research.build_orchestrator import schedule_pending_builds
+
+        status_label = getattr(self, "_analyze_status", None)
+        existing = getattr(self, "_build_thread", None)
+        if existing is not None and existing.is_alive():
+            if status_label is not None:
+                status_label.setText("A build is already running in the background...")
+            return
+        self._build_statuses = None
+
+        def _done(statuses: object) -> None:
+            self._build_statuses = statuses
+
+        labels_root = self._processed_root.parent / "labels"
+        if status_label is not None:
+            status_label.setText("Analyzing finalized sessions in the background (idempotent; active sessions skipped)...")
+        self._build_thread = schedule_pending_builds(
+            self._replay_data_root, self._processed_root, labels_root, done_callback=_done,
+        )
+        poll = QTimer(self)
+        poll.setInterval(750)
+        poll.timeout.connect(lambda: self._poll_build_thread(poll))
+        self._build_poll_timer = poll
+        poll.start()
+
+    def _poll_build_thread(self, poll: QTimer) -> None:
+        thread = getattr(self, "_build_thread", None)
+        if thread is not None and thread.is_alive():
+            return
+        poll.stop()
+        statuses = getattr(self, "_build_statuses", None) or []
+        built = sum(1 for s in statuses if getattr(s, "outcome", "") == "built")
+        skipped = sum(1 for s in statuses if str(getattr(s, "outcome", "")).startswith("skipped"))
+        failed = sum(1 for s in statuses if getattr(s, "outcome", "") == "failed")
+        status_label = getattr(self, "_analyze_status", None)
+        if status_label is not None:
+            status_label.setText(
+                f"Build complete: {built} built, {skipped} skipped (up-to-date/active), {failed} failed.",
+            )
+        self._refresh_pipeline_and_progress()
+        self._run_paper_simulation()
+
+    def _open_recording_folder(self) -> None:
+        """Open the raw recording folder in the OS file browser (read-only action)."""
+        import subprocess
+        import sys
+
+        path = self._replay_data_root
+        status_label = getattr(self, "_analyze_status", None)
+        if not path.exists():
+            if status_label is not None:
+                status_label.setText(f"Recording folder does not exist yet: {path}")
+            return
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", str(path)])  # noqa: S603,S607 - open a folder, no shell
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(path)])  # noqa: S603,S607
+            else:
+                subprocess.Popen(["xdg-open", str(path)])  # noqa: S603,S607
+        except OSError as exc:  # pragma: no cover - environment dependent
+            if status_label is not None:
+                status_label.setText(f"Could not open folder: {exc}")
 
     def _build_ask_tab(self) -> QWidget:
         tab = QWidget()
