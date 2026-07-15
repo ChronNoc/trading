@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSizePolicy,
     QSlider,
@@ -63,6 +64,8 @@ from app.market.receiver import get_current_market_state
 from app.market.state import MarketState
 from app.prototype.scenarios import PrototypeDashboardSnapshot, empty_prototype_dashboard_snapshot
 from app.research.paper_ledger import real_paper_summary, run_real_paper_ledger
+from app.research.pipeline_status import PipelineInputs, compute_pipeline, load_build_aggregate
+from app.research.profitability_progress import compute_progress
 from app.research.real_episodes import load_completed_real_outcomes
 from app.risk.limits import EntryLimitState
 from app.runtime.controller import RuntimeSnapshot
@@ -1550,10 +1553,45 @@ class MainWindow(QMainWindow):
         intro.setStyleSheet(BANNER_STYLE)
         layout.addWidget(intro)
 
+        button_row = QHBoxLayout()
         run_button = QPushButton("Load real paper ledger")
         run_button.setObjectName("paper_run_button")
         run_button.clicked.connect(self._run_paper_simulation)
-        layout.addWidget(run_button)
+        button_row.addWidget(run_button)
+        refresh_button = QPushButton("Refresh pipeline & progress")
+        refresh_button.setObjectName("pipeline_refresh_button")
+        refresh_button.clicked.connect(self._refresh_pipeline_and_progress)
+        button_row.addWidget(refresh_button)
+        layout.addLayout(button_row)
+
+        # STAGE 3: nine-stage pipeline visibility - what stage the user is in.
+        pipeline_list = QListWidget()
+        pipeline_list.setObjectName("pipeline_stage_list")
+        pipeline_list.setMaximumHeight(210)
+        layout.addWidget(_group("Pipeline progress (receiver -> validation -> locked demo/live)", pipeline_list))
+        self._pipeline_list = pipeline_list
+
+        # Profitability progress meter (honest evidence ladder).
+        meter_box = QWidget()
+        meter_layout = QVBoxLayout(meter_box)
+        meter_layout.setContentsMargins(0, 0, 0, 0)
+        meter_headline = _named_label("profitability_meter_headline", "Not computed yet - click Refresh.")
+        meter_headline.setWordWrap(True)
+        meter_layout.addWidget(meter_headline)
+        meter_bar = QProgressBar()
+        meter_bar.setObjectName("profitability_meter_bar")
+        meter_bar.setRange(0, 100)
+        meter_bar.setValue(0)
+        meter_bar.setFormat("Evidence toward profitability: %p%")
+        meter_layout.addWidget(meter_bar)
+        gate_list = QListWidget()
+        gate_list.setObjectName("profitability_gate_list")
+        gate_list.setMaximumHeight(220)
+        meter_layout.addWidget(gate_list)
+        layout.addWidget(_group("How close to profitable (real evidence only)", meter_box))
+        self._profitability_headline = meter_headline
+        self._profitability_bar = meter_bar
+        self._profitability_gate_list = gate_list
 
         progress = QListWidget()
         progress.setObjectName("paper_progress_list")
@@ -1639,6 +1677,92 @@ class MainWindow(QMainWindow):
                 item = _read_only_item(value)
                 item.setForeground(QColor(74, 222, 128) if trade.won else QColor(248, 113, 113))
                 table.setItem(row, column, item)
+
+    def _pipeline_runtime_flags(self) -> tuple[bool, bool, bool, bool, int]:
+        """Return (receiver_listening, connected, recording, data_stale, current-session drops).
+
+        Derived only from the live runtime snapshot; when the assistant is not
+        running, everything is False/0 so no stage is falsely shown as active.
+        """
+        runtime = self._current_runtime_snapshot() if self._runtime_snapshot_provider is not None else None
+        if runtime is None:
+            return (False, False, False, True, 0)
+        listening = True  # the runtime controller only exists while the assistant is running
+        connected = runtime.bookmap_status == "connected"
+        recording = bool(runtime.recording)
+        stale = runtime.data_age_ms is None or runtime.data_age_ms > 5_000
+        drops = int(getattr(runtime, "current_session_dropped_message_count", 0))
+        return (listening, connected, recording, stale, drops)
+
+    def _refresh_pipeline_and_progress(self) -> None:
+        """Recompute the pipeline stages and profitability meter from real data.
+
+        Builds the session catalog once and feeds both the nine-stage pipeline
+        panel and the evidence-ladder meter. Reads only finalized sessions and
+        persisted build summaries; never opens an active recording.
+        """
+        from app.research.session_catalog import build_catalog
+
+        pipeline_list = getattr(self, "_pipeline_list", None)
+        bar = getattr(self, "_profitability_bar", None)
+        if pipeline_list is None or bar is None:
+            return
+
+        catalog = build_catalog(self._replay_data_root)
+        outcomes = load_completed_real_outcomes(self._processed_root)
+        ledger = run_real_paper_ledger(outcomes) if outcomes else None
+        progress = compute_progress(catalog, outcomes, ledger)
+        aggregate = load_build_aggregate(self._processed_root)
+        finalized = [e for e in catalog if e.finalized and not e.active]
+        eligible = [e for e in finalized if e.eligible_for_order_flow_replay]
+        listening, connected, recording, stale, drops = self._pipeline_runtime_flags()
+        pipeline = compute_pipeline(
+            PipelineInputs(
+                receiver_listening=listening,
+                bookmap_connected=connected,
+                recording=recording,
+                data_stale=stale,
+                current_session_drops=drops,
+                finalized_sessions=len(finalized),
+                eligible_sessions=len(eligible),
+                sessions_built=aggregate.sessions_built,
+                evaluations=aggregate.evaluations,
+                accepted_setups=aggregate.accepted_setups,
+                completed_outcomes=aggregate.completed_outcomes,
+                excluded_by_reason=aggregate.excluded_by_reason,
+                sessions_failing_continuity=aggregate.sessions_failing_continuity,
+                validation_passed=progress.profitable_claim_supported,
+                validation_stage_label=progress.stage_label,
+            ),
+        )
+
+        pipeline_list.clear()
+        for stage in pipeline.stages:
+            text = f"[{stage.status.upper()}] {stage.label}"
+            if stage.blocker:
+                text += f" - blocker: {stage.blocker}"
+            text += f" | next: {stage.next_action}"
+            if stage.detail:
+                text += f" ({stage.detail})"
+            pipeline_list.addItem(_pipeline_item(text, stage.status))
+
+        bar.setValue(progress.percent)
+        headline = getattr(self, "_profitability_headline", None)
+        if headline is not None:
+            headline.setText(f"{progress.stage_label} - {progress.headline}")
+        gate_list = getattr(self, "_profitability_gate_list", None)
+        if gate_list is not None:
+            gate_list.clear()
+            for gate in progress.gates:
+                gate_list.addItem(
+                    _pipeline_item(
+                        f"[{gate.status.upper()}] {gate.label} - {gate.observed} "
+                        f"(need {gate.threshold}); next: {gate.next_action}",
+                        gate.status,
+                    ),
+                )
+            for caveat in progress.caveats:
+                gate_list.addItem(f"Note: {caveat}")
 
     def _build_ask_tab(self) -> QWidget:
         tab = QWidget()
@@ -2086,6 +2210,28 @@ def _named_label(object_name: str, text: str) -> QLabel:
     label = QLabel(text)
     label.setObjectName(object_name)
     return label
+
+
+_STATUS_COLORS = {
+    "ready": QColor(74, 222, 128),
+    "running": QColor(74, 222, 128),
+    "passed": QColor(74, 222, 128),
+    "blocked": QColor(250, 204, 21),
+    "insufficient_evidence": QColor(148, 163, 184),
+    "in_progress": QColor(250, 204, 21),
+    "failed": QColor(248, 113, 113),
+    "not_started": QColor(148, 163, 184),
+    "locked": QColor(148, 163, 184),
+}
+
+
+def _pipeline_item(text: str, status: str) -> QListWidgetItem:
+    """Return a colour-coded list item for a pipeline stage or evidence gate."""
+    item = QListWidgetItem(text)
+    color = _STATUS_COLORS.get(status)
+    if color is not None:
+        item.setForeground(color)
+    return item
 
 
 def _line_edit(text: str) -> QLineEdit:
