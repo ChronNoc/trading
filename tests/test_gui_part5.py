@@ -424,8 +424,11 @@ def test_paper_trading_tab_runs_simulation_from_discovery(qtbot: object, tmp_pat
     button.click()
 
     progress_text = " ".join(progress.item(i).text() for i in range(progress.count()))
-    assert "Consistency score" in progress_text
-    assert "Win rate" in progress_text
+    # Honest single-account view: labeled synthetic, no reset-based score.
+    assert "SYNTHETIC DEMO - NOT REAL PERFORMANCE" in progress_text
+    assert "Win rate (of this stream)" in progress_text
+    assert "Net P&L" in progress_text
+    assert "Consistency score" not in progress_text
     assert table.rowCount() > 0
     assert table.columnCount() == 6
     # Balance column present and money-formatted.

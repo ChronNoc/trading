@@ -1,15 +1,19 @@
 """Paper-trading account simulator using the mentor's risk rules.
 
-Starts a $100k simulated account, sizes each trade by the risk engine,
-enforces the mentor's rules (10-point stop, targets in R, max 3 trades
-and 3 losses per day, 1% daily-risk lock), and tracks every simulated
-win/loss. When an account is blown, a fresh $100k account opens; the run
-continues until an account survives the trade sequence profitably or the
-attempt cap is reached.
+Honest default: ``run_single_account`` runs ONE fixed $100k account through
+the whole chronological sequence with NO resets, sizing each trade by the
+risk engine and enforcing the mentor's rules (10-point stop, max 3 trades
+and 3 losses per day, 1% daily-risk lock). A blown account stops trading
+and the loss stands - it is never hidden behind a fresh account.
+
+``run_paper_accounts`` (reset a fresh $100k until one survives profitably)
+is survivorship: it can manufacture a "profitable" verdict from a
+zero-edge stream. It must only be used for explicitly labeled
+sensitivity/Monte-Carlo analysis, never as a headline performance result.
 
 SIMULATION ONLY. All money math is Decimal. The trade outcomes fed in are
-whatever the caller supplies - synthetic discovery episodes today, real
-Stage-C setups later. This never places an order.
+whatever the caller supplies - SYNTHETIC discovery episodes today (not real
+performance), real Stage-C setups later. This never places an order.
 """
 
 from __future__ import annotations
@@ -267,4 +271,59 @@ def run_paper_accounts(
         profitable=profitable,
         attempts_until_profit=attempts_until_profit,
         starting_balance=settings.starting_balance,
+    )
+
+
+def run_single_account(
+    trades: Sequence[TradeResult],
+    config: PaperAccountConfig | None = None,
+) -> AccountResult:
+    """Run ONE fixed $100k account through the whole chronological sequence.
+
+    No resets. If the account is blown it stops trading and the loss stands;
+    the blowup is retained in the result, never hidden behind a fresh account.
+    This is the honest performance view. ``run_paper_accounts`` (reset until
+    profitable) is survivorship and must only be used for explicitly labeled
+    sensitivity/Monte-Carlo analysis, never as a headline result.
+    """
+    settings = config or PaperAccountConfig()
+    account, _consumed = _simulate_one_account(1, trades, settings)
+    return account
+
+
+def single_account_summary(account: AccountResult, *, synthetic: bool) -> tuple[str, ...]:
+    """Honest single-account summary lines for display.
+
+    Never claims real performance from synthetic data: when ``synthetic`` is
+    true the first line is an unmissable warning, and every metric is framed
+    as describing the synthetic demo stream, not a market edge.
+    """
+    r_values = [trade.r_multiple for trade in account.trades]
+    expectancy = (
+        (sum(r_values, Decimal("0")) / Decimal(len(r_values))).quantize(Decimal("0.0001"))
+        if r_values
+        else Decimal("0")
+    )
+    max_loss_streak = 0
+    streak = 0
+    for trade in account.trades:
+        streak = streak + 1 if not trade.won else 0
+        max_loss_streak = max(max_loss_streak, streak)
+    result = "BLEW UP (stopped trading, loss stands)" if account.blew_up else "survived the sequence"
+    header = (
+        "SYNTHETIC DEMO - NOT REAL PERFORMANCE. These numbers describe a "
+        "synthetic order-flow stream, not a market edge."
+        if synthetic
+        else "Single fixed account, no resets, complete ledger."
+    )
+    return (
+        header,
+        f"Result: {result}",
+        f"Trades taken: {len(account.trades)}",
+        f"Win rate (of this stream): {account.win_rate}",
+        f"Expectancy (of this stream): {expectancy} R/trade",
+        f"Longest loss streak: {max_loss_streak}",
+        f"Starting balance: ${account.starting_balance}",
+        f"Ending balance: ${account.ending_balance.quantize(Decimal('0.01'))}",
+        f"Net P&L: ${account.net_pnl.quantize(Decimal('0.01'))}",
     )

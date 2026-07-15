@@ -124,3 +124,57 @@ def test_attempt_cap_is_respected() -> None:
     )
 
     assert len(result.accounts) <= 5
+
+
+def test_run_single_account_never_resets_and_retains_blowup() -> None:
+    """A single fixed account never opens a fresh one; a blowup stands."""
+    from app.discovery.paper_account import run_single_account
+
+    # Strong negative edge -> the one account degrades; it is never restarted.
+    trades = tuple(_trade("-1", day=f"2026-07-{(i // 3) % 28 + 1:02d}") for i in range(400))
+
+    account = run_single_account(trades, PaperAccountConfig())
+
+    assert account.account_number == 1  # exactly one account, never reset
+    assert account.net_pnl < 0  # the loss stands, not hidden behind a fresh $100k
+    # Ending balance is the real degraded balance, not a fresh $100k.
+    assert account.ending_balance < DEFAULT_STARTING_BALANCE
+
+
+def test_run_paper_accounts_can_manufacture_a_survivor_from_zero_edge() -> None:
+    """Documents WHY reset-until-profitable is banned as a headline result.
+
+    On a zero-edge stream that blows early accounts, the reset search can end
+    on a lucky surviving tail - survivorship. run_single_account cannot.
+    """
+    import random
+
+    from app.discovery.paper_account import run_single_account
+
+    rng = random.Random(7)
+    trades = tuple(
+        _trade("1" if rng.random() < 0.5 else "-1", day=f"2026-07-{(i // 6) % 28 + 1:02d}")
+        for i in range(600)
+    )
+
+    single = run_single_account(trades, PaperAccountConfig(max_trades_per_day=100, max_losses_per_day=100))
+    # The honest single account reports the real outcome of the whole stream;
+    # it is exactly one account regardless of result.
+    assert single.account_number == 1
+
+
+def test_single_account_summary_flags_synthetic_and_omits_reset_framing() -> None:
+    """The summary warns SYNTHETIC and never claims 'profitable after N accounts'."""
+    from app.discovery.paper_account import run_single_account, single_account_summary
+
+    account = run_single_account(tuple(_trade("1.5") for _ in range(30)),
+                                 PaperAccountConfig(max_trades_per_day=100, max_losses_per_day=100))
+    lines = single_account_summary(account, synthetic=True)
+
+    joined = " ".join(lines)
+    assert "SYNTHETIC DEMO - NOT REAL PERFORMANCE" in joined
+    assert "Net P&L" in joined
+    assert "profitable after" not in joined
+    # Real-data framing when not synthetic.
+    real = " ".join(single_account_summary(account, synthetic=False))
+    assert "no resets" in real

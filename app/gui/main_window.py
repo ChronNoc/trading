@@ -47,9 +47,8 @@ from app.agents.narrator import narrate_decision
 from app.agents.records import DecisionRecord, canonical_condition_name, parse_explanation_lines
 from app.agents.session_reviewer import write_review
 from app.agents.watchdog import SEVERITY_OK, SEVERITY_WARNING, Watchdog, WatchdogReport
-from app.discovery.consistency import score_run
 from app.discovery.metrics import TradeResult
-from app.discovery.paper_account import PaperAccountConfig, run_paper_accounts
+from app.discovery.paper_account import PaperAccountConfig, run_single_account, single_account_summary
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.automations import AUTOMATION_DEFINITIONS, AutomationEngine
 from app.gui.price_chart import PriceChartWidget
@@ -1536,10 +1535,13 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(tab)
 
         intro = QLabel(
-            "$100,000 paper account using your mentor's rules (10-point stop, "
-            "max 3 trades / 3 losses per day). Each blown account opens a fresh "
-            "$100k until a run is profitable. SIMULATION on discovery data - "
-            "synthetic until Stage C fills in real setups. No real orders.",
+            "SYNTHETIC DEMO - NOT REAL PERFORMANCE. One fixed $100,000 paper "
+            "account, mentor's rules (10-point stop, max 3 trades / 3 losses "
+            "per day), NO resets: a blown account stops and the loss stands. "
+            "The trade stream is reconstructed from discovery candidates that "
+            "run on SYNTHETIC episodes - these numbers describe a synthetic "
+            "stream, not a market edge, until real Stage-C data exists. "
+            "No real orders.",
         )
         intro.setWordWrap(True)
         intro.setStyleSheet(BANNER_STYLE)
@@ -1609,7 +1611,12 @@ class MainWindow(QMainWindow):
         return tuple(trades)
 
     def _run_paper_simulation(self) -> None:
-        """Run the $100k reset simulation and render trades + progress."""
+        """Run ONE fixed $100k account (no resets) and render the honest ledger.
+
+        The trade stream currently comes from synthetic discovery data, so the
+        summary is labeled a synthetic demo, never real performance. No
+        reset-until-profitable survivorship.
+        """
         progress = getattr(self, "_paper_progress", None)
         table = getattr(self, "_paper_table", None)
         if progress is None or table is None:
@@ -1621,14 +1628,14 @@ class MainWindow(QMainWindow):
             progress.addItem("No discovery candidates yet - run: python -m tools.run_discovery")
             return
 
-        result = run_paper_accounts(trades, PaperAccountConfig())
-        report = score_run(result)
-        for line in report.summary_lines():
+        account = run_single_account(trades, PaperAccountConfig())
+        # Trades are reconstructed from discovery candidates, which run on
+        # synthetic episodes until real Stage-C data exists.
+        for line in single_account_summary(account, synthetic=True):
             progress.addItem(line)
 
-        all_trades = result.all_trades()
-        table.setRowCount(len(all_trades))
-        for row, trade in enumerate(all_trades):
+        table.setRowCount(len(account.trades))
+        for row, trade in enumerate(account.trades):
             cells = [
                 str(trade.account_number),
                 trade.trade_date,
