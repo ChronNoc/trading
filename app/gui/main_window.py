@@ -928,7 +928,10 @@ class MainWindow(QMainWindow):
         ):
             button = QPushButton(label)
             button.setObjectName(object_name)
-            button.setToolTip("Placeholder control; no broker action is wired yet.")
+            # No broker path exists in this build; these controls must not look
+            # operational (Phase 8). Disabled until a reviewed execution module.
+            button.setEnabled(False)
+            button.setToolTip("Disabled: no broker connection in this build (OBSERVE/SHADOW only).")
             button_layout.addWidget(button)
         button_layout.addStretch(1)
         layout.addWidget(buttons)
@@ -1630,7 +1633,7 @@ class MainWindow(QMainWindow):
                 str(trade.account_number),
                 trade.trade_date,
                 str(trade.contracts),
-                str(trade.r_multiple),
+                str(trade.r_multiple.quantize(Decimal("0.01"))),
                 _format_money(trade.pnl),
                 _format_money(trade.balance_after),
             ]

@@ -514,3 +514,50 @@ def test_session_review_without_decisions_explains_instead_of_writing(
     assert review_text is not None
     assert "No decisions recorded yet" in review_text.toPlainText()
     assert not list(tmp_path.rglob("*.md"))
+
+
+def test_order_management_controls_disabled_without_broker(window: MainWindow) -> None:
+    """Flatten/Cancel-all/Disable-automation must not look operational (no broker path)."""
+    from PySide6.QtWidgets import QPushButton
+
+    for object_name in ("flatten_button", "cancel_all_button", "disable_automation_button"):
+        button = window.findChild(QPushButton, object_name)
+        assert button is not None
+        assert button.isEnabled() is False
+
+
+def test_paper_trading_r_column_is_rounded(qtbot: object, tmp_path: Path) -> None:
+    """The paper-trading R column shows a rounded value, not a 20-digit Decimal."""
+    import json as _json
+
+    from PySide6.QtWidgets import QPushButton, QTableWidget
+
+    from app.discovery.supervisor import ModeSupervisor
+
+    discovery_root = tmp_path / "discovery"
+    discovery_root.mkdir()
+    entry = {
+        "parameters": "reload=2|volume=450|pull=0.55|target=2.0|stop=1.0",
+        "accepted": True,
+        "rejection_reasons": [],
+        "composite": "1.5000",
+        "win_rate": "0.6000",
+        "profit_factor": "2.1000",
+        "max_drawdown_r": "3.0000",
+        "sortino": "1.2000",
+        "expectancy_r": "0.4500",
+        "trade_count": 40,
+        "regime_expectancy": {"trending/high_vol": "0.6"},
+    }
+    (discovery_root / "candidates.jsonl").write_text(_json.dumps(entry) + "\n", encoding="utf-8")
+
+    win = MainWindow(discovery_root=discovery_root, mode_supervisor=ModeSupervisor(tmp_path / "prod.yaml"))
+    qtbot.addWidget(win)
+    win.findChild(QPushButton, "paper_run_button").click()
+
+    table = win.findChild(QTableWidget, "paper_trades_table")
+    assert table is not None and table.rowCount() > 0
+    for row in range(table.rowCount()):
+        r_text = table.item(row, 3).text()
+        # At most two decimal places; no runaway precision.
+        assert len(r_text.split(".")[-1]) <= 2 if "." in r_text else True
