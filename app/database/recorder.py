@@ -111,6 +111,11 @@ class MarketSessionRecorder:
     addon_version: str | None = field(init=False, default=None)
     source_mode: str = field(init=False, default="unknown")
     data_delay_minutes: int | None = field(init=False, default=None)
+    # Feed entitlement, separate from Bookmap playback phase. Once the feed is
+    # known delayed it stays delayed for the whole session: replay_started /
+    # realtime_started / connected / heartbeat are PLAYBACK phases and never
+    # remove the user's 15-minute entitlement delay.
+    is_delayed: bool = field(init=False, default=False)
     synthetic: bool = field(init=False, default=False)
     seed: int | None = field(init=False, default=None)
     scenario_version: str | None = field(init=False, default=None)
@@ -264,22 +269,28 @@ class MarketSessionRecorder:
         self.addon_version = str(event.get("addon_version", self.addon_version or "")) or self.addon_version
         if "dropped_message_count" in event:
             self.dropped_message_count = max(self.dropped_message_count, int(event["dropped_message_count"]))
-        if event_type in {"replay_started", "historical_mode"}:
+        if event_type in {"replay_started", "historical_mode"} and not self.is_delayed:
             self.source_mode = "replay"
         elif event_type == "prototype_mode":
             self.source_mode = "prototype"
             self.synthetic = True
         elif event_type == "delayed_mode":
             self.source_mode = "delayed"
+            self.is_delayed = True
             self.data_delay_minutes = _optional_int(event.get("delay_minutes"))
         elif event_type == "realtime_started":
-            if self.source_mode not in {"prototype", "delayed"}:
+            # Playback reached the current edge of the supplied stream; this is
+            # NOT proof of a real-time entitlement. Never relabel a delayed feed
+            # as live.
+            if self.source_mode not in {"prototype", "delayed"} and not self.is_delayed:
                 self.source_mode = "live"
         elif event_type in {"connected", "heartbeat"} and event.get("source_mode"):
-            if self.source_mode != "delayed":
+            if not self.is_delayed and self.source_mode != "delayed":
                 self.source_mode = _normalize_source_mode(str(event["source_mode"]))
         if "delay_minutes" in event:
             self.data_delay_minutes = _optional_int(event.get("delay_minutes"))
+            if (self.data_delay_minutes or 0) > 0:
+                self.is_delayed = True
         if "synthetic" in event:
             self.synthetic = bool(event["synthetic"])
         if "seed" in event:
@@ -323,9 +334,15 @@ class MarketSessionRecorder:
             "dropped_message_count": self.dropped_message_count,
             "continuity_status": self.continuity_status,
             "clean_shutdown": self.clean_shutdown,
+            "is_delayed": self.is_delayed,
+            "provenance": _provenance(self.synthetic, self.is_delayed, self.source_mode),
             "valid_for_analysis": valid_for_analysis,
             "valid_for_real_training": False if self.synthetic else valid_for_analysis,
-            "valid_for_live_decisions": self.source_mode == "live" and valid_for_analysis,
+            # A delayed entitlement can never authorize live decisions, no matter
+            # what playback phase Bookmap reached.
+            "valid_for_live_decisions": (
+                self.source_mode == "live" and not self.is_delayed and valid_for_analysis
+            ),
             "analysis_scope": _analysis_scope(self.source_mode, self.synthetic),
         }
 
@@ -404,6 +421,29 @@ def _analysis_scope(source_mode: str, synthetic: bool) -> str:
     if source_mode == "delayed":
         return "delayed_market_data"
     return "real_or_replay"
+
+
+# Provenance values used throughout research: real delayed data is valid for
+# offline analysis but never for live decisions; synthetic never enters real
+# performance metrics.
+PROVENANCE_SYNTHETIC = "SYNTHETIC"
+PROVENANCE_REAL_DELAYED = "REAL_DELAYED"
+PROVENANCE_REAL_REPLAY = "REAL_REPLAY"
+PROVENANCE_REAL_REALTIME = "REAL_REALTIME"
+PROVENANCE_UNKNOWN = "UNKNOWN"
+
+
+def _provenance(synthetic: bool, is_delayed: bool, source_mode: str) -> str:
+    """Classify a session's provenance from entitlement and origin."""
+    if synthetic:
+        return PROVENANCE_SYNTHETIC
+    if is_delayed:
+        return PROVENANCE_REAL_DELAYED
+    if source_mode in {"replay", "historical"}:
+        return PROVENANCE_REAL_REPLAY
+    if source_mode == "live":
+        return PROVENANCE_REAL_REALTIME
+    return PROVENANCE_UNKNOWN
 
 
 def _depth_row(event: Mapping[str, object]) -> dict[str, object]:

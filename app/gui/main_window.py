@@ -49,6 +49,7 @@ from app.agents.session_reviewer import write_review
 from app.agents.watchdog import SEVERITY_OK, SEVERITY_WARNING, Watchdog, WatchdogReport
 from app.discovery.metrics import TradeResult
 from app.discovery.paper_account import PaperAccountConfig, run_single_account, single_account_summary
+from app.research.real_episodes import CompletedRealOutcome, load_completed_real_outcomes
 from app.discovery.supervisor import ModeSupervisor
 from app.gui.automations import AUTOMATION_DEFINITIONS, AutomationEngine
 from app.gui.price_chart import PriceChartWidget
@@ -212,6 +213,7 @@ class MainWindow(QMainWindow):
         review_output_root: str | Path = Path("data/prototype/reports"),
         automation_output_root: str | Path = Path("data/prototype"),
         discovery_root: str | Path = Path("data/discovery"),
+        processed_root: str | Path = Path("data/processed"),
         mode_supervisor: ModeSupervisor | None = None,
         stall_clock: Callable[[], float] | None = None,
         stall_after_seconds: float = 20.0,
@@ -241,6 +243,7 @@ class MainWindow(QMainWindow):
         self._last_live_price_change_ts: float | None = None
         self._automation_engine = AutomationEngine(output_root=Path(automation_output_root))
         self._discovery_root = Path(discovery_root)
+        self._processed_root = Path(processed_root)
         self._mode_supervisor = mode_supervisor or ModeSupervisor()
         self.setStyleSheet(APP_STYLESHEET)
 
@@ -1535,118 +1538,96 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(tab)
 
         intro = QLabel(
-            "SYNTHETIC DEMO - NOT REAL PERFORMANCE. One fixed $100,000 paper "
-            "account, mentor's rules (10-point stop, max 3 trades / 3 losses "
-            "per day), NO resets: a blown account stops and the loss stands. "
-            "The trade stream is reconstructed from discovery candidates that "
-            "run on SYNTHETIC episodes - these numbers describe a synthetic "
-            "stream, not a market edge, until real Stage-C data exists. "
-            "No real orders.",
+            "REAL delayed Bookmap data, offline replay. One fixed $100,000 "
+            "paper account (10-point stop, max 3 trades / 3 losses per day, "
+            "1% daily-risk sizing), NO resets: a blown account stops and the "
+            "loss stands. Every row traces to a real recorded session and a "
+            "detected setup - completed real outcomes only. Delayed data is "
+            "valid for offline research; it is never live-decision-ready and "
+            "no real orders are placed. If no eligible real setup has "
+            "completed, the ledger is empty and makes no performance claim.",
         )
         intro.setWordWrap(True)
         intro.setStyleSheet(BANNER_STYLE)
         layout.addWidget(intro)
 
-        run_button = QPushButton("Run paper simulation")
+        run_button = QPushButton("Load real paper ledger")
         run_button.setObjectName("paper_run_button")
         run_button.clicked.connect(self._run_paper_simulation)
         layout.addWidget(run_button)
 
         progress = QListWidget()
         progress.setObjectName("paper_progress_list")
-        progress.setMaximumHeight(200)
-        layout.addWidget(_group("Consistency progress", progress))
+        progress.setMaximumHeight(220)
+        layout.addWidget(_group("Ledger summary (real outcomes only)", progress))
 
-        table = QTableWidget(0, 6)
+        table = QTableWidget(0, 7)
         table.setObjectName("paper_trades_table")
-        table.setHorizontalHeaderLabels(["Account", "Date", "Contracts", "R", "P&L", "Balance"])
+        table.setHorizontalHeaderLabels(
+            ["Source session", "Trading day", "Direction", "Entry / Stop / Target", "Contracts", "R", "Balance"],
+        )
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(_group("Simulated trades (green win / red loss)", table))
+        layout.addWidget(_group("Real completed setups (green win / red loss)", table))
         self._paper_progress = progress
         self._paper_table = table
         return tab
 
-    def _load_discovery_trades(self) -> tuple[TradeResult, ...]:
-        """Build a trade sequence from the discovery candidates log, if any.
-
-        Uses the top-ranked candidate's per-regime expectancy to synthesize a
-        representative outcome stream. This is discovery/synthetic data until
-        real Stage-C setups replace it.
-        """
-        path = self._discovery_root / "candidates.jsonl"
-        if not path.is_file():
-            return ()
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not lines:
-            return ()
-        top = json.loads(lines[0])
-        trade_count = int(top.get("trade_count", 0) or 0)
-        expectancy = Decimal(str(top.get("expectancy_r", "0") or "0"))
-        win_rate = Decimal(str(top.get("win_rate", "0") or "0"))
-        if trade_count <= 0:
-            return ()
-        # Reconstruct a deterministic win/loss stream matching the reported
-        # win rate and expectancy: wins of +w, losses of -1R.
-        wins = int((win_rate * Decimal(trade_count)).to_integral_value())
-        losses = trade_count - wins
-        # Solve win payoff so mean == expectancy: (wins*w - losses) / n = E.
-        win_payoff = (
-            (expectancy * Decimal(trade_count) + Decimal(losses)) / Decimal(wins)
-            if wins
-            else Decimal("0")
-        )
-        trades: list[TradeResult] = []
-        for index in range(trade_count):
-            is_win = index % trade_count < wins
-            day = f"2026-07-{(index // 6) % 28 + 1:02d}"
-            trades.append(
-                TradeResult(
-                    r_multiple=win_payoff if is_win else Decimal("-1"),
-                    session="new_york_open",
-                    regime_tag="trending/high_vol",
-                    trade_date=day,
-                ),
-            )
-        return tuple(trades)
+    
 
     def _run_paper_simulation(self) -> None:
-        """Run ONE fixed $100k account (no resets) and render the honest ledger.
+        """Show the fixed $100k ledger from REAL completed Bookmap outcomes only.
 
-        The trade stream currently comes from synthetic discovery data, so the
-        summary is labeled a synthetic demo, never real performance. No
-        reset-until-profitable survivorship.
+        No synthetic reconstruction, no hardcoded dates: every row traces to a
+        real recorded session. If no eligible real outcome has completed, the
+        tab shows an honest empty state and makes no performance claim.
         """
         progress = getattr(self, "_paper_progress", None)
         table = getattr(self, "_paper_table", None)
         if progress is None or table is None:
             return
-        trades = self._load_discovery_trades()
+        outcomes = load_completed_real_outcomes(self._processed_root)
         progress.clear()
         table.setRowCount(0)
-        if not trades:
-            progress.addItem("No discovery candidates yet - run: python -m tools.run_discovery")
+        if not outcomes:
+            progress.addItem("No eligible real Bookmap setup outcomes yet.")
+            progress.addItem(
+                "Record delayed sessions and build episodes "
+                "(python -m tools.build_real_episodes) - then completed real "
+                "setups appear here. No win rate, expectancy, or profitability "
+                "is shown until real outcomes exist.",
+            )
             return
 
+        # One fixed $100k account over the real outcomes in chronological order.
+        ordered = sorted(outcomes, key=lambda o: o.decision_ts_ns)
+        trades = tuple(
+            TradeResult(
+                r_multiple=o.r_multiple,
+                session=o.session_id,
+                regime_tag=o.provenance,
+                trade_date=o.trading_day,
+            )
+            for o in ordered
+        )
         account = run_single_account(trades, PaperAccountConfig())
-        # Trades are reconstructed from discovery candidates, which run on
-        # synthetic episodes until real Stage-C data exists.
-        for line in single_account_summary(account, synthetic=True):
+        for line in single_account_summary(account, synthetic=False):
             progress.addItem(line)
 
         table.setRowCount(len(account.trades))
-        for row, trade in enumerate(account.trades):
+        for row, (sim, outcome) in enumerate(zip(account.trades, ordered, strict=False)):
             cells = [
-                str(trade.account_number),
-                trade.trade_date,
-                str(trade.contracts),
-                str(trade.r_multiple.quantize(Decimal("0.01"))),
-                _format_money(trade.pnl),
-                _format_money(trade.balance_after),
+                outcome.session_id,
+                outcome.trading_day,
+                outcome.direction,
+                f"{outcome.entry} / {outcome.stop} / {outcome.target}",
+                str(sim.contracts),
+                str(outcome.r_multiple.quantize(Decimal("0.01"))),
+                _format_money(sim.balance_after),
             ]
             for column, value in enumerate(cells):
                 item = _read_only_item(value)
-                item.setForeground(QColor(74, 222, 128) if trade.won else QColor(248, 113, 113))
+                item.setForeground(QColor(74, 222, 128) if sim.won else QColor(248, 113, 113))
                 table.setItem(row, column, item)
 
     def _build_ask_tab(self) -> QWidget:

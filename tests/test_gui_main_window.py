@@ -527,37 +527,42 @@ def test_order_management_controls_disabled_without_broker(window: MainWindow) -
 
 
 def test_paper_trading_r_column_is_rounded(qtbot: object, tmp_path: Path) -> None:
-    """The paper-trading R column shows a rounded value, not a 20-digit Decimal."""
+    """The paper-trading R column shows a rounded value, not a long Decimal."""
     import json as _json
 
     from PySide6.QtWidgets import QPushButton, QTableWidget
 
     from app.discovery.supervisor import ModeSupervisor
 
-    discovery_root = tmp_path / "discovery"
-    discovery_root.mkdir()
-    entry = {
-        "parameters": "reload=2|volume=450|pull=0.55|target=2.0|stop=1.0",
-        "accepted": True,
-        "rejection_reasons": [],
-        "composite": "1.5000",
-        "win_rate": "0.6000",
-        "profit_factor": "2.1000",
-        "max_drawdown_r": "3.0000",
-        "sortino": "1.2000",
-        "expectancy_r": "0.4500",
-        "trade_count": 40,
-        "regime_expectancy": {"trending/high_vol": "0.6"},
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    base_ns = 1_752_537_751_000_000_000
+    outcome = {
+        "session_id": "session_20260715T002231Z",
+        "setup_id": "abs-reclaim-long-0001",
+        "provenance": "REAL_DELAYED",
+        "direction": "long",
+        "trading_day": "2026-07-15",
+        "decision_ts_ns": base_ns,
+        "entry_ts_ns": base_ns + 1_000_000_000,
+        "exit_ts_ns": base_ns + 60_000_000_000,
+        "defended_price": "29450.00",
+        "entry": "29451.25",
+        "stop": "29441.25",
+        "target": "29471.25",
+        "exit": "29471.25",
+        "r_multiple": "1.4481242038012959",
+        "outcome": "target_first",
+        "strategy_version": "order_flow-v1",
     }
-    (discovery_root / "candidates.jsonl").write_text(_json.dumps(entry) + "\n", encoding="utf-8")
+    (processed / "outcomes.jsonl").write_text(_json.dumps(outcome) + "\n", encoding="utf-8")
 
-    win = MainWindow(discovery_root=discovery_root, mode_supervisor=ModeSupervisor(tmp_path / "prod.yaml"))
+    win = MainWindow(processed_root=processed, mode_supervisor=ModeSupervisor(tmp_path / "prod.yaml"))
     qtbot.addWidget(win)
     win.findChild(QPushButton, "paper_run_button").click()
 
     table = win.findChild(QTableWidget, "paper_trades_table")
     assert table is not None and table.rowCount() > 0
-    for row in range(table.rowCount()):
-        r_text = table.item(row, 3).text()
-        # At most two decimal places; no runaway precision.
-        assert len(r_text.split(".")[-1]) <= 2 if "." in r_text else True
+    # R column is now index 5 (Source session, Trading day, Direction, E/S/T, Contracts, R, Balance).
+    r_text = table.item(0, 5).text()
+    assert "." in r_text and len(r_text.split(".")[-1]) <= 2

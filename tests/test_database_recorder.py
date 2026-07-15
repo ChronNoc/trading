@@ -378,3 +378,33 @@ def test_session_recorder_never_rereads_existing_parquet(tmp_path: Path, monkeyp
 
     # read_table is patched to fail, so reading uses ParquetFile metadata only.
     assert pq.ParquetFile(recorder.depth_path).metadata.num_rows == 1500
+
+
+def test_delayed_provenance_is_sticky_through_playback_phases(tmp_path: Path) -> None:
+    """delayed_mode stays delayed and offline-only through the full control sequence."""
+    start = datetime(2026, 7, 15, 0, 22, tzinfo=UTC)
+    recorder = MarketSessionRecorder(root_dir=tmp_path, session_start_utc=start)
+    base = _timestamp_ns(2026, 7, 15, 0, 22)
+
+    # delayed_mode -> connected -> replay_started -> realtime_started -> heartbeat -> session_ended
+    recorder.record_control_event({"type": "delayed_mode", "timestamp_ns": base, "delay_minutes": 15})
+    recorder.record_control_event({"type": "connected", "timestamp_ns": base + 1, "source_mode": "live"})
+    recorder.record_control_event({"type": "replay_started", "timestamp_ns": base + 2})
+    recorder.record_control_event({"type": "realtime_started", "timestamp_ns": base + 3})
+    recorder.record_control_event({"type": "heartbeat", "timestamp_ns": base + 4, "source_mode": "live"})
+    recorder.record(
+        {"type": "depth_update", "timestamp": base + 5, "symbol": "MNQ", "side": "bid",
+         "price": "29500.00", "previous_size": "0", "new_size": "10"},
+    )
+    recorder.record_control_event({"type": "session_ended", "timestamp_ns": base + 6})
+
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["is_delayed"] is True
+    assert manifest["data_delay_minutes"] == 15
+    assert manifest["provenance"] == "REAL_DELAYED"
+    assert manifest["source_mode"] == "delayed"
+    # The core safety gate: a delayed feed is never live-decision-ready, no
+    # matter that realtime_started/heartbeat/connected("live") arrived.
+    assert manifest["valid_for_live_decisions"] is False
+    # ...but a clean finalized delayed session remains valid for OFFLINE analysis.
+    assert manifest["valid_for_analysis"] is True

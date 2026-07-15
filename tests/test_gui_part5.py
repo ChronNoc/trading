@@ -391,27 +391,56 @@ def test_decision_tab_honest_in_live_recording_mode(qtbot: object, tmp_path: Pat
     assert "Recording live order flow only" in narrator.toPlainText()
 
 
-def test_paper_trading_tab_runs_simulation_from_discovery(qtbot: object, tmp_path: Path) -> None:
-    """The paper-trading tab runs the $100k sim and lists win/loss trades."""
-    discovery_root = tmp_path / "discovery"
-    discovery_root.mkdir()
-    entry = {
-        "parameters": "reload=2|volume=450|pull=0.55|target=2.0|stop=1.0",
-        "accepted": True,
-        "rejection_reasons": [],
-        "composite": "1.5000",
-        "win_rate": "0.6000",
-        "profit_factor": "2.1000",
-        "max_drawdown_r": "3.0000",
-        "sortino": "1.2000",
-        "expectancy_r": "0.4500",
-        "trade_count": 60,
-        "regime_expectancy": {"trending/high_vol": "0.6"},
+def test_paper_trading_tab_lists_real_outcomes_with_provenance(qtbot: object, tmp_path: Path) -> None:
+    """A real completed outcome under data/processed produces a traced ledger row."""
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    base_ns = 1_752_537_751_000_000_000  # a real July-2025 style ns timestamp
+    outcome = {
+        "session_id": "session_20260715T002231Z",
+        "setup_id": "abs-reclaim-long-0001",
+        "provenance": "REAL_DELAYED",
+        "direction": "long",
+        "trading_day": "2026-07-15",
+        "decision_ts_ns": base_ns,
+        "entry_ts_ns": base_ns + 1_000_000_000,
+        "exit_ts_ns": base_ns + 60_000_000_000,
+        "defended_price": "29450.00",
+        "entry": "29451.25",
+        "stop": "29441.25",
+        "target": "29471.25",
+        "exit": "29471.25",
+        "r_multiple": "2.0000",
+        "outcome": "target_first",
+        "strategy_version": "order_flow-v1",
     }
-    (discovery_root / "candidates.jsonl").write_text(json.dumps(entry) + "\n", encoding="utf-8")
+    (processed / "outcomes.jsonl").write_text(json.dumps(outcome) + "\n", encoding="utf-8")
 
     window = MainWindow(
-        discovery_root=discovery_root,
+        processed_root=processed,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+    )
+    qtbot.addWidget(window)
+    window.findChild(QPushButton, "paper_run_button").click()
+
+    table = window.findChild(QTableWidget, "paper_trades_table")
+    progress = window.findChild(QListWidget, "paper_progress_list")
+    assert table is not None and progress is not None
+    assert table.rowCount() == 1
+    assert table.columnCount() == 7
+    # Every row traces to the real session and carries the trading day.
+    assert table.item(0, 0).text() == "session_20260715T002231Z"
+    assert table.item(0, 1).text() == "2026-07-15"
+    assert table.item(0, 2).text() == "long"
+    # Not labeled synthetic when the source is real.
+    summary = " ".join(progress.item(i).text() for i in range(progress.count()))
+    assert "SYNTHETIC" not in summary
+
+
+def test_paper_trading_tab_shows_honest_empty_state(qtbot: object, tmp_path: Path) -> None:
+    """With no real outcomes, the tab shows the honest empty state - no metrics."""
+    window = MainWindow(
+        processed_root=tmp_path / "empty_processed",
         mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
     )
     qtbot.addWidget(window)
@@ -420,33 +449,12 @@ def test_paper_trading_tab_runs_simulation_from_discovery(qtbot: object, tmp_pat
     progress = window.findChild(QListWidget, "paper_progress_list")
     table = window.findChild(QTableWidget, "paper_trades_table")
     assert button is not None and progress is not None and table is not None
-
-    button.click()
-
-    progress_text = " ".join(progress.item(i).text() for i in range(progress.count()))
-    # Honest single-account view: labeled synthetic, no reset-based score.
-    assert "SYNTHETIC DEMO - NOT REAL PERFORMANCE" in progress_text
-    assert "Win rate (of this stream)" in progress_text
-    assert "Net P&L" in progress_text
-    assert "Consistency score" not in progress_text
-    assert table.rowCount() > 0
-    assert table.columnCount() == 6
-    # Balance column present and money-formatted.
-    assert table.item(0, 5).text().startswith("$")
-
-
-def test_paper_trading_tab_handles_no_discovery_data(qtbot: object, tmp_path: Path) -> None:
-    """With no candidates, the tab explains how to generate them."""
-    window = MainWindow(
-        discovery_root=tmp_path / "empty_discovery",
-        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
-    )
-    qtbot.addWidget(window)
-
-    button = window.findChild(QPushButton, "paper_run_button")
-    progress = window.findChild(QListWidget, "paper_progress_list")
-    assert button is not None and progress is not None
     button.click()
 
     text = " ".join(progress.item(i).text() for i in range(progress.count()))
-    assert "run_discovery" in text
+    assert "No eligible real Bookmap setup outcomes yet." in text
+    assert table.rowCount() == 0
+    # No performance claim whatsoever in the empty state.
+    assert "Win rate" not in text
+    assert "Expectancy" not in text
+    assert "profitable" not in text.lower()
