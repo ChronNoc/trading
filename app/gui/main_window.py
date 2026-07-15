@@ -64,6 +64,15 @@ from app.market.receiver import get_current_market_state
 from app.market.state import MarketState
 from app.prototype.scenarios import PrototypeDashboardSnapshot, empty_prototype_dashboard_snapshot
 from app.research.paper_ledger import real_paper_summary, run_real_paper_ledger
+from app.research.auto_research import (
+    CandidateConfig,
+    ResearchRuntimeConfig,
+    SessionRef,
+    canonical_candidate,
+    detect_hardware,
+    resolve_worker_count,
+    run_auto_research,
+)
 from app.research.pipeline_status import PipelineInputs, compute_pipeline, load_build_aggregate
 from app.research.profitability_progress import compute_progress
 from app.research.real_episodes import load_completed_real_outcomes
@@ -1605,6 +1614,21 @@ class MainWindow(QMainWindow):
         self._profitability_bar = meter_bar
         self._profitability_gate_list = gate_list
 
+        # STAGE 6A: automated paper research status (canonical vs experimental).
+        research_box = QWidget()
+        research_layout = QVBoxLayout(research_box)
+        research_layout.setContentsMargins(0, 0, 0, 0)
+        research_run = QPushButton("Run automated research pass")
+        research_run.setObjectName("auto_research_button")
+        research_run.clicked.connect(self._run_auto_research_pass)
+        research_layout.addWidget(research_run)
+        research_list = QListWidget()
+        research_list.setObjectName("auto_research_list")
+        research_list.setMaximumHeight(200)
+        research_layout.addWidget(research_list)
+        layout.addWidget(_group("Automated paper research (one setup stays one observation)", research_box))
+        self._auto_research_list = research_list
+
         progress = QListWidget()
         progress.setObjectName("paper_progress_list")
         progress.setMaximumHeight(220)
@@ -1824,6 +1848,64 @@ class MainWindow(QMainWindow):
             )
         self._refresh_pipeline_and_progress()
         self._run_paper_simulation()
+
+    def _run_auto_research_pass(self) -> None:
+        """Run one deterministic research pass over eligible sessions and show integrity metrics.
+
+        Canonical and experimental candidates are kept separate; the panel reports
+        both the raw candidate-trade count and the unique underlying-setup count so
+        parallel candidates can never masquerade as extra evidence. Zero setups is
+        shown as a valid result, never inflated.
+        """
+        from app.research.session_catalog import build_catalog
+
+        panel = getattr(self, "_auto_research_list", None)
+        if panel is None:
+            return
+        panel.clear()
+
+        hardware = detect_hardware()
+        workers = resolve_worker_count(hardware, ResearchRuntimeConfig())
+        gpu = hardware.gpu_name or "no supported GPU detected"
+        panel.addItem(
+            f"Hardware: {hardware.cpu_cores} CPU cores, "
+            f"{hardware.total_memory_gb or 'unknown'} GB RAM, GPU: {gpu}. "
+            f"Workers (CPU parallelism): {workers}. Data capture always has priority.",
+        )
+
+        catalog = build_catalog(self._replay_data_root)
+        sessions = [
+            SessionRef(e.session_id, e.manifest_path.parent, e.provenance)
+            for e in catalog
+            if e.finalized and not e.active and e.eligible_for_order_flow_replay
+        ]
+        candidates = [
+            canonical_candidate(),
+            CandidateConfig(stop_buffer_points=Decimal("12"), label="exp_wider_stop"),
+            CandidateConfig(decision_stride=20, label="exp_finer_stride"),
+        ]
+        if not sessions:
+            panel.addItem("No order-flow-eligible finalized sessions yet - nothing to research. (Valid, honest state.)")
+            panel.addItem(f"Candidate configs ready: {len(candidates)} (1 canonical, {len(candidates) - 1} experimental).")
+            return
+
+        result = run_auto_research(sessions, candidates)
+        panel.addItem(
+            f"Canonical trades: {result.canonical_trades} | experimental trades: {result.experimental_trades}",
+        )
+        panel.addItem(
+            f"Raw candidate trades: {result.raw_candidate_trades} -> "
+            f"unique underlying setups: {result.unique_underlying_setups} "
+            f"(duplicate overlap: {result.duplicate_overlap})",
+        )
+        panel.addItem(f"Independent trading days: {result.independent_trading_days}")
+        panel.addItem(result.zero_is_valid_note)
+        for candidate in result.candidates:
+            tag = "canonical" if candidate.is_canonical else "experimental"
+            panel.addItem(
+                f"[{tag}] {candidate.label} ({candidate.config_hash}): "
+                f"{candidate.trades} trades, {candidate.unique_setups} unique, net {candidate.net_r} R",
+            )
 
     def _open_recording_folder(self) -> None:
         """Open the raw recording folder in the OS file browser (read-only action)."""

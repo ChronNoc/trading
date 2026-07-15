@@ -110,3 +110,19 @@ def test_analyze_button_builds_finalized_session_in_background(qtbot: object, tm
     # A build summary was produced for the finalized session (idempotency artifact).
     assert list((tmp_path / "processed").glob("*.build.json"))
 
+
+def test_auto_research_panel_reports_hardware_and_honest_zero(qtbot: object, tmp_path: Path) -> None:
+    """The automated-research panel shows hardware and an honest empty state."""
+    window = _window(qtbot, tmp_path)
+    button = window.findChild(QPushButton, "auto_research_button")
+    assert button is not None
+    window._run_auto_research_pass()
+
+    panel = window.findChild(QListWidget, "auto_research_list")
+    assert panel is not None
+    text = " ".join(panel.item(i).text() for i in range(panel.count()))
+    assert "CPU cores" in text and "Data capture always has priority" in text
+    # No eligible sessions -> honest note, and the candidate set is still reported.
+    assert "nothing to research" in text.lower()
+    assert "canonical" in text.lower()
+
