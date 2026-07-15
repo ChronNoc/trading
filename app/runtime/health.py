@@ -20,12 +20,22 @@ class HealthEvent:
 
 @dataclass(frozen=True, slots=True)
 class HealthStatus:
-    """Current health state exposed to the GUI."""
+    """Current health state exposed to the GUI.
+
+    ``dropped_message_count`` is the *lifetime* high-water mark of the Java
+    bridge's cumulative forwarding-queue overflow count (an ``AtomicLong`` that
+    persists for as long as the Bookmap add-on stays loaded, across Python
+    restarts and reconnects). It must never be presented as the current
+    connection's loss. ``current_session_dropped_message_count`` is the honest
+    per-connection figure: how many queue drops the bridge reported *since the
+    current connection began* (0 until a connection is established).
+    """
 
     bookmap_connected: bool
     recording: bool
     data_stale: bool
     dropped_message_count: int
+    current_session_dropped_message_count: int
     last_event_age_ms: int | None
     gui_healthy: bool
 
@@ -41,6 +51,14 @@ class HealthMonitor:
     dropped_message_count: int = 0
     last_market_timestamp_ns: int | None = None
     events: list[HealthEvent] = field(default_factory=list)
+    # Most recent cumulative queue-drop count the bridge reported (not a
+    # high-water max). Used to derive current-connection drops as a delta.
+    latest_reported_dropped: int = 0
+    # Cumulative bridge count captured when the current connection began. None
+    # until a connection is established this run, which keeps a stale
+    # cross-session count from being attributed to a connection that never
+    # started.
+    session_dropped_baseline: int | None = None
 
     def record_event(
         self,
@@ -62,9 +80,16 @@ class HealthMonitor:
         return event
 
     def mark_bookmap_connected(self, *, now: datetime | None = None) -> None:
-        """Mark the Bookmap stream as connected."""
+        """Mark the Bookmap stream as connected and start a fresh drop baseline.
+
+        Capturing the bridge's cumulative drop count as the per-connection
+        baseline here is what makes ``current_session_dropped_message_count``
+        start at 0 for a new connection even when the Java add-on has been
+        loaded (and accumulating queue drops) across earlier Python runs.
+        """
         self.bookmap_connected = True
         self.recording = True
+        self.session_dropped_baseline = self.latest_reported_dropped
         self.record_event("bookmap", "connected", "Bookmap stream connected", now=now)
 
     def mark_bookmap_disconnected(self, reason: str, *, now: datetime | None = None) -> None:
@@ -87,16 +112,37 @@ class HealthMonitor:
         *,
         now: datetime | None = None,
     ) -> None:
-        """Track the maximum dropped-message count reported by the bridge."""
+        """Track the bridge's cumulative queue-drop count.
+
+        ``dropped_message_count`` stays a lifetime high-water mark (useful for
+        "have we ever starved the bridge queue?"), while
+        ``latest_reported_dropped`` holds the most recent raw value so the
+        current-connection delta can be computed. A new health event is only
+        emitted when the count actually advances.
+        """
+        self.latest_reported_dropped = dropped_message_count
         previous = self.dropped_message_count
         self.dropped_message_count = max(previous, dropped_message_count)
         if self.dropped_message_count > previous:
             self.record_event(
                 "bookmap",
                 "data_gap",
-                f"dropped messages reported: {self.dropped_message_count}",
+                f"bridge queue drops (lifetime): {self.dropped_message_count}; "
+                f"this connection: {self.current_session_dropped_message_count}",
                 now=now,
             )
+
+    @property
+    def current_session_dropped_message_count(self) -> int:
+        """Return queue drops attributable to the current connection only.
+
+        Zero until a connection is established this run, so a stale lifetime
+        count from a previous add-on session is never shown as belonging to the
+        current (possibly not-yet-connected) connection.
+        """
+        if self.session_dropped_baseline is None:
+            return 0
+        return max(0, self.latest_reported_dropped - self.session_dropped_baseline)
 
     def data_age_ns(self, current_timestamp_ns: int | None) -> int | None:
         """Return the latest market data age in nanoseconds."""
@@ -119,6 +165,7 @@ class HealthMonitor:
             recording=self.recording,
             data_stale=self.is_data_stale(current_timestamp_ns),
             dropped_message_count=self.dropped_message_count,
+            current_session_dropped_message_count=self.current_session_dropped_message_count,
             last_event_age_ms=None if age_ns is None else age_ns // 1_000_000,
             gui_healthy=self.gui_healthy,
         )

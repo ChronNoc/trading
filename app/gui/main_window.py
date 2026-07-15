@@ -471,7 +471,7 @@ class MainWindow(QMainWindow):
                         ("Thresholds", _named_label("runtime_threshold_summary", _runtime_text(runtime, "threshold_summary"))),
                         ("Warm-up samples", _named_label("runtime_sample_count", _runtime_sample_text(runtime))),
                         ("Data age", _named_label("runtime_data_age", _runtime_data_age_text(runtime))),
-                        ("Dropped", _named_label("runtime_dropped_messages", _runtime_int_text(runtime, "dropped_message_count"))),
+                        ("Dropped", _named_label("runtime_dropped_messages", _runtime_dropped_text(runtime))),
                         ("Shadow decisions", _named_label("runtime_shadow_decisions", _runtime_int_text(runtime, "shadow_decisions"))),
                         ("Reports", _named_label("runtime_report_root", _runtime_text(runtime, "report_root"))),
                     ),
@@ -874,7 +874,7 @@ class MainWindow(QMainWindow):
                 base = (
                     f"Watchdog: Bookmap {runtime.bookmap_status}; "
                     f"recording {'yes' if runtime.recording else 'no'}; "
-                    f"dropped {runtime.dropped_message_count}"
+                    f"dropped {_runtime_dropped_text(runtime)}"
                 )
                 if connected and stalled_seconds is not None and stalled_seconds >= self._stall_after_seconds:
                     label.setText(
@@ -1153,7 +1153,7 @@ class MainWindow(QMainWindow):
             "runtime_threshold_summary": _runtime_text(runtime, "threshold_summary"),
             "runtime_sample_count": _runtime_sample_text(runtime),
             "runtime_data_age": _runtime_data_age_text(runtime),
-            "runtime_dropped_messages": _runtime_int_text(runtime, "dropped_message_count"),
+            "runtime_dropped_messages": _runtime_dropped_text(runtime),
             "runtime_shadow_decisions": _runtime_int_text(runtime, "shadow_decisions"),
             "runtime_report_root": _runtime_text(runtime, "report_root"),
         }
@@ -1873,6 +1873,23 @@ def _runtime_int_text(runtime: RuntimeSnapshot | None, field_name: str) -> str:
     if runtime is None:
         return "0"
     return str(getattr(runtime, field_name))
+
+
+def _runtime_dropped_text(runtime: RuntimeSnapshot | None) -> str:
+    """Render dropped events without passing off a stale lifetime count as current.
+
+    The bridge's cumulative queue-drop count persists for the whole time the
+    Bookmap add-on is loaded (across Python restarts), so it is shown only as a
+    clearly labelled lifetime high-water mark, next to the honest
+    current-connection figure.
+    """
+    if runtime is None:
+        return "0 this connection"
+    current = runtime.current_session_dropped_message_count
+    lifetime = runtime.dropped_message_count
+    if lifetime == current:
+        return f"{current} this connection"
+    return f"{current} this connection (lifetime bridge-queue high-water: {lifetime})"
 
 
 def _runtime_sample_text(runtime: RuntimeSnapshot | None) -> str:

@@ -209,6 +209,7 @@ def test_live_dashboard_renders_runtime_automation_snapshot(qtbot: object) -> No
         sample_count=42,
         data_age_ms=12,
         dropped_message_count=0,
+        current_session_dropped_message_count=0,
         threshold_summary="historical thresholds",
         shadow_decisions=3,
         report_root="data/reports",

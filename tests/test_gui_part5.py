@@ -234,6 +234,7 @@ def test_watchdog_reports_live_runtime_in_assistant_mode(qtbot: object, tmp_path
         sample_count=240,
         data_age_ms=None,
         dropped_message_count=24407,
+        current_session_dropped_message_count=24407,
         threshold_summary="DELAYED",
         shadow_decisions=0,
         report_root="data/reports",
@@ -251,6 +252,42 @@ def test_watchdog_reports_live_runtime_in_assistant_mode(qtbot: object, tmp_path
     assert "Bookmap connected" in watchdog.text()
     assert "recording yes" in watchdog.text()
     assert "dropped 24407" in watchdog.text()
+
+
+def test_watchdog_does_not_show_stale_lifetime_drops_as_current(qtbot: object, tmp_path: Path) -> None:
+    """The reported screenshot: waiting + recording no must not show 86211 as current loss."""
+    from app.runtime.controller import RuntimeSnapshot
+
+    runtime = RuntimeSnapshot(
+        state="RECORDING_ONLY", mode="SHADOW", bookmap_status="waiting", recording=False,
+        exact_contract="unknown", contract_reason="awaiting exact MNQ contract alias",
+        source_mode="delayed", session_name="unknown", session_date="unknown",
+        minutes_since_open=None, minutes_until_close=None, regime="unknown/unknown/unknown",
+        profile_id="global_observe_only", profile_fallback="fell back to the global profile",
+        profile_validation="unavailable", historical_sample_count=0, decisions_allowed=False,
+        warmup_complete=False, sample_count=0, data_age_ms=None,
+        dropped_message_count=86211, current_session_dropped_message_count=0,
+        threshold_summary="DELAYED", shadow_decisions=0, report_root="data/reports",
+        data_delay_minutes=15,
+    )
+    window = MainWindow(
+        runtime_snapshot_provider=lambda: runtime,
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+    )
+    qtbot.addWidget(window)
+    window.refresh_live_dashboard()
+
+    watchdog = window.findChild(QLabel, "watchdog_status_label")
+    assert watchdog is not None
+    text = watchdog.text()
+    assert "Bookmap waiting" in text
+    assert "recording no" in text
+    # Honest: zero drops for a connection that never started this run...
+    assert "0 this connection" in text
+    # ...with the stale cumulative shown only as a clearly labelled lifetime figure.
+    assert "lifetime bridge-queue high-water: 86211" in text
+    # The bare number must never read as the current connection's loss.
+    assert "dropped 86211 this connection" not in text
 
 
 def test_price_chart_plots_live_market_price_in_assistant_mode(qtbot: object, tmp_path: Path) -> None:
@@ -330,7 +367,8 @@ def test_watchdog_flags_stalled_feed_despite_connected_socket(qtbot: object, tmp
         minutes_until_close=11, regime="normal/thin/rotational", profile_id="global_observe_only",
         profile_fallback="fell back to the global profile", profile_validation="unavailable",
         historical_sample_count=0, decisions_allowed=False, warmup_complete=True, sample_count=240,
-        data_age_ms=None, dropped_message_count=8621, threshold_summary="DELAYED",
+        data_age_ms=None, dropped_message_count=8621, current_session_dropped_message_count=8621,
+        threshold_summary="DELAYED",
         shadow_decisions=0, report_root="data/reports", data_delay_minutes=15,
     )
     window = MainWindow(
@@ -368,7 +406,8 @@ def test_decision_tab_honest_in_live_recording_mode(qtbot: object, tmp_path: Pat
         minutes_until_close=524, regime="normal/thin/unstable", profile_id="global_observe_only",
         profile_fallback="fell back to the global profile", profile_validation="unavailable",
         historical_sample_count=0, decisions_allowed=False, warmup_complete=True, sample_count=240,
-        data_age_ms=None, dropped_message_count=409307, threshold_summary="DELAYED",
+        data_age_ms=None, dropped_message_count=409307, current_session_dropped_message_count=409307,
+        threshold_summary="DELAYED",
         shadow_decisions=0, report_root="data/reports", data_delay_minutes=15,
     )
     window = MainWindow(

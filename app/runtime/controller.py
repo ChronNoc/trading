@@ -54,6 +54,7 @@ class RuntimeSnapshot:
     sample_count: int
     data_age_ms: int | None
     dropped_message_count: int
+    current_session_dropped_message_count: int
     threshold_summary: str
     shadow_decisions: int
     report_root: str
@@ -365,6 +366,8 @@ class AutomaticRuntimeController:
             "accepted_decisions": sum(1 for decision in self.decisions if decision["decision"] == "accepted"),
             "rejected_decisions": sum(1 for decision in self.decisions if decision["decision"] == "rejected"),
             "dropped_message_count": self.health.dropped_message_count,
+            "lifetime_bridge_queue_drops": self.health.dropped_message_count,
+            "current_session_bridge_queue_drops": self.health.current_session_dropped_message_count,
             "data_gaps": [
                 event.message
                 for event in self.health.events
@@ -410,6 +413,7 @@ class AutomaticRuntimeController:
             sample_count=len(self._window),
             data_age_ms=health.last_event_age_ms,
             dropped_message_count=health.dropped_message_count,
+            current_session_dropped_message_count=health.current_session_dropped_message_count,
             threshold_summary=self.threshold_summary,
             shadow_decisions=len(self.decisions),
             report_root=str(self.report_root),
