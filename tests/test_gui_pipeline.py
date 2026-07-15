@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from PySide6.QtWidgets import QLabel, QListWidget, QProgressBar, QPushButton
+from PySide6.QtWidgets import QLabel, QListWidget, QProgressBar, QPushButton, QWidget
 
 from app.database.recorder import MarketSessionRecorder
 from app.discovery.supervisor import ModeSupervisor
@@ -112,17 +112,68 @@ def test_analyze_button_builds_finalized_session_in_background(qtbot: object, tm
 
 
 def test_auto_research_panel_reports_hardware_and_honest_zero(qtbot: object, tmp_path: Path) -> None:
-    """The automated-research panel shows hardware and an honest empty state."""
-    window = _window(qtbot, tmp_path)
-    button = window.findChild(QPushButton, "auto_research_button")
-    assert button is not None
+    """The automated-research panel shows hardware, GPU honesty, and an honest empty state."""
+    window = _window(qtbot, tmp_path)  # no service attached -> preview path
+    for name in ("research_start_button", "research_pause_button", "research_resume_button",
+                 "research_leaderboard_button", "research_high_perf", "research_gpu_enabled",
+                 "research_worker_count"):
+        assert window.findChild(QWidget, name) is not None, name
     window._run_auto_research_pass()
 
     panel = window.findChild(QListWidget, "auto_research_list")
     assert panel is not None
     text = " ".join(panel.item(i).text() for i in range(panel.count()))
     assert "CPU cores" in text and "Data capture always has priority" in text
-    # No eligible sessions -> honest note, and the candidate set is still reported.
+    # GPU honesty: never claims GPU use from mere detection.
+    assert "GPU" in text
     assert "nothing to research" in text.lower()
     assert "canonical" in text.lower()
+
+
+def test_research_controls_drive_the_service(qtbot: object, tmp_path: Path) -> None:
+    """Start/Pause/Resume and worker/High-Performance controls drive a real service."""
+    from app.research.research_service import ResearchService
+
+    service = ResearchService(tmp_path / "raw", tmp_path / "processed", state_dir=tmp_path / "state")
+    window = MainWindow(
+        replay_data_root=tmp_path / "raw", processed_root=tmp_path / "processed",
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+        research_service=service,
+    )
+    qtbot.addWidget(window)
+
+    window.findChild(QWidget, "research_worker_count").setValue(3)
+    window.findChild(QWidget, "research_high_perf").setChecked(True)
+    window._research_apply_runtime_config()
+    assert service.runtime_config.worker_count == 3
+    assert service.runtime_config.high_performance is True
+
+    window._research_pause()
+    assert service.is_paused is True
+    window._research_resume()
+    assert service.is_paused is False
+    service.stop()
+
+
+def test_pipeline_receiver_stage_uses_actual_bound_state(qtbot: object, tmp_path: Path) -> None:
+    """Receiver-listening reflects the real bound socket, not the controller's existence."""
+    from app.runtime.server_state import ReceiverStatusHolder
+
+    holder = ReceiverStatusHolder()
+    window = MainWindow(
+        replay_data_root=tmp_path / "raw", processed_root=tmp_path / "processed",
+        mode_supervisor=ModeSupervisor(tmp_path / "production_config.yaml"),
+        receiver_status_provider=holder.snapshot,
+    )
+    qtbot.addWidget(window)
+
+    window._refresh_pipeline_and_progress()
+    panel = window.findChild(QListWidget, "pipeline_stage_list")
+    receiver_line = next(panel.item(i).text() for i in range(panel.count()) if "1. Receiver listening" in panel.item(i).text())
+    assert "[NOT_STARTED]" in receiver_line  # nothing bound yet
+
+    holder.mark_bound("127.0.0.1", 8765)
+    window._refresh_pipeline_and_progress()
+    receiver_line = next(panel.item(i).text() for i in range(panel.count()) if "1. Receiver listening" in panel.item(i).text())
+    assert "[READY]" in receiver_line  # now genuinely bound
 

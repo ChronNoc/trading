@@ -46,6 +46,7 @@ class ProgressConfig:
     max_drawdown_fraction: Decimal = Decimal("0.10")  # of starting balance
     max_consecutive_losses: int = 6
     max_day_concentration: Decimal = Decimal("0.40")  # no single day > 40% of net
+    max_hour_concentration: Decimal = Decimal("0.50")  # no single hour > 50% of setups
     min_side_balance: Decimal = Decimal("0.20")  # each of long/short >= 20% of trades
 
     def __post_init__(self) -> None:
@@ -130,7 +131,9 @@ def compute_progress(
     gates.append(_gate_consecutive_losses(ledger, have_sample, cfg))
     gates.append(_gate_day_concentration(completed, have_sample, cfg))
     gates.append(_gate_side_balance(completed, have_sample, cfg))
-    # --- Gate 11: prop-rule compliance (fixed-account survival) -------------
+    gates.append(_gate_hour_stability(completed, have_sample, cfg))
+    gates.append(_gate_calibration(completed, have_sample, cfg))
+    # --- Final gate: prop-rule compliance (fixed-account survival) ----------
     gates.append(_gate_prop_compliance(ledger, have_sample))
 
     total = len(gates)
@@ -175,7 +178,10 @@ def _gate_data_capture(
     eligible: Sequence[SessionEntry],
     cfg: ProgressConfig,
 ) -> Gate:
-    clean = [e for e in eligible if e.continuity_status == "clean" and _drop_rate(e) < cfg.max_drop_rate]
+    # A clean, continuous session is denoted continuity_status == "continuous"
+    # (matching the recorder/catalog); order-flow eligibility already implies it,
+    # but the drop-rate floor is enforced explicitly here.
+    clean = [e for e in eligible if e.continuity_status == "continuous" and _drop_rate(e) < cfg.max_drop_rate]
     if not finalized:
         status, nxt = STATUS_NOT_STARTED, "Record at least one complete Bookmap session."
     elif clean:
@@ -288,15 +294,18 @@ def _gate_profit_factor(
     gains = sum((o.net_pnl_per_contract for o in completed if o.net_pnl_per_contract > 0), Decimal("0"))
     losses = -sum((o.net_pnl_per_contract for o in completed if o.net_pnl_per_contract < 0), Decimal("0"))
     factor = (gains / losses) if losses > 0 else Decimal("0")
-    passed = losses > 0 and factor >= cfg.min_profit_factor
+    # Real uncertainty: a deterministic bootstrap 90% CI on the profit factor so a
+    # single lucky sample cannot pass. The LOWER bound must clear the threshold.
+    low, high = _bootstrap_profit_factor_ci([o.net_pnl_per_contract for o in completed])
+    passed = losses > 0 and low >= cfg.min_profit_factor
     return Gate(
         gate_id="profit_factor",
         label="Profit factor with uncertainty",
         status=STATUS_PASSED if passed else STATUS_BLOCKED,
-        observed=f"profit factor {factor.quantize(Decimal('0.01'))}",
-        threshold=f">= {cfg.min_profit_factor}",
-        detail="Gross wins should outweigh gross losses with margin, not by a whisker.",
-        next_action="Passed." if passed else "Profit factor is below the required margin.",
+        observed=f"profit factor {factor.quantize(Decimal('0.01'))} (90% CI {low}-{high})",
+        threshold=f"90% CI lower bound >= {cfg.min_profit_factor}",
+        detail="Gross wins should outweigh gross losses with margin whose lower CI bound still clears the bar.",
+        next_action="Passed." if passed else "Profit factor's lower confidence bound is below the required margin.",
     )
 
 
@@ -367,20 +376,33 @@ def _gate_day_concentration(
             len(completed),
             cfg,
         )
-    by_day: Counter[str] = Counter()
+    # Measure P&L concentration (as labelled), not merely trade-count: a single
+    # day must not supply most of the net profit.
+    total_net = sum((o.net_pnl_per_contract for o in completed), Decimal("0"))
+    by_day_pnl: dict[str, Decimal] = {}
     for o in completed:
-        by_day[o.trading_day] += 1
-    top = max(by_day.values()) if by_day else 0
-    share = (Decimal(top) / Decimal(len(completed))) if completed else Decimal("1")
+        by_day_pnl[o.trading_day] = by_day_pnl.get(o.trading_day, Decimal("0")) + o.net_pnl_per_contract
+    if total_net <= 0:
+        return Gate(
+            gate_id="day_concentration",
+            label="Day-level P&L concentration (no single day dominates net)",
+            status=STATUS_BLOCKED,
+            observed="net P&L is not positive; concentration is not meaningful",
+            threshold=f"top day <= {cfg.max_day_concentration:%} of net",
+            detail="An edge must not depend on one exceptional session.",
+            next_action="Achieve positive net P&L before concentration can pass.",
+        )
+    top_day_pnl = max((v for v in by_day_pnl.values()), default=Decimal("0"))
+    share = top_day_pnl / total_net
     passed = share <= cfg.max_day_concentration
     return Gate(
         gate_id="day_concentration",
-        label="Day-level concentration (no single day dominates)",
+        label="Day-level P&L concentration (no single day dominates net)",
         status=STATUS_PASSED if passed else STATUS_BLOCKED,
-        observed=f"busiest day holds {share:.2%} of setups",
-        threshold=f"<= {cfg.max_day_concentration:%}",
+        observed=f"busiest day supplies {share:.2%} of net P&L",
+        threshold=f"<= {cfg.max_day_concentration:%} of net",
         detail="An edge must not depend on one exceptional session.",
-        next_action="Passed." if passed else "Results are concentrated in too few days.",
+        next_action="Passed." if passed else "Net profit is concentrated in too few days.",
     )
 
 
@@ -431,6 +453,84 @@ def _gate_prop_compliance(ledger: RealPaperLedgerResult | None, have_sample: boo
         threshold="account survives with balance > 0 under prop-style locks",
         detail="Under Lucid-style rules, a blown account ends the evaluation regardless of expectancy.",
         next_action="Passed." if passed else "The fixed account did not survive the rules.",
+    )
+
+
+def _bootstrap_profit_factor_ci(
+    net_pnls: Sequence[Decimal],
+    *,
+    iterations: int = 500,
+    seed: int = 20260716,
+) -> tuple[Decimal, Decimal]:
+    """Return a deterministic 90% bootstrap CI (low, high) for the profit factor.
+
+    Resamples with replacement using a fixed seed so the interval is reproducible.
+    Iterations where the resample has no losing trade are treated as an infinite
+    (capped) profit factor, which keeps the estimate conservative on the low side.
+    """
+    import random
+
+    values = [pnl for pnl in net_pnls]
+    if len(values) < 2:
+        return (Decimal("0"), Decimal("0"))
+    rng = random.Random(seed)
+    factors: list[Decimal] = []
+    n = len(values)
+    cap = Decimal("100")
+    for _ in range(iterations):
+        sample = [values[rng.randrange(n)] for _ in range(n)]
+        gains = sum((v for v in sample if v > 0), Decimal("0"))
+        losses = -sum((v for v in sample if v < 0), Decimal("0"))
+        factors.append(min(cap, gains / losses) if losses > 0 else cap)
+    factors.sort()
+    low = factors[int(0.05 * (len(factors) - 1))]
+    high = factors[int(0.95 * (len(factors) - 1))]
+    return (low.quantize(Decimal("0.01")), high.quantize(Decimal("0.01")))
+
+
+def _outcome_hour(decision_ts_ns: int) -> int:
+    from datetime import UTC, datetime
+
+    return datetime.fromtimestamp(decision_ts_ns / 1_000_000_000, tz=UTC).hour
+
+
+def _gate_hour_stability(
+    completed: Sequence[CompletedRealOutcome],
+    have_sample: bool,
+    cfg: ProgressConfig,
+) -> Gate:
+    if not have_sample:
+        return _insufficient(
+            "hour_stability", "Hour-of-day stability", f"busiest hour <= {cfg.max_hour_concentration:%}",
+            len(completed), cfg,
+        )
+    by_hour: Counter[int] = Counter(_outcome_hour(o.decision_ts_ns) for o in completed)
+    top = max(by_hour.values()) if by_hour else 0
+    share = Decimal(top) / Decimal(len(completed))
+    passed = share <= cfg.max_hour_concentration and len(by_hour) >= 3
+    return Gate(
+        gate_id="hour_stability",
+        label="Hour-of-day stability",
+        status=STATUS_PASSED if passed else STATUS_BLOCKED,
+        observed=f"{len(by_hour)} distinct hours; busiest holds {share:.2%}",
+        threshold=f"busiest hour <= {cfg.max_hour_concentration:%}, >= 3 hours",
+        detail="An edge concentrated in one hour is usually a session artefact, not a strategy.",
+        next_action="Passed." if passed else "Setups are concentrated in too few hours of the day.",
+    )
+
+
+def _gate_calibration(completed: Sequence[CompletedRealOutcome], have_sample: bool, cfg: ProgressConfig) -> Gate:
+    # Calibration/drift compares predicted probabilities to realised outcomes.
+    # The deterministic strategy emits no probability, and no supervised model is
+    # wired to score these outcomes yet, so this is honestly insufficient.
+    return Gate(
+        gate_id="calibration_drift",
+        label="Calibration and drift",
+        status=STATUS_INSUFFICIENT,
+        observed="no probability model scores these outcomes yet",
+        threshold="calibrated probabilities within tolerance; no significant drift",
+        detail="Cannot be computed without a trained probability model over a real sample.",
+        next_action="Train and calibrate a probability model once the completed-setup sample exists.",
     )
 
 

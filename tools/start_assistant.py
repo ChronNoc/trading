@@ -17,6 +17,7 @@ from app.database.recorder import MarketSessionRecorder
 from app.machine_learning.daily_learning import analyze_and_write_daily_learning_report
 from app.market.feed_guard import FeedGuard, FeedGuardConfig
 from app.runtime.controller import AutomaticRuntimeController
+from app.runtime.server_state import ReceiverStatusHolder
 from tools.start_receiver import ReceiverServerConfig, start_receiver_websocket_server, startup_message
 
 DEFAULT_CONFIG_PATH = Path("config/session_profiles.yaml")
@@ -119,8 +120,20 @@ def resilient_handler(
     return wrapped
 
 
-async def run_headless_assistant(config: AssistantConfig, controller: AutomaticRuntimeController) -> None:
-    """Run the receiver/recorder/controller service until interrupted."""
+async def run_headless_assistant(
+    config: AssistantConfig,
+    controller: AutomaticRuntimeController,
+    *,
+    status_holder: ReceiverStatusHolder | None = None,
+    research_service: object | None = None,
+) -> None:
+    """Run the receiver/recorder/controller service until interrupted.
+
+    Once the WebSocket server has genuinely bound its socket (recording can
+    start), the actual bind state is published and - if a research service is
+    attached and recording health is good - automatic research resumes without
+    any button press.
+    """
     controller.start()
     delayed_events = _delayed_control_events(config.delayed_data_minutes)
     for event in delayed_events:
@@ -138,7 +151,9 @@ async def run_headless_assistant(config: AssistantConfig, controller: AutomaticR
             "control-event",
         ),
         initial_control_events=delayed_events,
-        on_session_finalized=lambda recorder: _finalize_assistant_session(controller, config, recorder),
+        on_session_finalized=lambda recorder: _finalize_assistant_session(
+            controller, config, recorder, research_service,
+        ),
         feed_guard=feed_guard,
     )
     actual_config = ReceiverServerConfig(
@@ -147,6 +162,8 @@ async def run_headless_assistant(config: AssistantConfig, controller: AutomaticR
         path=config.path,
         output_root=config.output_root,
     )
+    if status_holder is not None:
+        status_holder.mark_bound(config.host, server.port)
     print("MNQ Assistant running in SHADOW mode.", flush=True)
     if config.delayed_data_minutes > 0:
         print(
@@ -155,11 +172,38 @@ async def run_headless_assistant(config: AssistantConfig, controller: AutomaticR
             flush=True,
         )
     print(startup_message(actual_config), flush=True)
+    # Recording health is good once the socket is bound and the recorder is ready;
+    # resume automatic research in the background (it yields to the receiver).
+    if research_service is not None and hasattr(research_service, "start"):
+        try:
+            research_service.start()
+            print("Automatic paper research resumed (background; data capture has priority).", flush=True)
+        except Exception as error:  # pragma: no cover - service must never break recording
+            print(f"Automatic research could not start: {error}", file=sys.stderr, flush=True)
     try:
         await asyncio.Future()
     finally:
+        if status_holder is not None:
+            status_holder.mark_unbound()
+        if research_service is not None and hasattr(research_service, "stop"):
+            research_service.stop()
         controller.stop()
         await server.close()
+
+
+def _build_research_service(config: AssistantConfig) -> object | None:
+    """Create the persistent research service, or None if unavailable."""
+    try:
+        from app.research.research_service import ResearchService
+
+        return ResearchService(
+            config.output_root,
+            Path("data/processed"),
+            state_dir=Path("data/research_state"),
+        )
+    except Exception as error:  # pragma: no cover - never block the app on research
+        print(f"Research service unavailable: {error}", file=sys.stderr, flush=True)
+        return None
 
 
 def run_assistant(config: AssistantConfig) -> int:
@@ -170,10 +214,14 @@ def run_assistant(config: AssistantConfig) -> int:
         config.session_config,
         report_root=config.report_root,
     )
+    status_holder = ReceiverStatusHolder()
+    research_service = _build_research_service(config)
 
     if not config.gui:
         try:
-            asyncio.run(run_headless_assistant(config, controller))
+            asyncio.run(run_headless_assistant(
+                config, controller, status_holder=status_holder, research_service=research_service,
+            ))
         except KeyboardInterrupt:
             controller.stop()
             return 0
@@ -181,12 +229,12 @@ def run_assistant(config: AssistantConfig) -> int:
 
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
-        args=(config, controller),
+        args=(config, controller, status_holder, research_service),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
-    return _run_gui(controller)
+    return _run_gui(controller, status_holder, research_service)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
@@ -234,14 +282,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
 
-def _run_receiver_thread(config: AssistantConfig, controller: AutomaticRuntimeController) -> None:
+def _run_receiver_thread(
+    config: AssistantConfig,
+    controller: AutomaticRuntimeController,
+    status_holder: ReceiverStatusHolder,
+    research_service: object | None,
+) -> None:
     try:
-        asyncio.run(run_headless_assistant(config, controller))
+        asyncio.run(run_headless_assistant(
+            config, controller, status_holder=status_holder, research_service=research_service,
+        ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
 
 
-def _run_gui(controller: AutomaticRuntimeController) -> int:
+def _run_gui(
+    controller: AutomaticRuntimeController,
+    status_holder: ReceiverStatusHolder | None = None,
+    research_service: object | None = None,
+) -> int:
     try:
         from PySide6.QtWidgets import QApplication
 
@@ -251,7 +310,11 @@ def _run_gui(controller: AutomaticRuntimeController) -> int:
         raise AssistantStartupError("PySide6 is not installed; run with --no-gui or install the GUI dependency.") from error
 
     app = QApplication.instance() or QApplication(sys.argv)
-    window = MainWindow(runtime_snapshot_provider=controller.snapshot)
+    window = MainWindow(
+        runtime_snapshot_provider=controller.snapshot,
+        research_service=research_service,
+        receiver_status_provider=status_holder.snapshot if status_holder is not None else None,
+    )
     window.show()
     try:
         return int(app.exec())
@@ -264,8 +327,9 @@ def _finalize_assistant_session(
     controller: AutomaticRuntimeController,
     config: AssistantConfig,
     recorder: MarketSessionRecorder,
+    research_service: object | None = None,
 ) -> None:
-    """Write session and daily learning reports when one Bookmap session ends."""
+    """Write reports and auto-build episodes when one Bookmap session ends cleanly."""
     session_date = recorder.session_start_utc.astimezone(UTC).date()
     manifest = _read_manifest(recorder.manifest_path)
     report_dir = controller.finalize_session_report(
@@ -273,6 +337,11 @@ def _finalize_assistant_session(
         session_date=session_date,
         recorder_manifest=manifest,
     )
+    # Automatically schedule the idempotent episode build for the finalized
+    # session in the background (never opens an active session). The research
+    # service will then pick up the new build on its next batch.
+    if recorder.finalized and recorder.clean_shutdown:
+        _schedule_auto_build(config)
     try:
         paths = analyze_and_write_daily_learning_report(
             config.output_root,
@@ -289,6 +358,16 @@ def _finalize_assistant_session(
     )
     print(f"Session report written: {report_dir}", flush=True)
     print(f"Daily learning summary written: {paths.markdown_path}", flush=True)
+
+
+def _schedule_auto_build(config: AssistantConfig) -> None:
+    """Run the idempotent finalized-session builder on a background daemon thread."""
+    try:
+        from app.research.build_orchestrator import schedule_pending_builds
+
+        schedule_pending_builds(config.output_root, Path("data/processed"), Path("data/labels"))
+    except Exception as error:  # pragma: no cover - reporting must not break recording
+        print(f"Automatic episode build could not start: {error}", file=sys.stderr, flush=True)
 
 
 def _read_manifest(path: Path) -> dict[str, object]:

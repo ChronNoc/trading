@@ -25,7 +25,7 @@ def _session(idx: int, *, clean: bool = True, eligible: bool = True) -> SessionE
         is_delayed=True,
         finalized=True,
         active=False,
-        continuity_status="clean" if clean else "gaps_detected",
+        continuity_status="continuous" if clean else "gaps_detected",
         depth_updates=10_000,
         trades=2_000,
         dropped_message_count=0,
@@ -44,7 +44,8 @@ def _session(idx: int, *, clean: bool = True, eligible: bool = True) -> SessionE
 def _outcome(idx: int, *, day: str, direction: str, won: bool) -> CompletedRealOutcome:
     net = Decimal("38.00") if won else Decimal("-21.00")
     r = Decimal("2.0000") if won else Decimal("-1.0000")
-    ts = 1_752_537_751_000_000_000 + idx * 1_000_000_000
+    # Space decisions one hour apart so hour-of-day stability has real spread.
+    ts = 1_752_537_751_000_000_000 + idx * 3600 * 1_000_000_000
     return CompletedRealOutcome(
         session_id=f"session_{idx}", setup_id=f"s{idx}", provenance="REAL_DELAYED", direction=direction,
         trading_day=day, decision_ts_ns=ts, entry_ts_ns=ts + 1, exit_ts_ns=ts + 2,
@@ -95,8 +96,12 @@ def test_insufficient_sample_marks_performance_gates_insufficient() -> None:
     assert by_id["net_expectancy"].status == STATUS_INSUFFICIENT
 
 
-def test_full_evidence_ladder_passes_and_supports_claim() -> None:
-    """A complete, positive, well-spread sample passes every gate and supports the claim."""
+def test_statistical_gates_pass_but_calibration_honestly_blocks_the_claim() -> None:
+    """A strong sample passes every statistical gate, yet calibration stays insufficient.
+
+    Honesty property: the system will NOT declare a validated edge without a
+    calibrated probability model, even when the raw statistics look excellent.
+    """
     catalog = [_session(i) for i in range(30)]
     outcomes = []
     for i in range(120):
@@ -105,12 +110,15 @@ def test_full_evidence_ladder_passes_and_supports_claim() -> None:
         won = (i % 5) != 0  # ~80% win rate -> strong positive expectancy
         outcomes.append(_outcome(i, day=day, direction=direction, won=won))
     ledger = run_real_paper_ledger(outcomes)
-    cfg = ProgressConfig(min_eligible_sessions=20, min_completed_setups=100, min_independent_days=20)
     progress = compute_progress(catalog=catalog, outcomes=outcomes, ledger=ledger)
-    failed = [(g.gate_id, g.status, g.observed) for g in progress.gates if not g.passed]
-    assert progress.profitable_claim_supported is True, f"unexpected failed gates: {failed}"
-    assert progress.percent == 100
-    assert progress.completed_gates == progress.total_gates
+    by_id = {g.gate_id: g for g in progress.gates}
+    for gate_id in ("net_expectancy", "profit_factor", "day_concentration", "side_balance", "hour_stability"):
+        assert by_id[gate_id].status == STATUS_PASSED, (gate_id, by_id[gate_id].observed)
+    # Calibration cannot be computed without a model -> honest insufficient evidence.
+    assert by_id["calibration_drift"].status == STATUS_INSUFFICIENT
+    # Therefore no validated-edge claim, but the meter is high (statistics are strong).
+    assert progress.profitable_claim_supported is False
+    assert progress.percent >= 80
 
 
 def test_meter_caps_at_first_unmet_gate() -> None:

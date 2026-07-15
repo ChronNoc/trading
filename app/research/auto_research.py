@@ -173,10 +173,16 @@ class HardwareProfile:
     total_memory_gb: float | None
     gpu_name: str | None
     gpu_available: bool
+    gpu_compute_library: str | None = None  # e.g. cupy/xgboost-gpu if importable
 
 
 def detect_hardware() -> HardwareProfile:
-    """Detect CPU cores, memory, and a supported GPU without hard dependencies."""
+    """Detect CPU cores, memory, and a supported GPU without hard dependencies.
+
+    GPU *presence* (an ``nvidia-smi`` on PATH) is reported honestly, but it is
+    never treated as GPU *usage*. A GPU only counts as usable for a workload when
+    a real compute library that can target it is importable.
+    """
     cores = os.cpu_count() or 1
     memory_gb: float | None = None
     try:  # psutil is optional; absence is not an error
@@ -187,12 +193,44 @@ def detect_hardware() -> HardwareProfile:
         memory_gb = None
     gpu_name: str | None = None
     if shutil.which("nvidia-smi") is not None:
-        gpu_name = "NVIDIA GPU (nvidia-smi detected)"
+        gpu_name = "NVIDIA GPU (nvidia-smi on PATH)"
+    compute_lib: str | None = None
+    for module_name in ("cupy", "cudf"):
+        try:
+            __import__(module_name)
+            compute_lib = module_name
+            break
+        except Exception:  # noqa: BLE001 - optional GPU stack
+            continue
     return HardwareProfile(
         cpu_cores=cores,
         total_memory_gb=memory_gb,
         gpu_name=gpu_name,
         gpu_available=gpu_name is not None,
+        gpu_compute_library=compute_lib,
+    )
+
+
+def gpu_workload_note(hardware: HardwareProfile, *, gpu_enabled: bool) -> str:
+    """Return an honest statement about GPU use for the deterministic replay workload.
+
+    Deterministic Parquet replay and rule evaluation are CPU/I-O bound, so the GPU
+    is not used for that even when present. GPU acceleration is only meaningful for
+    a supported ML workload (e.g. XGBoost training/inference) and only when a GPU
+    compute library is actually importable.
+    """
+    if not hardware.gpu_available:
+        return "No supported GPU detected; CPU-only research."
+    if not gpu_enabled:
+        return f"{hardware.gpu_name} present but GPU disabled by config; CPU-only research."
+    if hardware.gpu_compute_library is None:
+        return (
+            f"{hardware.gpu_name} present, but no GPU compute library (cupy/cudf) is installed and "
+            "deterministic replay is CPU/I/O bound; GPU not used for this workload."
+        )
+    return (
+        f"{hardware.gpu_name} available via {hardware.gpu_compute_library}, but deterministic replay is "
+        "CPU/I/O bound; GPU would only be used for a supported ML workload (e.g. XGBoost), not replay."
     )
 
 

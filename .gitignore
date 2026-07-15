@@ -14,3 +14,6 @@ bookmap_addon_java/.gradle/
 bookmap_addon_java/build/
 data/prototype/prototype.lock
 data/discovery/.last_search_run
+
+# Automatic research service runtime state (checkpoints, claims, job results)
+data/research_state/

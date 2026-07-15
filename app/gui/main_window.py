@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -228,6 +229,8 @@ class MainWindow(QMainWindow):
         mode_supervisor: ModeSupervisor | None = None,
         stall_clock: Callable[[], float] | None = None,
         stall_after_seconds: float = 20.0,
+        research_service: object | None = None,
+        receiver_status_provider: Callable[[], object] | None = None,
     ) -> None:
         """Initialize the main window with live data providers and mode controls."""
         super().__init__()
@@ -240,6 +243,8 @@ class MainWindow(QMainWindow):
         self._runtime_snapshot_provider = runtime_snapshot_provider
         self._prototype_snapshot_provider = prototype_snapshot_provider
         self._prototype_control_handler = prototype_control_handler
+        self._research_service = research_service
+        self._receiver_status_provider = receiver_status_provider
         self._replay_data_root = Path(replay_data_root)
         self._confirm_simulator_mode = confirm_simulator_mode
         self._review_output_root = Path(review_output_root)
@@ -1614,17 +1619,48 @@ class MainWindow(QMainWindow):
         self._profitability_bar = meter_bar
         self._profitability_gate_list = gate_list
 
-        # STAGE 6A: automated paper research status (canonical vs experimental).
+        # STAGE 6A: automated paper research controls + live status.
         research_box = QWidget()
         research_layout = QVBoxLayout(research_box)
         research_layout.setContentsMargins(0, 0, 0, 0)
-        research_run = QPushButton("Run automated research pass")
-        research_run.setObjectName("auto_research_button")
-        research_run.clicked.connect(self._run_auto_research_pass)
-        research_layout.addWidget(research_run)
+
+        controls = QHBoxLayout()
+        for label, name, handler in (
+            ("Start automatic research", "research_start_button", self._research_start),
+            ("Pause after batch", "research_pause_button", self._research_pause),
+            ("Resume", "research_resume_button", self._research_resume),
+        ):
+            btn = QPushButton(label)
+            btn.setObjectName(name)
+            btn.clicked.connect(handler)
+            controls.addWidget(btn)
+        research_layout.addLayout(controls)
+
+        controls2 = QHBoxLayout()
+        self._high_perf_checkbox = QCheckBox("High Performance mode")
+        self._high_perf_checkbox.setObjectName("research_high_perf")
+        self._high_perf_checkbox.stateChanged.connect(self._research_apply_runtime_config)
+        controls2.addWidget(self._high_perf_checkbox)
+        self._gpu_checkbox = QCheckBox("Enable GPU (if usable)")
+        self._gpu_checkbox.setObjectName("research_gpu_enabled")
+        self._gpu_checkbox.stateChanged.connect(self._research_apply_runtime_config)
+        controls2.addWidget(self._gpu_checkbox)
+        controls2.addWidget(QLabel("Workers:"))
+        self._worker_spin = QSpinBox()
+        self._worker_spin.setObjectName("research_worker_count")
+        self._worker_spin.setRange(1, 256)
+        self._worker_spin.setValue(max(1, (os.cpu_count() or 2) - 1))
+        self._worker_spin.valueChanged.connect(self._research_apply_runtime_config)
+        controls2.addWidget(self._worker_spin)
+        leaderboard_btn = QPushButton("View candidate leaderboard")
+        leaderboard_btn.setObjectName("research_leaderboard_button")
+        leaderboard_btn.clicked.connect(self._run_auto_research_pass)
+        controls2.addWidget(leaderboard_btn)
+        research_layout.addLayout(controls2)
+
         research_list = QListWidget()
         research_list.setObjectName("auto_research_list")
-        research_list.setMaximumHeight(200)
+        research_list.setMaximumHeight(220)
         research_layout.addWidget(research_list)
         layout.addWidget(_group("Automated paper research (one setup stays one observation)", research_box))
         self._auto_research_list = research_list
@@ -1721,9 +1757,13 @@ class MainWindow(QMainWindow):
         running, everything is False/0 so no stage is falsely shown as active.
         """
         runtime = self._current_runtime_snapshot() if self._runtime_snapshot_provider is not None else None
+        # Actual bound-server state, never inferred from the controller merely existing.
+        listening = False
+        if self._receiver_status_provider is not None:
+            binding = self._receiver_status_provider()
+            listening = bool(getattr(binding, "listening", False))
         if runtime is None:
-            return (False, False, False, True, 0)
-        listening = True  # the runtime controller only exists while the assistant is running
+            return (listening, False, False, True, 0)
         connected = runtime.bookmap_status == "connected"
         recording = bool(runtime.recording)
         stale = runtime.data_age_ms is None or runtime.data_age_ms > 5_000
@@ -1849,14 +1889,101 @@ class MainWindow(QMainWindow):
         self._refresh_pipeline_and_progress()
         self._run_paper_simulation()
 
+    def _research_runtime_config(self) -> ResearchRuntimeConfig:
+        return ResearchRuntimeConfig(
+            worker_count=int(self._worker_spin.value()),
+            gpu_enabled=self._gpu_checkbox.isChecked(),
+            high_performance=self._high_perf_checkbox.isChecked(),
+        )
+
+    def _research_apply_runtime_config(self, *_args: object) -> None:
+        """Push the current worker/High-Performance/GPU settings into the service."""
+        service = self._research_service
+        if service is not None and hasattr(service, "set_runtime_config"):
+            service.set_runtime_config(self._research_runtime_config())
+
+    def _research_start(self) -> None:
+        """Start the persistent background research service (auto-resumes work)."""
+        service = self._research_service
+        if service is None:
+            self._run_auto_research_pass()
+            return
+        service.set_runtime_config(self._research_runtime_config())
+        service.resume()
+        if hasattr(service, "start"):
+            service.start()
+        self._start_research_poll_timer()
+
+    def _research_pause(self) -> None:
+        service = self._research_service
+        if service is not None:
+            service.request_pause()
+        self._refresh_research_panel()
+
+    def _research_resume(self) -> None:
+        service = self._research_service
+        if service is not None:
+            service.resume()
+            if hasattr(service, "start"):
+                service.start()
+        self._start_research_poll_timer()
+
+    def _start_research_poll_timer(self) -> None:
+        timer = getattr(self, "_research_poll_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setInterval(1500)
+            timer.timeout.connect(self._refresh_research_panel)
+            self._research_poll_timer = timer
+        if not timer.isActive():
+            timer.start()
+        self._refresh_research_panel()
+
+    def _refresh_research_panel(self) -> None:
+        """Render the live service status honestly (no fake confidence)."""
+        panel = getattr(self, "_auto_research_list", None)
+        if panel is None:
+            return
+        from app.research.auto_research import gpu_workload_note
+
+        hardware = detect_hardware()
+        panel.clear()
+        service = self._research_service
+        gpu_line = gpu_workload_note(hardware, gpu_enabled=self._gpu_checkbox.isChecked())
+        panel.addItem(_pipeline_item(
+            f"Hardware: {hardware.cpu_cores} CPU cores, {hardware.total_memory_gb or 'unknown'} GB RAM. {gpu_line}",
+            "ready",
+        ))
+        if service is None:
+            panel.addItem("Research service not attached (GUI-only preview). Launch via start_mnq_assistant.bat.")
+            self._run_auto_research_pass()
+            return
+        status = service.status()
+        panel.addItem(_pipeline_item(
+            f"State: {status.state.upper()} | workers {status.active_workers}/{status.requested_workers} | "
+            f"jobs queued {status.queued_jobs}, completed {status.completed_jobs}, failed {status.failed_jobs} | "
+            f"checkpoint keys {status.last_checkpoint_keys}",
+            "running" if status.state in ("running",) else ("blocked" if status.state in ("throttled", "paused") else "ready"),
+        ))
+        if status.throttle_reason:
+            panel.addItem(_pipeline_item(status.throttle_reason, "blocked"))
+        panel.addItem(
+            f"Canonical trades: {status.canonical_trades} | experimental trades: {status.experimental_trades}",
+        )
+        panel.addItem(
+            f"Raw candidate trades: {status.raw_candidate_trades} -> unique setups: {status.unique_setups} "
+            f"(duplicate overlap: {status.duplicate_overlap}); independent days: {status.independent_days}",
+        )
+        if status.empty_reason:
+            panel.addItem(_pipeline_item(status.empty_reason, "blocked"))
+
     def _run_auto_research_pass(self) -> None:
         """Run one deterministic research pass over eligible sessions and show integrity metrics.
 
-        Canonical and experimental candidates are kept separate; the panel reports
-        both the raw candidate-trade count and the unique underlying-setup count so
-        parallel candidates can never masquerade as extra evidence. Zero setups is
-        shown as a valid result, never inflated.
+        Used when no persistent service is attached (GUI preview / leaderboard). Canonical and
+        experimental candidates stay separate; reports raw vs unique setups; zero is honest.
         """
+        from app.research.auto_research import gpu_workload_note
         from app.research.session_catalog import build_catalog
 
         panel = getattr(self, "_auto_research_list", None)
@@ -1865,11 +1992,10 @@ class MainWindow(QMainWindow):
         panel.clear()
 
         hardware = detect_hardware()
-        workers = resolve_worker_count(hardware, ResearchRuntimeConfig())
-        gpu = hardware.gpu_name or "no supported GPU detected"
+        workers = resolve_worker_count(hardware, self._research_runtime_config())
         panel.addItem(
-            f"Hardware: {hardware.cpu_cores} CPU cores, "
-            f"{hardware.total_memory_gb or 'unknown'} GB RAM, GPU: {gpu}. "
+            f"Hardware: {hardware.cpu_cores} CPU cores, {hardware.total_memory_gb or 'unknown'} GB RAM. "
+            f"{gpu_workload_note(hardware, gpu_enabled=self._gpu_checkbox.isChecked())} "
             f"Workers (CPU parallelism): {workers}. Data capture always has priority.",
         )
 
@@ -1890,9 +2016,7 @@ class MainWindow(QMainWindow):
             return
 
         result = run_auto_research(sessions, candidates)
-        panel.addItem(
-            f"Canonical trades: {result.canonical_trades} | experimental trades: {result.experimental_trades}",
-        )
+        panel.addItem(f"Canonical trades: {result.canonical_trades} | experimental trades: {result.experimental_trades}")
         panel.addItem(
             f"Raw candidate trades: {result.raw_candidate_trades} -> "
             f"unique underlying setups: {result.unique_underlying_setups} "
