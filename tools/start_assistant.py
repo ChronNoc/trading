@@ -126,6 +126,7 @@ async def run_headless_assistant(
     *,
     status_holder: ReceiverStatusHolder | None = None,
     research_service: object | None = None,
+    pipeline_holder: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -140,6 +141,13 @@ async def run_headless_assistant(
         controller.handle_control_event(event)
     guard_source_mode = "delayed" if config.delayed_data_minutes > 0 else "live"
     feed_guard = FeedGuard(FeedGuardConfig(source_mode=guard_source_mode))
+    from app.market.bounded_pipeline import RecorderPipeline
+
+    def _pipelined_recorder() -> MarketSessionRecorder:
+        # Bounded recorder stage: a dedicated writer thread persists batches so
+        # a slow GUI or research burst can never stall capture. Metrics are real.
+        return RecorderPipeline(MarketSessionRecorder(root_dir=config.output_root))  # type: ignore[return-value]
+
     server = await start_receiver_websocket_server(
         config.receiver_config,
         on_market_event=resilient_handler(
@@ -150,11 +158,13 @@ async def run_headless_assistant(
             lambda event: controller.handle_control_event(event),
             "control-event",
         ),
+        recorder_factory=_pipelined_recorder,
         initial_control_events=delayed_events,
         on_session_finalized=lambda recorder: _finalize_assistant_session(
             controller, config, recorder, research_service,
         ),
         feed_guard=feed_guard,
+        on_connection_started=(pipeline_holder.attach if pipeline_holder is not None else None),  # type: ignore[union-attr]
     )
     actual_config = ReceiverServerConfig(
         host=config.host,
@@ -191,7 +201,10 @@ async def run_headless_assistant(
         await server.close()
 
 
-def make_receiver_health_provider(controller: AutomaticRuntimeController):
+def make_receiver_health_provider(
+    controller: AutomaticRuntimeController,
+    pipeline_holder: object | None = None,
+):
     """Build the REAL receiver-health provider for research throttling.
 
     Reports the delta of current-session bridge queue drops since the last check
@@ -217,12 +230,20 @@ def make_receiver_health_provider(controller: AutomaticRuntimeController):
             # own event timestamps, so a large age here means true staleness.)
             if controller.health.is_data_stale(_time.time_ns()) and age_ns is not None:
                 lag_ms = 1000
-        return ReceiverHealth(queue_occupancy=0.0, current_session_drops_delta=delta, lag_ms=lag_ms)
+        occupancy = 0.0
+        if pipeline_holder is not None:
+            # REAL measured queue pressure from the bounded capture pipeline.
+            occupancy = float(pipeline_holder.worst_queue_occupancy_fraction())  # type: ignore[attr-defined]
+        return ReceiverHealth(queue_occupancy=occupancy, current_session_drops_delta=delta, lag_ms=lag_ms)
 
     return provider
 
 
-def _build_research_service(config: AssistantConfig, controller: AutomaticRuntimeController) -> object | None:
+def _build_research_service(
+    config: AssistantConfig,
+    controller: AutomaticRuntimeController,
+    pipeline_holder: object | None = None,
+) -> object | None:
     """Create the persistent research service wired to REAL receiver health."""
     try:
         from app.research.research_service import ResearchService
@@ -231,7 +252,7 @@ def _build_research_service(config: AssistantConfig, controller: AutomaticRuntim
             config.output_root,
             Path("data/processed"),
             state_dir=Path("data/research_state"),
-            health_provider=make_receiver_health_provider(controller),
+            health_provider=make_receiver_health_provider(controller, pipeline_holder),
         )
     except Exception as error:  # pragma: no cover - never block the app on research
         print(f"Research service unavailable: {error}", file=sys.stderr, flush=True)
@@ -247,12 +268,16 @@ def run_assistant(config: AssistantConfig) -> int:
         report_root=config.report_root,
     )
     status_holder = ReceiverStatusHolder()
-    research_service = _build_research_service(config, controller)
+    from app.market.bounded_pipeline import PipelineStateHolder
+
+    pipeline_holder = PipelineStateHolder()
+    research_service = _build_research_service(config, controller, pipeline_holder)
 
     if not config.gui:
         try:
             asyncio.run(run_headless_assistant(
-                config, controller, status_holder=status_holder, research_service=research_service,
+                config, controller, status_holder=status_holder,
+                research_service=research_service, pipeline_holder=pipeline_holder,
             ))
         except KeyboardInterrupt:
             controller.stop()
@@ -261,12 +286,12 @@ def run_assistant(config: AssistantConfig) -> int:
 
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
-        args=(config, controller, status_holder, research_service),
+        args=(config, controller, status_holder, research_service, pipeline_holder),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
-    return _run_gui(controller, status_holder, research_service)
+    return _run_gui(controller, status_holder, research_service, pipeline_holder)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
@@ -319,10 +344,12 @@ def _run_receiver_thread(
     controller: AutomaticRuntimeController,
     status_holder: ReceiverStatusHolder,
     research_service: object | None,
+    pipeline_holder: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
-            config, controller, status_holder=status_holder, research_service=research_service,
+            config, controller, status_holder=status_holder,
+            research_service=research_service, pipeline_holder=pipeline_holder,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
@@ -332,6 +359,7 @@ def _run_gui(
     controller: AutomaticRuntimeController,
     status_holder: ReceiverStatusHolder | None = None,
     research_service: object | None = None,
+    pipeline_holder: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -346,6 +374,7 @@ def _run_gui(
         runtime_snapshot_provider=controller.snapshot,
         research_service=research_service,
         receiver_status_provider=status_holder.snapshot if status_holder is not None else None,
+        pipeline_metrics_provider=pipeline_holder.snapshot if pipeline_holder is not None else None,  # type: ignore[union-attr]
     )
     window.show()
     try:

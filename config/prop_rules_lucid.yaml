@@ -8,15 +8,20 @@
 # Verification attempt 2026-07-16: web access unavailable in the build
 # environment (search limit); rules intentionally left unresolved rather than
 # guessed from memory.
-profile_version: "1"
+profile_version: "2"
 firm: Lucid Trading
 source_url: ""            # fill with the official Lucid rules page URL
 retrieval_date: ""        # fill with the ISO date the rules were read
-account_type: UNRESOLVED
+account_type: UNRESOLVED          # account program/type
+account_size: UNRESOLVED
 drawdown_method: UNRESOLVED       # e.g. end-of-day vs intraday trailing
 daily_loss_rule: UNRESOLVED
 max_contracts: UNRESOLVED
 consistency_rule: UNRESOLVED
-prohibited: UNRESOLVED            # prohibited times/actions
+permitted_instruments: UNRESOLVED
+permitted_trading_times: UNRESOLVED
+news_restrictions: UNRESOLVED
+overnight_rules: UNRESOLVED
+prohibited: UNRESOLVED            # prohibited strategies/actions
 effective_date: UNRESOLVED
 resolved: false

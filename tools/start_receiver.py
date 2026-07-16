@@ -98,6 +98,8 @@ async def start_receiver_websocket_server(
     on_session_finalized: Callable[[MarketSessionRecorder], None] | None = None,
     initial_control_events: Sequence[dict[str, object]] = (),
     feed_guard: FeedGuard | None = None,
+    intake_capacity: int = 10_000,
+    on_connection_started: Callable[[object, object], None] | None = None,
 ) -> RunningReceiverServer:
     """Start the local WebSocket server that records Bookmap market events.
 
@@ -137,13 +139,19 @@ async def start_receiver_websocket_server(
             if feed_guard is not None:
                 feed_guard.record_malformed(reason)
 
+        from app.market.bounded_pipeline import BoundedIntakeBuffer
+
+        intake = BoundedIntakeBuffer(connection, capacity=intake_capacity)
+        pump_task = asyncio.get_running_loop().create_task(intake.pump())
+        if on_connection_started is not None:
+            on_connection_started(intake, recorder)
         try:
             for control_event in initial_control_events:
                 event = _fresh_control_event(control_event)
                 recorder.record_control_event(event)
                 _guarded_control_event(event)
             await consume_market_stream(
-                connection,
+                intake,
                 recorder=recorder,
                 state_store=state_store,
                 on_state=on_state,
@@ -158,6 +166,11 @@ async def start_receiver_websocket_server(
             recorder.finalize(clean_shutdown=False, reason=detail)
             raise
         finally:
+            pump_task.cancel()
+            try:
+                await pump_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001 - socket teardown
+                pass
             if feed_guard is not None and quality_baseline is not None:
                 quality = feed_guard.status()
                 recorder.update_feed_quality(
@@ -173,6 +186,8 @@ async def start_receiver_websocket_server(
                         quality.clock_drift_alerts - quality_baseline.clock_drift_alerts,
                     ),
                 )
+            # Drain the bounded recorder queue (if wrapped) before finalizing so a
+            # clean shutdown persists every accepted event.
             recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
             if on_session_finalized is not None:
                 on_session_finalized(recorder)

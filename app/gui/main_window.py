@@ -231,6 +231,7 @@ class MainWindow(QMainWindow):
         stall_after_seconds: float = 20.0,
         research_service: object | None = None,
         receiver_status_provider: Callable[[], object] | None = None,
+        pipeline_metrics_provider: Callable[[], object] | None = None,
     ) -> None:
         """Initialize the main window with live data providers and mode controls."""
         super().__init__()
@@ -245,6 +246,7 @@ class MainWindow(QMainWindow):
         self._prototype_control_handler = prototype_control_handler
         self._research_service = research_service
         self._receiver_status_provider = receiver_status_provider
+        self._pipeline_metrics_provider = pipeline_metrics_provider
         self._replay_data_root = Path(replay_data_root)
         self._confirm_simulator_mode = confirm_simulator_mode
         self._review_output_root = Path(review_output_root)
@@ -1977,6 +1979,29 @@ class MainWindow(QMainWindow):
         )
         if status.empty_reason:
             panel.addItem(_pipeline_item(status.empty_reason, "blocked"))
+        if self._pipeline_metrics_provider is not None:
+            # REAL bounded-pipeline measurements (never placeholders).
+            metrics = self._pipeline_metrics_provider()
+            intake = getattr(metrics, "intake", {}) or {}
+            recorder = getattr(metrics, "recorder", {}) or {}
+            if intake or recorder:
+                panel.addItem(
+                    "Capture queues - intake: "
+                    f"{intake.get('occupancy', 0)}/{intake.get('capacity', 0)} "
+                    f"(high-water {intake.get('high_water', 0)}, overflow {intake.get('overflow', 0)}) | "
+                    f"recorder: {recorder.get('occupancy', 0)}/{recorder.get('capacity', 0)} "
+                    f"(high-water {recorder.get('high_water', 0)}, overflow {recorder.get('overflow', 0)})",
+                )
+                panel.addItem(
+                    f"Rates: ingress {getattr(metrics, 'ingress_events_per_second', 0.0)}/s, "
+                    f"persisted {getattr(metrics, 'persisted_events_per_second', 0.0)}/s | "
+                    f"last batch {getattr(metrics, 'last_batch_size', 0)} events, "
+                    f"flush {getattr(metrics, 'last_flush_duration_ms', 0.0)} ms "
+                    f"({getattr(metrics, 'flush_failures', 0)} failures) | "
+                    f"end-to-end lag {getattr(metrics, 'end_to_end_lag_ms', 0.0)} ms",
+                )
+            else:
+                panel.addItem("Capture queues: no active Bookmap connection (metrics appear when connected).")
 
     def _run_auto_research_pass(self) -> None:
         """Run one deterministic research pass over eligible sessions and show integrity metrics.
@@ -2086,6 +2111,7 @@ class MainWindow(QMainWindow):
             ("execution_disconnect_button", "Disconnect", self._execution_disconnect),
             ("execution_test_button", "Test connection", self._execution_test),
             ("execution_sync_button", "Synchronize", self._execution_sync),
+            ("execution_cancel_replace_button", "Cancel/replace", self._execution_cancel_replace),
             ("execution_cancel_all_button", "Cancel all", self._execution_cancel_all),
             ("execution_flatten_button", "Flatten", self._execution_flatten),
             ("execution_arm_demo_button", "Arm DEMO", self._execution_arm_demo),
@@ -2101,6 +2127,27 @@ class MainWindow(QMainWindow):
         status_list.setObjectName("execution_status_list")
         layout.addWidget(_group("Connection status (no secrets are ever displayed)", status_list))
         self._execution_status_list = status_list
+
+        # Prop-rule profile selection: a verified profile can be dropped into
+        # config/prop_profiles/ and selected here with zero code changes.
+        from app.execution.prop_rules import list_profiles
+
+        profile_combo = QComboBox()
+        profile_combo.setObjectName("prop_profile_combo")
+        for path in list_profiles():
+            profile_combo.addItem(path.name, userData=str(path))
+        profile_combo.currentIndexChanged.connect(lambda *_: self._refresh_execution_panel("Rule profile selected."))
+        rules_list = QListWidget()
+        rules_list.setObjectName("prop_rules_list")
+        rules_list.setMaximumHeight(180)
+        rules_box = QWidget()
+        rules_layout = QVBoxLayout(rules_box)
+        rules_layout.setContentsMargins(0, 0, 0, 0)
+        rules_layout.addWidget(profile_combo)
+        rules_layout.addWidget(rules_list)
+        layout.addWidget(_group("Prop-rule profile (unresolved rules block automation)", rules_box))
+        self._prop_profile_combo = profile_combo
+        self._prop_rules_list = rules_list
 
         self._paper_gateway = PaperExecutionGateway(Path("data/execution_state/paper_orders.jsonl"))
         self._demo_gateway = None
@@ -2122,7 +2169,8 @@ class MainWindow(QMainWindow):
         panel.clear()
         environment = self._selected_execution_environment()
         arming = self._execution_arming
-        rules = PropRuleProfile.load()
+        rules = PropRuleProfile.load(self._selected_prop_profile_path())
+        self._render_prop_rules(rules)
         lines = [f"Environment: {environment}"]
         if environment == "PAPER":
             lines.append("Connection: PAPER is always available locally; no broker transport exists.")
@@ -2154,6 +2202,50 @@ class MainWindow(QMainWindow):
             lines.append(note)
         for line in lines:
             panel.addItem(line)
+
+    def _selected_prop_profile_path(self):
+        from pathlib import Path as _Path
+
+        combo = getattr(self, "_prop_profile_combo", None)
+        if combo is not None and combo.currentData():
+            return _Path(str(combo.currentData()))
+        return _Path("config/prop_rules_lucid.yaml")
+
+    def _render_prop_rules(self, rules) -> None:
+        panel = getattr(self, "_prop_rules_list", None)
+        if panel is None:
+            return
+        panel.clear()
+        panel.addItem(f"{rules.firm} v{rules.profile_version} | source: {rules.source_url or 'NOT VERIFIED'} "
+                      f"| retrieved: {rules.retrieval_date or 'never'}")
+        for name in ("account_type", "account_size", "drawdown_method", "daily_loss_rule",
+                     "max_contracts", "consistency_rule", "permitted_instruments",
+                     "permitted_trading_times", "news_restrictions", "overnight_rules",
+                     "prohibited", "effective_date"):
+            panel.addItem(f"{name}: {getattr(rules, name)}")
+        if rules.blocks_automated_execution:
+            panel.addItem(f"BLOCKING: {len(rules.unresolved_fields)} unresolved field(s) - "
+                          "automated DEMO/LIVE execution stays disabled until verified.")
+        else:
+            panel.addItem("Profile resolved: rule compliance can be enforced.")
+
+    def _execution_cancel_replace(self) -> None:
+        """Cancel/replace the price of a known working demo order (armed only)."""
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        known = sorted(getattr(gateway, "_known_order_ids", ()))
+        if not known:
+            self._refresh_execution_panel("Cancel/replace: no working order placed by this gateway yet.")
+            return
+        try:
+            ok = gateway.cancel_replace(self._manual_safety_approval(), order_id=known[0],
+                                        new_price=Decimal("0"), price_field="stopPrice")
+            self._refresh_execution_panel(
+                "Cancel/replace accepted." if ok else "Cancel/replace rejected - state reconciled from broker.",
+            )
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Cancel/replace failed: {type(error).__name__}: {error}")
 
     def _demo_gateway_or_note(self):
         if self._selected_execution_environment() != "TRADOVATE DEMO":
@@ -2276,6 +2368,22 @@ class MainWindow(QMainWindow):
         if panel is not None:
             for failure in decision.failures:
                 panel.addItem(f"  - {failure}")
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        """Graceful close: disconnect the broker session and disarm everything.
+
+        The receiver drains and finalizes on its own shutdown path; research
+        checkpoints after every batch. Here we make sure no broker session or
+        arming outlives the window.
+        """
+        try:
+            if getattr(self, "_demo_gateway", None) is not None:
+                self._demo_gateway.disconnect()
+            if getattr(self, "_execution_arming", None) is not None:
+                self._execution_arming.disarm_all()
+        except Exception:  # noqa: BLE001 - closing must never hang the window
+            pass
+        super().closeEvent(event)
 
     def _build_ask_tab(self) -> QWidget:
         tab = QWidget()

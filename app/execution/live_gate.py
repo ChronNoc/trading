@@ -108,6 +108,44 @@ def read_live_enabled(production_config_path: Path) -> bool:
     return payload.get("live_enabled") is True or payload.get("live_mode") is True
 
 
+@dataclass(frozen=True, slots=True)
+class LiveGateApproval:
+    """Proof object that every LIVE prerequisite passed at issuance time.
+
+    Only :func:`issue_live_gate_approval` creates one, and only from a fully
+    passing evaluation. It embeds the decision and the production-config path so
+    the live gateway can re-verify ``live_enabled`` at construction (fail
+    closed) - holding a stale approval is not enough.
+    """
+
+    decision: LiveGateDecision
+    production_config_path: Path
+    issued_for_account: str
+    issued_utc: str
+
+
+def issue_live_gate_approval(
+    inputs: LiveGateInputs,
+    *,
+    production_config_path: Path,
+    account_spec: str,
+) -> LiveGateApproval:
+    """Issue an approval ONLY when every requirement passes; otherwise raise."""
+    from datetime import UTC, datetime
+
+    if not read_live_enabled(production_config_path):
+        raise PermissionError("live_enabled is false in the production configuration")
+    decision = evaluate_live_gate(inputs)
+    if not decision.allowed:
+        raise PermissionError("LIVE gate not passed: " + "; ".join(decision.failures))
+    return LiveGateApproval(
+        decision=decision,
+        production_config_path=production_config_path,
+        issued_for_account=account_spec,
+        issued_utc=datetime.now(UTC).isoformat(),
+    )
+
+
 @dataclass(slots=True)
 class ArmingState:
     """In-memory arming state. Never serialized: every startup is disarmed."""

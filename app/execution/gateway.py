@@ -339,6 +339,33 @@ class TradovateDemoGateway:
         })
         return result
 
+    def cancel_replace(self, risk_approval: RiskApproval, *, order_id: str,
+                       new_price: Decimal, price_field: str = "stopPrice") -> bool:
+        """Cancel/replace one known working order's price (armed only).
+
+        A rejected replace is logged and answered with a snapshot
+        reconciliation - never a guess about the order's true state.
+        """
+        if not self._armed:
+            raise ExecutionRejectedError("demo gateway is connected read-only; ARM DEMO to allow orders")
+        from app.execution.orders import _require_approved
+
+        _require_approved(risk_approval)
+        self.ensure_token()
+        assert self._token is not None
+        response = self._http.post(
+            f"{TRADOVATE_DEMO_REST_BASE_URL}/order/modifyOrder",
+            headers={"Authorization": f"Bearer {self._token.token}"},
+            json={"orderId": order_id, price_field: str(new_price)},
+        )
+        ok = isinstance(response, Mapping) and not response.get("failureReason")
+        self._append_log({"event": "cancel_replace", "order_id": order_id,
+                          "new_price": str(new_price), "accepted": bool(ok),
+                          "failure": str(response.get("failureReason", "")) if isinstance(response, Mapping) else "bad response"})
+        if not ok:
+            self.synchronize()  # reconcile after the ambiguous transition
+        return bool(ok)
+
     def cancel_all(self, risk_approval: RiskApproval) -> int:
         """Cancel every order this gateway knows it placed; returns the count."""
         self.ensure_token()
@@ -461,26 +488,110 @@ class LiveExecutionLockedError(RuntimeError):
     """Raised whenever live execution is requested while the LIVE gate is closed."""
 
 
-class TradovateLiveGateway:
-    """Future LIVE gateway - cannot be constructed until every LIVE gate passes.
+# LIVE endpoints - used ONLY by TradovateLiveGateway, which cannot be
+# constructed without an issued LiveGateApproval AND live_enabled in the
+# user-controlled production config. Kept in this one place so the acceptance
+# verifier can prove demo and live endpoints are separated.
+TRADOVATE_LIVE_REST_BASE_URL = "https://live.tradovateapi.com/v1"
+TRADOVATE_LIVE_WS_URL = "wss://live.tradovateapi.com/v1/websocket"
 
-    There is no override: construction re-evaluates the full gate from the
-    production config and the caller-supplied gate decision. With
-    ``live_enabled`` false (the shipped default), this always raises.
+
+class TradovateLiveGateway:
+    """REAL live gateway implementation, locked behind the full LIVE gate.
+
+    Constructible only with a genuine :class:`LiveGateApproval` (issued
+    exclusively by ``issue_live_gate_approval`` when EVERY requirement passes)
+    AND ``live_enabled`` true in the production config, re-read at construction
+    so a stale approval cannot outlive a config change. In the shipped
+    configuration this always raises. Even when constructed, orders additionally
+    require in-process arming (never persisted) plus a risk approval per action.
     """
 
     environment = ENVIRONMENT_LIVE
 
-    def __init__(self, gate_decision: object) -> None:
-        """Refuse construction unless a passed LIVE-gate decision is supplied."""
-        from app.execution.live_gate import LiveGateDecision
+    def __init__(
+        self,
+        approval: object,
+        http_client: TradovateHttpClient,
+        ws_client: TradovateAckClient,
+        *,
+        order_log_path: Path,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        """Verify the approval + config, then build a read-only, DISARMED gateway."""
+        from app.execution.live_gate import LiveGateApproval, read_live_enabled
 
-        if not isinstance(gate_decision, LiveGateDecision) or not gate_decision.allowed:
-            failures = getattr(gate_decision, "failures", ("no gate decision supplied",))
+        if not isinstance(approval, LiveGateApproval) or not approval.decision.allowed:
+            failures = getattr(getattr(approval, "decision", None), "failures",
+                               ("no LiveGateApproval supplied",))
             raise LiveExecutionLockedError(
                 "LIVE execution is locked. Unmet requirements: " + "; ".join(failures),
             )
-        raise LiveExecutionLockedError(
-            "LIVE execution is not implemented in this build even with a passed gate; "
-            "it requires a separate reviewed change.",
+        if not read_live_enabled(approval.production_config_path):
+            raise LiveExecutionLockedError(
+                "LIVE execution is locked: live_enabled is false in the production configuration.",
+            )
+        self._http = http_client
+        self._ws = ws_client
+        self._order_log_path = order_log_path
+        self._clock = clock
+        self._approval = approval
+        self._token: AccessToken | None = None
+        self._account: AccountRef | None = None
+        self._armed = False  # in-memory only; restart always disarms
+
+    def connect_read_only(self, credentials_token: str) -> None:
+        """Attach an already-obtained LIVE token; read-only until armed."""
+        self._token = AccessToken(token=credentials_token, expires_at_epoch=self._clock() + 3600)
+
+    def select_account(self) -> AccountRef:
+        """Fetch and select the LIVE account (read-only)."""
+        if self._token is None:
+            raise ExecutionRejectedError("not connected")
+        response = self._http.get(
+            f"{TRADOVATE_LIVE_REST_BASE_URL}/account/list",
+            headers={"Authorization": f"Bearer {self._token.token}"},
         )
+        accounts = list(response) if isinstance(response, (list, tuple)) else []
+        if not accounts:
+            raise ExecutionRejectedError("no live account available")
+        self._account = AccountRef(account_id=int(accounts[0]["id"]),
+                                   account_spec=str(accounts[0]["name"]))
+        return self._account
+
+    def arm_live_for_this_process(self, typed_phrase: str, second_confirmation: bool) -> None:
+        """Final in-process arming step; requires the typed phrase again."""
+        from app.execution.live_gate import LIVE_CONFIRMATION_PHRASE
+
+        if typed_phrase != LIVE_CONFIRMATION_PHRASE or second_confirmation is not True:
+            raise LiveExecutionLockedError("live arming confirmation failed")
+        self._armed = True
+
+    def place_bracket(self, risk_approval: RiskApproval, *, payload: Mapping[str, object]) -> Mapping[str, object]:
+        """Submit one LIVE bracket - armed + risk-approved only."""
+        from app.execution.orders import _require_approved
+
+        if not self._armed:
+            raise LiveExecutionLockedError("LIVE gateway is connected read-only; arming required")
+        _require_approved(risk_approval)
+        if self._token is None or self._account is None:
+            raise ExecutionRejectedError("not connected / no account selected")
+        response = self._http.post(
+            f"{TRADOVATE_LIVE_REST_BASE_URL}/order/placeOSO",
+            headers={"Authorization": f"Bearer {self._token.token}"},
+            json=dict(payload),
+        )
+        self._append_log({"event": "live_bracket_placed", "response_keys": sorted(dict(response).keys())
+                          if isinstance(response, Mapping) else []})
+        return response if isinstance(response, Mapping) else {}
+
+    def disarm(self) -> None:
+        """Immediately revoke LIVE order permission."""
+        self._armed = False
+
+    def _append_log(self, payload: Mapping[str, object]) -> None:
+        self._order_log_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = dict(payload)
+        entry["recorded_utc"] = datetime.now(UTC).isoformat()
+        with self._order_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, sort_keys=True) + "\n")

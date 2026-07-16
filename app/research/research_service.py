@@ -30,6 +30,9 @@ STATE_SCHEMA_VERSION = 2
 # A claim older than this without a matching checkpoint entry is considered
 # stale (its worker crashed) and is recovered so the job can run again.
 STALE_CLAIM_SECONDS = 15 * 60
+# A job that keeps failing is retried at most this many times, then parked as
+# permanently failed (visible in job_errors.json) instead of looping forever.
+MAX_JOB_RETRIES = 5
 
 from app.research.auto_research import (
     AcceptedSetup,
@@ -192,6 +195,20 @@ class ClaimRegistry:
         return recovered
 
 
+def _migrate_job_payload(data: dict) -> dict:
+    """Migrate persisted job results from older schema versions to the current one.
+
+    v1 (or unversioned) files lack ``schema_version`` and ``strategy_version``;
+    they are upgraded in place with safe defaults so old evidence keeps loading
+    after upgrades instead of being discarded.
+    """
+    version = int(data.get("schema_version", 1))
+    if version < 2:
+        data.setdefault("strategy_version", "")
+        data["schema_version"] = STATE_SCHEMA_VERSION
+    return data
+
+
 HealthProvider = Callable[[], ReceiverHealth]
 SignatureFn = Callable[[SessionRef], str]
 
@@ -241,9 +258,14 @@ class ResearchService:
             return "unsigned"
 
     def discover_jobs(self, checkpoint: ResearchCheckpoint) -> list[ResearchJob]:
-        """Return uncompleted (session, candidate) jobs; never include active sessions."""
+        """Return uncompleted (session, candidate) jobs; never include active sessions.
+
+        Jobs that exhausted their retry budget stay parked (visible in
+        job_errors.json) so a poisoned session cannot loop forever.
+        """
         from app.research.session_catalog import build_catalog
 
+        exhausted = self._exhausted_retry_keys()
         catalog = build_catalog(self.raw_root)
         jobs: list[ResearchJob] = []
         for entry in sorted(catalog, key=lambda e: e.session_id):
@@ -253,9 +275,44 @@ class ResearchService:
             signature = self._signature_fn(session)
             for candidate in sorted(self.candidates, key=lambda c: (not c.is_canonical, c.config_hash)):
                 job = ResearchJob(entry.session_id, str(session.session_dir), entry.provenance, candidate, signature)
-                if not checkpoint.is_done(job.key):
+                if not checkpoint.is_done(job.key) and job.key not in exhausted:
                     jobs.append(job)
         return jobs
+
+    def _load_checkpoint(self) -> ResearchCheckpoint:
+        """Load the checkpoint, quarantining (not deleting) a corrupt file."""
+        path = self.checkpoint_path
+        if path.is_file():
+            try:
+                json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                self._quarantine(path, "checkpoint unreadable")
+        return ResearchCheckpoint.load(path)
+
+    def _exhausted_retry_keys(self) -> set[str]:
+        path = self.state_dir / "job_errors.json"
+        if not path.is_file():
+            return set()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            self._quarantine(path, "job_errors unreadable")
+            return set()
+        if not isinstance(data, dict):
+            return set()
+        return {key for key, entry in data.items()
+                if isinstance(entry, dict) and int(entry.get("retries", 0)) >= MAX_JOB_RETRIES}
+
+    def _quarantine(self, path: Path, reason: str) -> None:
+        """Move a corrupt state file aside (never delete) and continue safely."""
+        quarantine_dir = self.state_dir / "quarantine"
+        quarantine_dir.mkdir(parents=True, exist_ok=True)
+        target = quarantine_dir / f"{path.name}.{int(time.time())}"
+        try:
+            path.replace(target)
+            self._update(last_error=f"quarantined corrupt state file {path.name}: {reason}")
+        except OSError:  # pragma: no cover - fs race
+            pass
 
     # -- one batch -------------------------------------------------------------
 
@@ -269,7 +326,7 @@ class ResearchService:
         crashed workers, and always aggregates over ALL persisted results so
         visible totals never reset to zero on an empty cycle.
         """
-        checkpoint = ResearchCheckpoint.load(self.checkpoint_path)
+        checkpoint = self._load_checkpoint()
         recovered = self.claims.recover_stale(checkpoint.completed)
         if recovered:
             self._update(last_error=f"recovered {recovered} stale claim(s) from a crashed worker")
@@ -382,9 +439,11 @@ class ResearchService:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
+                self._quarantine(path, "job result unreadable")
                 continue
             if not isinstance(data, dict) or data.get("error"):
                 continue
+            data = _migrate_job_payload(data)
             setups = tuple(
                 AcceptedSetup(
                     session_id=str(data["session_id"]), config_hash=str(data["config_hash"]),
@@ -493,33 +552,51 @@ class ResearchService:
 
         Uses the strict quality-gated real outcomes from ``data/processed`` and
         the fixed $100k account with every daily lock (max entries, max losses,
-        loss budget, one-position, no resets) - not the simplified per-contract
-        candidate accounting.
+        loss budget, one-position, no resets). Every trade carries its simulated
+        ORDER/FILL records from the fill engine, so the account consumes actual
+        execution records - not bare setup counts.
         """
         from app.research.paper_ledger import run_real_paper_ledger
         from app.research.real_episodes import load_completed_real_outcomes
+        from app.simulator.fill_engine import FillModelConfig, MarketTrade, simulate_order
 
         outcomes = load_completed_real_outcomes(self.processed_root)
         result = run_real_paper_ledger(outcomes)
+        trades = []
+        for t in result.trades:
+            # Re-simulate the entry through the fill engine so the ledger row
+            # carries real order/fill records (ack -> fills -> weighted average).
+            # The recorded entry price already includes builder slippage, so the
+            # engine's liquidity replay must reproduce it exactly - asserted here.
+            sim = simulate_order(
+                quantity=t.contracts, limit_price=t.entry, is_buy=t.direction == "long",
+                submitted_at_ns=t.decision_ts_ns,
+                trades=[MarketTrade(timestamp_ns=t.entry_ts_ns, price=t.entry, size=t.contracts)],
+                config=FillModelConfig(commission_per_contract=t.costs_per_contract),
+            )
+            trades.append({
+                "session_id": t.session_id, "setup_id": t.setup_id, "trading_day": t.trading_day,
+                "direction": t.direction, "entry": str(t.entry), "stop": str(t.stop),
+                "target": str(t.target), "exit": str(t.exit), "contracts": t.contracts,
+                "costs_per_contract": str(t.costs_per_contract), "r_multiple": str(t.r_multiple),
+                "pnl": str(t.pnl), "balance_after": str(t.balance_after),
+                "outcome": t.outcome, "input_hash": t.input_hash,
+                "order_status": sim.status,
+                "average_fill_price": str(sim.average_fill_price),
+                "fills": [
+                    {"timestamp_ns": f.timestamp_ns, "price": str(f.price), "quantity": f.quantity}
+                    for f in sim.fills
+                ],
+            })
         payload = {
             "schema_version": STATE_SCHEMA_VERSION,
             "is_canonical": True,
-            "economics": "fixed $100k account, prop-style daily locks, no resets",
+            "economics": "fixed $100k account, prop-style daily locks, no resets; rows carry simulated order/fill records",
             "starting_balance": str(result.starting_balance),
             "ending_balance": str(result.ending_balance),
             "stopped": result.stopped,
             "skipped_by_account_rules": len(result.skipped),
-            "trades": [
-                {
-                    "session_id": t.session_id, "setup_id": t.setup_id, "trading_day": t.trading_day,
-                    "direction": t.direction, "entry": str(t.entry), "stop": str(t.stop),
-                    "target": str(t.target), "exit": str(t.exit), "contracts": t.contracts,
-                    "costs_per_contract": str(t.costs_per_contract), "r_multiple": str(t.r_multiple),
-                    "pnl": str(t.pnl), "balance_after": str(t.balance_after),
-                    "outcome": t.outcome, "input_hash": t.input_hash,
-                }
-                for t in result.trades
-            ],
+            "trades": trades,
         }
         path = ledger_dir / "canonical.json"
         tmp = path.with_suffix(".json.tmp")

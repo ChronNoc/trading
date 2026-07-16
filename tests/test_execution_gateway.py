@@ -210,15 +210,45 @@ def test_paper_gateway_records_and_is_structurally_isolated(tmp_path: Path) -> N
     assert not any(any(b in name.lower() for b in banned) for name in imported), imported
 
 
-def test_live_gateway_cannot_be_constructed() -> None:
+def test_live_gateway_locked_without_approval_and_real_with_one(tmp_path: Path) -> None:
+    """LIVE is a REAL gateway, but constructible only via an issued approval."""
     from app.execution.gateway import LiveExecutionLockedError
+    from app.execution.live_gate import issue_live_gate_approval
 
+    # 1. Garbage or a bare decision never constructs the gateway.
     with pytest.raises(LiveExecutionLockedError):
-        TradovateLiveGateway(object())
-    passed = evaluate_live_gate(_all_true_inputs())
-    assert passed.allowed  # the gate itself can pass in principle...
-    with pytest.raises(LiveExecutionLockedError, match="separate reviewed change"):
-        TradovateLiveGateway(passed)  # ...but the LIVE gateway still refuses in this build
+        TradovateLiveGateway(object(), MockHttpClient({}), MockAckClient(),
+                             order_log_path=tmp_path / "live.jsonl")
+    with pytest.raises(LiveExecutionLockedError):
+        TradovateLiveGateway(evaluate_live_gate(_all_true_inputs()), MockHttpClient({}), MockAckClient(),
+                             order_log_path=tmp_path / "live.jsonl")
+
+    # 2. The SHIPPED config cannot even issue an approval (live_enabled false).
+    with pytest.raises(PermissionError, match="live_enabled is false"):
+        issue_live_gate_approval(_all_true_inputs(),
+                                 production_config_path=Path("config/production_config.yaml"),
+                                 account_spec="LIVE1")
+
+    # 3. A user-enabled config + fully passed gate constructs a READ-ONLY gateway
+    #    (mocked clients; no network). Orders still require in-process arming.
+    enabled = tmp_path / "production_config.yaml"
+    enabled.write_text("live_enabled: true\n", encoding="utf-8")
+    approval = issue_live_gate_approval(_all_true_inputs(), production_config_path=enabled,
+                                        account_spec="LIVE1")
+    live_routes = {"account/list": [{"id": 1, "name": "LIVE1"}]}
+    gateway = TradovateLiveGateway(approval, MockHttpClient(live_routes), MockAckClient(),
+                                   order_log_path=tmp_path / "live.jsonl")
+    gateway.connect_read_only("live-token")
+    assert gateway.select_account().account_spec == "LIVE1"
+    from app.execution.gateway import LiveExecutionLockedError as Locked
+
+    with pytest.raises(Locked, match="read-only"):
+        gateway.place_bracket(_Approval(), payload={"symbol": "MNQU6"})
+    # Wrong phrase never arms; correct phrase + second confirmation does.
+    with pytest.raises(Locked):
+        gateway.arm_live_for_this_process("arm live", True)
+    gateway.arm_live_for_this_process(LIVE_CONFIRMATION_PHRASE, True)
+    gateway.disarm()  # returns to safe state; nothing persisted anywhere
 
 
 def _all_true_inputs() -> LiveGateInputs:
@@ -271,12 +301,28 @@ def test_prop_rules_resolved_profile_unblocks(tmp_path: Path) -> None:
     path = tmp_path / "rules.yaml"
     path.write_text(
         "profile_version: '2'\nfirm: Lucid Trading\nsource_url: https://example/rules\n"
-        "retrieval_date: '2026-07-16'\naccount_type: 50k\ndrawdown_method: eod\n"
-        "daily_loss_rule: '1000'\nmax_contracts: '5'\nconsistency_rule: '40%'\n"
+        "retrieval_date: '2026-07-16'\naccount_type: 50k\naccount_size: '50000'\n"
+        "drawdown_method: eod\ndaily_loss_rule: '1000'\nmax_contracts: '5'\n"
+        "consistency_rule: '40%'\npermitted_instruments: MNQ\n"
+        "permitted_trading_times: RTH\nnews_restrictions: none\novernight_rules: flat\n"
         "prohibited: none\neffective_date: '2026-07-01'\nresolved: true\n",
         encoding="utf-8",
     )
-    assert PropRuleProfile.load(path).blocks_automated_execution is False
+    profile = PropRuleProfile.load(path)
+    assert profile.blocks_automated_execution is False
+    assert profile.permitted_instruments == "MNQ"  # new fields parsed
+
+
+def test_profile_listing_discovers_importable_profiles(tmp_path: Path) -> None:
+    """A verified profile dropped into config needs zero code changes to select."""
+    from app.execution.prop_rules import list_profiles
+
+    (tmp_path / "prop_rules_lucid.yaml").write_text("firm: Lucid Trading\n", encoding="utf-8")
+    profile_dir = tmp_path / "prop_profiles"
+    profile_dir.mkdir()
+    (profile_dir / "lucid_50k_verified.yaml").write_text("firm: Lucid Trading\n", encoding="utf-8")
+    names = [p.name for p in list_profiles(tmp_path)]
+    assert names == ["prop_rules_lucid.yaml", "lucid_50k_verified.yaml"]
 
 
 def test_second_confirmation_summary_displays_all_risk_fields() -> None:

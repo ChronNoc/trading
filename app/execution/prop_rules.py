@@ -15,6 +15,14 @@ from pathlib import Path
 DEFAULT_PROFILE_PATH = Path("config/prop_rules_lucid.yaml")
 
 
+REQUIRED_FIELDS = (
+    "account_type", "account_size", "drawdown_method", "daily_loss_rule",
+    "max_contracts", "consistency_rule", "permitted_instruments",
+    "permitted_trading_times", "news_restrictions", "overnight_rules",
+    "prohibited", "effective_date",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class PropRuleProfile:
     """One versioned prop-rule profile with provenance."""
@@ -24,10 +32,15 @@ class PropRuleProfile:
     source_url: str
     retrieval_date: str
     account_type: str
+    account_size: str
     drawdown_method: str
     daily_loss_rule: str
     max_contracts: str
     consistency_rule: str
+    permitted_instruments: str
+    permitted_trading_times: str
+    news_restrictions: str
+    overnight_rules: str
     prohibited: str
     effective_date: str
     resolved: bool
@@ -51,15 +64,7 @@ class PropRuleProfile:
             return cls._unresolved("profile file unreadable")
         if not isinstance(payload, dict):
             return cls._unresolved("profile file malformed")
-        fields = {
-            "account_type": payload.get("account_type"),
-            "drawdown_method": payload.get("drawdown_method"),
-            "daily_loss_rule": payload.get("daily_loss_rule"),
-            "max_contracts": payload.get("max_contracts"),
-            "consistency_rule": payload.get("consistency_rule"),
-            "prohibited": payload.get("prohibited"),
-            "effective_date": payload.get("effective_date"),
-        }
+        fields = {name: payload.get(name) for name in REQUIRED_FIELDS}
         unresolved = tuple(sorted(
             name for name, value in fields.items()
             if value in (None, "", "unresolved") or str(value).startswith("UNRESOLVED")
@@ -67,28 +72,46 @@ class PropRuleProfile:
         source_url = str(payload.get("source_url") or "")
         retrieval_date = str(payload.get("retrieval_date") or "")
         resolved = bool(payload.get("resolved") is True and source_url and retrieval_date and not unresolved)
+        text = {name: str(fields[name] or "UNRESOLVED") for name in REQUIRED_FIELDS}
         return cls(
             profile_version=str(payload.get("profile_version", "0")),
             firm=str(payload.get("firm", "Lucid Trading")),
             source_url=source_url,
             retrieval_date=retrieval_date,
-            account_type=str(fields["account_type"] or "UNRESOLVED"),
-            drawdown_method=str(fields["drawdown_method"] or "UNRESOLVED"),
-            daily_loss_rule=str(fields["daily_loss_rule"] or "UNRESOLVED"),
-            max_contracts=str(fields["max_contracts"] or "UNRESOLVED"),
-            consistency_rule=str(fields["consistency_rule"] or "UNRESOLVED"),
-            prohibited=str(fields["prohibited"] or "UNRESOLVED"),
-            effective_date=str(fields["effective_date"] or "UNRESOLVED"),
+            account_type=text["account_type"],
+            account_size=text["account_size"],
+            drawdown_method=text["drawdown_method"],
+            daily_loss_rule=text["daily_loss_rule"],
+            max_contracts=text["max_contracts"],
+            consistency_rule=text["consistency_rule"],
+            permitted_instruments=text["permitted_instruments"],
+            permitted_trading_times=text["permitted_trading_times"],
+            news_restrictions=text["news_restrictions"],
+            overnight_rules=text["overnight_rules"],
+            prohibited=text["prohibited"],
+            effective_date=text["effective_date"],
             resolved=resolved,
             unresolved_fields=unresolved,
         )
 
     @classmethod
     def _unresolved(cls, reason: str) -> "PropRuleProfile":
+        text = {name: "UNRESOLVED" for name in REQUIRED_FIELDS}
         return cls(
             profile_version="0", firm="Lucid Trading", source_url="", retrieval_date="",
-            account_type="UNRESOLVED", drawdown_method="UNRESOLVED", daily_loss_rule="UNRESOLVED",
-            max_contracts="UNRESOLVED", consistency_rule="UNRESOLVED", prohibited="UNRESOLVED",
-            effective_date="UNRESOLVED", resolved=False,
-            unresolved_fields=(reason,),
+            resolved=False, unresolved_fields=(reason,), **text,
         )
+
+
+def list_profiles(config_dir: Path = Path("config")) -> tuple[Path, ...]:
+    """Return every prop-rule profile yaml the user can select or import.
+
+    Looks for ``prop_rules_*.yaml`` in the config dir plus anything the user
+    drops into ``config/prop_profiles/`` - a verified profile can be added and
+    selected without any code change.
+    """
+    candidates: list[Path] = sorted(config_dir.glob("prop_rules_*.yaml"))
+    profile_dir = config_dir / "prop_profiles"
+    if profile_dir.is_dir():
+        candidates.extend(sorted(profile_dir.glob("*.yaml")))
+    return tuple(candidates)

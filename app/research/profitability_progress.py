@@ -132,6 +132,8 @@ def compute_progress(
     gates.append(_gate_day_concentration(completed, have_sample, cfg))
     gates.append(_gate_side_balance(completed, have_sample, cfg))
     gates.append(_gate_hour_stability(completed, have_sample, cfg))
+    gates.append(_gate_walk_forward(completed, have_sample, cfg))
+    gates.append(_gate_demo_soak())
     gates.append(_gate_calibration(completed, have_sample, cfg))
     # --- Final gate: prop-rule compliance (fixed-account survival) ----------
     gates.append(_gate_prop_compliance(ledger, have_sample))
@@ -516,6 +518,63 @@ def _gate_hour_stability(
         threshold=f"busiest hour <= {cfg.max_hour_concentration:%}, >= 3 hours",
         detail="An edge concentrated in one hour is usually a session artefact, not a strategy.",
         next_action="Passed." if passed else "Setups are concentrated in too few hours of the day.",
+    )
+
+
+def _gate_walk_forward(
+    completed: Sequence[CompletedRealOutcome],
+    have_sample: bool,
+    cfg: ProgressConfig,
+) -> Gate:
+    if not have_sample:
+        return _insufficient(
+            "walk_forward", "Walk-forward out-of-sample expectancy",
+            "every fold's test days positive after costs", len(completed), cfg,
+        )
+    from app.research.validation import evaluate_walk_forward
+
+    report = evaluate_walk_forward(completed)
+    if not report.sufficient:
+        return Gate(
+            gate_id="walk_forward",
+            label="Walk-forward out-of-sample expectancy",
+            status=STATUS_INSUFFICIENT,
+            observed=f"{len(report.folds)} fold(s), {report.total_test_trades} test trades",
+            threshold=">= 2 folds, each with trades and positive net expectancy",
+            detail="Whole-day expanding folds; test days never select parameters.",
+            next_action="Accumulate outcomes across enough distinct days for real folds.",
+        )
+    passed = report.all_folds_positive
+    return Gate(
+        gate_id="walk_forward",
+        label="Walk-forward out-of-sample expectancy",
+        status=STATUS_PASSED if passed else STATUS_BLOCKED,
+        observed=f"{report.positive_folds}/{len(report.folds)} folds positive "
+                 f"({report.total_test_trades} strictly out-of-sample trades)",
+        threshold="every fold's test days positive after costs",
+        detail="An edge must survive periods it never trained on, fold after fold.",
+        next_action="Passed." if passed else "At least one out-of-sample fold lost money.",
+    )
+
+
+def _gate_demo_soak() -> Gate:
+    # Demo-soak evidence comes from an actual Tradovate DEMO run log; none has
+    # been produced, so this is honestly insufficient (never a fabricated pass).
+    from pathlib import Path as _Path
+
+    soak_log = _Path("data/execution_state/demo_soak.jsonl")
+    if soak_log.is_file() and soak_log.stat().st_size > 0:
+        observed = "demo soak log present (review required)"
+    else:
+        observed = "no demo soak evidence recorded"
+    return Gate(
+        gate_id="demo_soak",
+        label="Tradovate DEMO soak period",
+        status=STATUS_INSUFFICIENT,
+        observed=observed,
+        threshold="a reviewed, clean multi-session DEMO soak",
+        detail="LIVE consideration requires demonstrated stability on the demo account first.",
+        next_action="After validation passes, run the strategy against Tradovate DEMO and review the soak log.",
     )
 
 
