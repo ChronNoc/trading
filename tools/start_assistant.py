@@ -191,8 +191,39 @@ async def run_headless_assistant(
         await server.close()
 
 
-def _build_research_service(config: AssistantConfig) -> object | None:
-    """Create the persistent research service, or None if unavailable."""
+def make_receiver_health_provider(controller: AutomaticRuntimeController):
+    """Build the REAL receiver-health provider for research throttling.
+
+    Reports the delta of current-session bridge queue drops since the last check
+    (any new drop stops research), and marks capture unhealthy when a connected
+    Bookmap feed has gone stale. It never fabricates queue/lag numbers the
+    receiver does not measure.
+    """
+    from app.research.auto_research import ReceiverHealth
+
+    last_seen = {"drops": 0}
+
+    def provider() -> ReceiverHealth:
+        current = controller.health.current_session_dropped_message_count
+        delta = max(0, current - last_seen["drops"])
+        last_seen["drops"] = current
+        lag_ms = 0
+        if controller.health.bookmap_connected:
+            import time as _time
+
+            age_ns = controller.health.data_age_ns(_time.time_ns())
+            # A connected feed with no fresh events is a capture problem;
+            # research must yield until it recovers. (Delayed data carries its
+            # own event timestamps, so a large age here means true staleness.)
+            if controller.health.is_data_stale(_time.time_ns()) and age_ns is not None:
+                lag_ms = 1000
+        return ReceiverHealth(queue_occupancy=0.0, current_session_drops_delta=delta, lag_ms=lag_ms)
+
+    return provider
+
+
+def _build_research_service(config: AssistantConfig, controller: AutomaticRuntimeController) -> object | None:
+    """Create the persistent research service wired to REAL receiver health."""
     try:
         from app.research.research_service import ResearchService
 
@@ -200,6 +231,7 @@ def _build_research_service(config: AssistantConfig) -> object | None:
             config.output_root,
             Path("data/processed"),
             state_dir=Path("data/research_state"),
+            health_provider=make_receiver_health_provider(controller),
         )
     except Exception as error:  # pragma: no cover - never block the app on research
         print(f"Research service unavailable: {error}", file=sys.stderr, flush=True)
@@ -215,7 +247,7 @@ def run_assistant(config: AssistantConfig) -> int:
         report_root=config.report_root,
     )
     status_holder = ReceiverStatusHolder()
-    research_service = _build_research_service(config)
+    research_service = _build_research_service(config, controller)
 
     if not config.gui:
         try:

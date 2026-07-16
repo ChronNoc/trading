@@ -1,0 +1,22 @@
+# Lucid Trading prop-rule profile - VERSIONED, honest provenance required.
+#
+# Every rule below is UNRESOLVED until it has been verified against current
+# official Lucid Trading sources (record the exact source_url and the
+# retrieval_date, then set resolved: true). While any field is unresolved,
+# automated execution is BLOCKED by app/execution/prop_rules.py. Do not guess.
+#
+# Verification attempt 2026-07-16: web access unavailable in the build
+# environment (search limit); rules intentionally left unresolved rather than
+# guessed from memory.
+profile_version: "1"
+firm: Lucid Trading
+source_url: ""            # fill with the official Lucid rules page URL
+retrieval_date: ""        # fill with the ISO date the rules were read
+account_type: UNRESOLVED
+drawdown_method: UNRESOLVED       # e.g. end-of-day vs intraday trailing
+daily_loss_rule: UNRESOLVED
+max_contracts: UNRESOLVED
+consistency_rule: UNRESOLVED
+prohibited: UNRESOLVED            # prohibited times/actions
+effective_date: UNRESOLVED
+resolved: false

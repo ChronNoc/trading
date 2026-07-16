@@ -17,3 +17,6 @@ data/discovery/.last_search_run
 
 # Automatic research service runtime state (checkpoints, claims, job results)
 data/research_state/
+
+# Execution gateway runtime logs (paper + demo order/discrepancy logs)
+data/execution_state/

@@ -285,6 +285,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_decision_log_tab(), "Decision log")
         self.tabs.addTab(self._build_leaderboard_tab(), "Leaderboard")
         self.tabs.addTab(self._build_paper_trading_tab(), "Paper trading")
+        self.tabs.addTab(self._build_execution_tab(), "Execution")
         layout.addWidget(self.tabs)
 
         self.setCentralWidget(root)
@@ -2052,6 +2053,229 @@ class MainWindow(QMainWindow):
         except OSError as exc:  # pragma: no cover - environment dependent
             if status_label is not None:
                 status_label.setText(f"Could not open folder: {exc}")
+
+    def _build_execution_tab(self) -> QWidget:
+        """Execution Connection panel: PAPER default, DEMO on demand, LIVE locked."""
+        from app.execution.live_gate import ArmingState
+        from app.execution.paper_gateway import PaperExecutionGateway
+
+        tab = QWidget()
+        tab.setObjectName("execution_tab")
+        layout = QVBoxLayout(tab)
+
+        banner = QLabel(
+            "Execution environment. PAPER simulates everything locally and can never "
+            "reach a broker. TRADOVATE DEMO connects read-only with credentials from "
+            "environment variables (never stored or shown); placing demo orders "
+            "additionally requires ARM DEMO. TRADOVATE LIVE is locked behind the "
+            "full validation gate and ships disabled. Arming never survives restart.",
+        )
+        banner.setWordWrap(True)
+        banner.setStyleSheet(BANNER_STYLE)
+        layout.addWidget(banner)
+
+        env_combo = QComboBox()
+        env_combo.setObjectName("execution_environment_combo")
+        env_combo.addItems(["PAPER", "TRADOVATE DEMO", "TRADOVATE LIVE"])
+        layout.addWidget(env_combo)
+        self._execution_env_combo = env_combo
+
+        button_row = QHBoxLayout()
+        for name, label, handler in (
+            ("execution_connect_button", "Connect", self._execution_connect),
+            ("execution_disconnect_button", "Disconnect", self._execution_disconnect),
+            ("execution_test_button", "Test connection", self._execution_test),
+            ("execution_sync_button", "Synchronize", self._execution_sync),
+            ("execution_cancel_all_button", "Cancel all", self._execution_cancel_all),
+            ("execution_flatten_button", "Flatten", self._execution_flatten),
+            ("execution_arm_demo_button", "Arm DEMO", self._execution_arm_demo),
+            ("execution_arm_live_button", "Arm LIVE", self._execution_arm_live),
+        ):
+            button = QPushButton(label)
+            button.setObjectName(name)
+            button.clicked.connect(handler)
+            button_row.addWidget(button)
+        layout.addLayout(button_row)
+
+        status_list = QListWidget()
+        status_list.setObjectName("execution_status_list")
+        layout.addWidget(_group("Connection status (no secrets are ever displayed)", status_list))
+        self._execution_status_list = status_list
+
+        self._paper_gateway = PaperExecutionGateway(Path("data/execution_state/paper_orders.jsonl"))
+        self._demo_gateway = None
+        self._execution_arming = ArmingState()  # in-memory: every startup disarmed
+        self._refresh_execution_panel("Startup: OBSERVE mode, PAPER environment, disarmed.")
+        return tab
+
+    def _selected_execution_environment(self) -> str:
+        combo = getattr(self, "_execution_env_combo", None)
+        return combo.currentText() if combo is not None else "PAPER"
+
+    def _refresh_execution_panel(self, note: str = "") -> None:
+        """Render the secrets-free execution status."""
+        from app.execution.prop_rules import PropRuleProfile
+
+        panel = getattr(self, "_execution_status_list", None)
+        if panel is None:
+            return
+        panel.clear()
+        environment = self._selected_execution_environment()
+        arming = self._execution_arming
+        rules = PropRuleProfile.load()
+        lines = [f"Environment: {environment}"]
+        if environment == "PAPER":
+            lines.append("Connection: PAPER is always available locally; no broker transport exists.")
+            lines.append("Orders: simulated only, appended to data/execution_state/paper_orders.jsonl.")
+        elif self._demo_gateway is not None:
+            snap = self._demo_gateway.snapshot()
+            lines.extend([
+                f"Connection: {'connected' if snap.connected else 'disconnected'}",
+                f"Authentication: {'authenticated' if snap.authenticated else 'not authenticated'}",
+                f"Account: {snap.account_spec or 'not selected'} (id: {snap.account_id})",
+                f"Balance: {snap.balance} | Buying power: {snap.buying_power}",
+                f"Position (net): {snap.position_net} | Working orders: {snap.working_orders}"
+                f" | Orphans detected: {snap.orphan_orders}",
+                f"Contract: {snap.contract or 'MNQ (unsynced)'} | Reconnects: {snap.reconnects}",
+                f"Last reconciliation: {snap.last_reconciliation_utc or 'never'}",
+            ])
+        else:
+            lines.append("Connection: not connected (credentials come from environment variables).")
+        lines.append(f"Arming: DEMO {'ARMED' if arming.demo_armed else 'disarmed'}, "
+                     f"LIVE {'ARMED' if arming.live_armed else 'disarmed (locked)'}")
+        lines.append(
+            "Prop rules (Lucid): "
+            + ("resolved" if not rules.blocks_automated_execution
+               else f"UNRESOLVED - automated execution blocked ({len(rules.unresolved_fields)} unverified field(s))"),
+        )
+        lines.append("Kill switch: idle (no armed session)." if not arming.demo_armed
+                     else "Kill switch: Flatten button is the manual flatten path.")
+        if note:
+            lines.append(note)
+        for line in lines:
+            panel.addItem(line)
+
+    def _demo_gateway_or_note(self):
+        if self._selected_execution_environment() != "TRADOVATE DEMO":
+            self._refresh_execution_panel("Select TRADOVATE DEMO to use broker connection controls.")
+            return None
+        if self._demo_gateway is None:
+            self._refresh_execution_panel("Not connected: click Connect first.")
+            return None
+        return self._demo_gateway
+
+    def _execution_connect(self) -> None:
+        environment = self._selected_execution_environment()
+        if environment == "PAPER":
+            self._refresh_execution_panel("PAPER needs no connection.")
+            return
+        if environment == "TRADOVATE LIVE":
+            self._execution_arm_live()
+            return
+        from app.execution.gateway import (
+            CredentialsMissingError,
+            RestPollingAckClient,
+            TradovateDemoGateway,
+            UrllibRestClient,
+        )
+
+        try:
+            http = UrllibRestClient()
+            gateway = TradovateDemoGateway(
+                http,
+                RestPollingAckClient(http, lambda: gateway._token.token if gateway._token else ""),
+                order_log_path=Path("data/execution_state/demo_orders.jsonl"),
+            )
+            gateway.connect()
+            gateway.select_account()
+            self._demo_gateway = gateway
+            self._refresh_execution_panel("Connected READ-ONLY to Tradovate DEMO. Orders stay blocked until Arm DEMO.")
+        except CredentialsMissingError as error:
+            self._refresh_execution_panel(str(error))
+        except Exception as error:  # noqa: BLE001 - network failures reported honestly
+            self._refresh_execution_panel(f"Demo connection failed: {type(error).__name__}: {error}")
+
+    def _execution_disconnect(self) -> None:
+        if self._demo_gateway is not None:
+            self._demo_gateway.disconnect()
+        self._execution_arming.disarm_all()
+        self._refresh_execution_panel("Disconnected and disarmed.")
+
+    def _execution_test(self) -> None:
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        try:
+            ok = gateway.test_connection()
+            self._refresh_execution_panel("Test connection: OK." if ok else "Test connection: unexpected response.")
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Test failed: {type(error).__name__}: {error}")
+
+    def _execution_sync(self) -> None:
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        try:
+            gateway.synchronize()
+            self._refresh_execution_panel("Synchronized with the demo account.")
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Synchronize failed: {type(error).__name__}: {error}")
+
+    def _manual_safety_approval(self):
+        from dataclasses import dataclass as _dataclass
+
+        @_dataclass(frozen=True)
+        class _SafetyApproval:
+            allowed: bool = True
+            reason: str = "manual safety action from the Execution panel"
+
+        return _SafetyApproval()
+
+    def _execution_cancel_all(self) -> None:
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        try:
+            count = gateway.cancel_all(self._manual_safety_approval())
+            self._refresh_execution_panel(f"Cancel all: {count} known order(s) cancelled.")
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Cancel all failed: {type(error).__name__}: {error}")
+
+    def _execution_flatten(self) -> None:
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        try:
+            gateway.flatten(self._manual_safety_approval())
+            self._refresh_execution_panel("Flatten requested (kill-switch path).")
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Flatten failed: {type(error).__name__}: {error}")
+
+    def _execution_arm_demo(self) -> None:
+        gateway = self._demo_gateway_or_note()
+        if gateway is None:
+            return
+        try:
+            gateway.arm_demo()
+            self._execution_arming.demo_armed = True
+            self._refresh_execution_panel("DEMO ARMED for this process only (never persisted).")
+        except Exception as error:  # noqa: BLE001
+            self._refresh_execution_panel(f"Arm DEMO refused: {error}")
+
+    def _execution_arm_live(self) -> None:
+        """Arming LIVE re-evaluates the FULL gate; today it always fails closed."""
+        from app.execution.live_gate import LiveGateInputs, evaluate_live_gate, read_live_enabled
+        from app.execution.prop_rules import PropRuleProfile
+
+        decision = evaluate_live_gate(LiveGateInputs(
+            live_enabled_in_config=read_live_enabled(Path("config/production_config.yaml")),
+            prop_rules_resolved=not PropRuleProfile.load().blocks_automated_execution,
+        ))
+        panel = getattr(self, "_execution_status_list", None)
+        self._refresh_execution_panel("LIVE arming BLOCKED. Unmet requirements follow:")
+        if panel is not None:
+            for failure in decision.failures:
+                panel.addItem(f"  - {failure}")
 
     def _build_ask_tab(self) -> QWidget:
         tab = QWidget()

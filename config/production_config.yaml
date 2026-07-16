@@ -1,0 +1,9 @@
+# User-controlled production configuration.
+#
+# live_enabled / live_mode: LIVE trading master switch. Ships FALSE and only a
+# human editing this file may ever change it - generated code never writes this
+# file. Even when true, arming LIVE additionally requires every requirement in
+# app/execution/live_gate.py (validation sample, demo soak, resolved prop rules,
+# typed confirmation, second confirmation, ...). Arming never survives restart.
+live_enabled: false
+live_mode: false

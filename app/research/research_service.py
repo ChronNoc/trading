@@ -16,14 +16,20 @@ run serially or in parallel. No execution/broker module is importable from here
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Callable, Sequence
+
+STATE_SCHEMA_VERSION = 2
+# A claim older than this without a matching checkpoint entry is considered
+# stale (its worker crashed) and is recovered so the job can run again.
+STALE_CLAIM_SECONDS = 15 * 60
 
 from app.research.auto_research import (
     AcceptedSetup,
@@ -130,10 +136,11 @@ class ServiceStatus:
 class ClaimRegistry:
     """Atomic on-disk job claiming so no job runs twice across workers/restarts."""
 
-    def __init__(self, claims_dir: Path) -> None:
+    def __init__(self, claims_dir: Path, *, stale_after_seconds: float = STALE_CLAIM_SECONDS) -> None:
         """Create a registry rooted at ``claims_dir``."""
         self._dir = claims_dir
         self._dir.mkdir(parents=True, exist_ok=True)
+        self._stale_after = stale_after_seconds
 
     def try_claim(self, key: str) -> bool:
         """Atomically claim ``key``; return False if already claimed."""
@@ -146,6 +153,14 @@ class ClaimRegistry:
             handle.write(f"{os.getpid()}:{time.time()}\n")
         return True
 
+    def heartbeat(self, key: str) -> None:
+        """Refresh a claim's lease so a long-running job is not reaped as stale."""
+        path = self._dir / f"{key}.claim"
+        try:
+            path.write_text(f"{os.getpid()}:{time.time()}\n", encoding="utf-8")
+        except OSError:
+            pass
+
     def release(self, key: str) -> None:
         """Release a claim (best-effort) so a failed job can be retried later."""
         path = self._dir / f"{key}.claim"
@@ -153,6 +168,28 @@ class ClaimRegistry:
             path.unlink()
         except FileNotFoundError:
             pass
+
+    def recover_stale(self, completed_keys: "set[str]") -> int:
+        """Release claims whose worker crashed before checkpointing.
+
+        A claim is stale when its lease timestamp is older than the lease window
+        and its key never reached the checkpoint. Completed claims are also
+        cleaned up here so the directory does not grow without bound.
+        """
+        recovered = 0
+        for path in self._dir.glob("*.claim"):
+            key = path.stem
+            if key in completed_keys:
+                path.unlink(missing_ok=True)  # cleanup after success
+                continue
+            try:
+                stamp = float(path.read_text(encoding="utf-8").strip().split(":")[1])
+            except (OSError, IndexError, ValueError):
+                stamp = 0.0
+            if time.time() - stamp > self._stale_after:
+                path.unlink(missing_ok=True)
+                recovered += 1
+        return recovered
 
 
 HealthProvider = Callable[[], ReceiverHealth]
@@ -225,10 +262,17 @@ class ResearchService:
     def run_batch(self, *, use_processes: bool = True, executor: ProcessPoolExecutor | None = None) -> ResearchResult:
         """Run all pending jobs once and return the aggregate integrity result.
 
-        Honours pause and receiver-priority throttling. Claims each job atomically,
-        checkpoints completions, and releases claims for failed jobs so they retry.
+        Honours pause and receiver-priority throttling (re-checked WHILE the batch
+        runs, not only before it: any new drop cancels not-yet-started jobs and
+        releases their claims). Claims each job atomically, checkpoints
+        completions, cleans up successful claims, recovers stale claims from
+        crashed workers, and always aggregates over ALL persisted results so
+        visible totals never reset to zero on an empty cycle.
         """
         checkpoint = ResearchCheckpoint.load(self.checkpoint_path)
+        recovered = self.claims.recover_stale(checkpoint.completed)
+        if recovered:
+            self._update(last_error=f"recovered {recovered} stale claim(s) from a crashed worker")
         jobs = self.discover_jobs(checkpoint)
         requested = resolve_worker_count(self.hardware, self.runtime_config)
         workers = self._apply_throttle(requested)
@@ -238,65 +282,150 @@ class ResearchService:
         )
         if self._pause_event.is_set():
             self._update(state=STATE_PAUSED)
-            return self._aggregate([], checkpoint)
+            return self._aggregate_persisted(checkpoint)
         if workers <= 0:
             self._update(state=STATE_THROTTLED)
-            return self._aggregate([], checkpoint)
+            return self._aggregate_persisted(checkpoint)
 
         claimed = [job for job in jobs if self.claims.try_claim(job.key)]
-        results: list[JobResult] = []
         if not claimed:
-            self._update(state=STATE_IDLE, queued_jobs=0)
-            return self._aggregate(self._checkpoint_results(checkpoint), checkpoint)
+            aggregate = self._aggregate_persisted(checkpoint)
+            self._update(state=STATE_IDLE, queued_jobs=0, last_checkpoint_keys=len(checkpoint.completed))
+            return aggregate
 
+        results: list[JobResult] = []
+        cancelled: list[ResearchJob] = []
         if use_processes and workers > 1:
             owns = executor is None
             pool = executor or ProcessPoolExecutor(max_workers=workers)
             try:
-                for result in pool.map(run_research_job, claimed):
-                    results.append(result)
+                futures = {pool.submit(run_research_job, job): job for job in claimed}
+                pending = set(futures)
+                while pending:
+                    done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        results.append(future.result())
+                        self.claims.heartbeat(futures[future].key)
+                    # Mid-batch receiver check: new event loss cancels remaining work.
+                    if self._apply_throttle(workers) <= 0:
+                        for future in pending:
+                            if future.cancel():
+                                cancelled.append(futures[future])
+                        pending = {f for f in pending if not f.cancelled()}
+                        self._update(state=STATE_THROTTLED,
+                                     throttle_reason="Batch interrupted: receiver reported new event loss.")
             finally:
                 if owns:
-                    pool.shutdown(wait=True)
+                    pool.shutdown(wait=True, cancel_futures=True)
         else:
-            results = [run_research_job(job) for job in claimed]
+            for job in claimed:
+                if self._apply_throttle(workers) <= 0 or self._pause_event.is_set():
+                    cancelled.append(job)
+                    continue
+                results.append(run_research_job(job))
+
+        for job in cancelled:
+            self.claims.release(job.key)  # cancelled work retries next cycle
 
         completed = 0
         failed = 0
         for result in results:
             if result.error:
                 failed += 1
+                self._record_retry(result.key, result.error)
                 self.claims.release(result.key)  # allow retry
                 continue
             checkpoint.mark(result.key)
             completed += 1
         checkpoint.save(self.checkpoint_path)
+        self.claims.recover_stale(checkpoint.completed)  # clean up successful claims
         self._persist_result_setups(results)
 
-        aggregate = self._aggregate([r for r in results if not r.error], checkpoint)
+        aggregate = self._aggregate_persisted(checkpoint)
         self._update(
-            state=STATE_IDLE, running_jobs=0, completed_jobs=completed, failed_jobs=failed,
+            state=STATE_IDLE, running_jobs=0,
+            completed_jobs=self._status.completed_jobs + completed,
+            failed_jobs=self._status.failed_jobs + failed,
             last_checkpoint_keys=len(checkpoint.completed),
         )
         return aggregate
 
-    def _checkpoint_results(self, checkpoint: ResearchCheckpoint) -> list[JobResult]:
-        return []
+    def _record_retry(self, key: str, error: str) -> None:
+        """Persist error and retry count for a failed job (visible, not silent)."""
+        path = self.state_dir / "job_errors.json"
+        data: dict[str, dict[str, object]] = {}
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                data = {}
+        entry = data.get(key, {"retries": 0})
+        entry["retries"] = int(entry.get("retries", 0)) + 1
+        entry["last_error"] = error
+        data[key] = entry
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+
+    def load_persisted_results(self) -> list[JobResult]:
+        """Restore every previously persisted job result (crash/restart safe).
+
+        One (session, candidate) pair contributes exactly ONE result: when a
+        session was re-run under a new source signature, only the newest file
+        counts, so superseded results can never inflate the evidence.
+        """
+        latest: dict[tuple[str, str], tuple[float, str, JobResult]] = {}
+        result_dir = self.state_dir / "job_results"
+        if not result_dir.is_dir():
+            return []
+        for path in sorted(result_dir.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(data, dict) or data.get("error"):
+                continue
+            setups = tuple(
+                AcceptedSetup(
+                    session_id=str(data["session_id"]), config_hash=str(data["config_hash"]),
+                    strategy_version=str(data.get("strategy_version", "")),
+                    is_canonical=bool(data["is_canonical"]), direction=str(s["direction"]),
+                    trading_day=str(s["trading_day"]), decision_ts_ns=int(s["decision_ts_ns"]),
+                    defended_price=Decimal(str(s["defended_price"])),
+                    net_pnl_per_contract=Decimal(str(s["net_pnl_per_contract"])),
+                    r_multiple=Decimal(str(s["r_multiple"])), outcome=str(s["outcome"]),
+                )
+                for s in data.get("setups", [])
+            )
+            result = JobResult(str(data["key"]), str(data["session_id"]), str(data["config_hash"]),
+                               bool(data["is_canonical"]), setups, int(data.get("worker_pid", 0)))
+            pair = (result.session_id, result.config_hash)
+            stamp = (path.stat().st_mtime, result.key)
+            existing = latest.get(pair)
+            if existing is None or stamp > (existing[0], existing[1]):
+                latest[pair] = (stamp[0], stamp[1], result)
+        return [item[2] for item in sorted(latest.values(), key=lambda i: i[2].key)]
+
+    def _aggregate_persisted(self, checkpoint: ResearchCheckpoint) -> ResearchResult:
+        """Aggregate over ALL persisted results so totals survive empty cycles."""
+        return self._aggregate(self.load_persisted_results(), checkpoint)
 
     def _persist_result_setups(self, results: Sequence[JobResult]) -> None:
-        """Persist accepted setups per job for durable, resumable evidence."""
-        import json
-
+        """Persist accepted setups per job atomically for durable, resumable evidence."""
         out_dir = self.state_dir / "job_results"
         out_dir.mkdir(parents=True, exist_ok=True)
         for result in results:
+            if result.error:
+                continue  # errors go to job_errors.json with retry counts
             payload = {
+                "schema_version": STATE_SCHEMA_VERSION,
                 "key": result.key,
                 "session_id": result.session_id,
                 "config_hash": result.config_hash,
                 "is_canonical": result.is_canonical,
                 "worker_pid": result.worker_pid,
                 "error": result.error,
+                "strategy_version": result.setups[0].strategy_version if result.setups else "",
                 "setups": [
                     {
                         "direction": s.direction, "trading_day": s.trading_day,
@@ -312,11 +441,97 @@ class ResearchService:
             tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
             tmp.replace(path)
 
+    def persist_ledgers(self, results: Sequence[JobResult]) -> None:
+        """Write one canonical and one per-candidate experimental ledger to disk.
+
+        Every ledger is derived deterministically from the persisted setups, so a
+        restart reconstructs identical ledgers. Experimental P&L never merges into
+        the canonical file. All money math is Decimal; balances are stored as
+        strings. Per-contract economics (commission and slippage already inside
+        net_pnl_per_contract).
+        """
+        ledger_dir = self.state_dir / "ledgers"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        by_hash: dict[str, list[AcceptedSetup]] = {}
+        canonical_hash: str | None = None
+        for result in results:
+            if result.error:
+                continue
+            by_hash.setdefault(result.config_hash, []).extend(result.setups)
+            if result.is_canonical:
+                canonical_hash = result.config_hash
+        for config_hash, setups in by_hash.items():
+            balance = Decimal("100000")
+            rows = []
+            for setup in sorted(setups, key=lambda s: (s.decision_ts_ns, s.session_id)):
+                balance += setup.net_pnl_per_contract
+                rows.append({
+                    "session_id": setup.session_id, "trading_day": setup.trading_day,
+                    "direction": setup.direction, "decision_ts_ns": setup.decision_ts_ns,
+                    "net_pnl_per_contract": str(setup.net_pnl_per_contract),
+                    "r_multiple": str(setup.r_multiple), "outcome": setup.outcome,
+                    "balance_after": str(balance),
+                })
+            payload = {
+                "schema_version": STATE_SCHEMA_VERSION,
+                "config_hash": config_hash,
+                "is_canonical": config_hash == canonical_hash,
+                "economics": "per-contract candidate accounting (costs inside net_pnl_per_contract)",
+                "starting_balance": "100000",
+                "ending_balance": str(balance),
+                "trades": rows,
+            }
+            name = "canonical_candidate_raw" if config_hash == canonical_hash else config_hash
+            path = ledger_dir / f"{name}.json"
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            tmp.replace(path)
+        self._persist_canonical_ledger(ledger_dir)
+
+    def _persist_canonical_ledger(self, ledger_dir: Path) -> None:
+        """Write the AUTHORITATIVE canonical ledger through the full risk path.
+
+        Uses the strict quality-gated real outcomes from ``data/processed`` and
+        the fixed $100k account with every daily lock (max entries, max losses,
+        loss budget, one-position, no resets) - not the simplified per-contract
+        candidate accounting.
+        """
+        from app.research.paper_ledger import run_real_paper_ledger
+        from app.research.real_episodes import load_completed_real_outcomes
+
+        outcomes = load_completed_real_outcomes(self.processed_root)
+        result = run_real_paper_ledger(outcomes)
+        payload = {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "is_canonical": True,
+            "economics": "fixed $100k account, prop-style daily locks, no resets",
+            "starting_balance": str(result.starting_balance),
+            "ending_balance": str(result.ending_balance),
+            "stopped": result.stopped,
+            "skipped_by_account_rules": len(result.skipped),
+            "trades": [
+                {
+                    "session_id": t.session_id, "setup_id": t.setup_id, "trading_day": t.trading_day,
+                    "direction": t.direction, "entry": str(t.entry), "stop": str(t.stop),
+                    "target": str(t.target), "exit": str(t.exit), "contracts": t.contracts,
+                    "costs_per_contract": str(t.costs_per_contract), "r_multiple": str(t.r_multiple),
+                    "pnl": str(t.pnl), "balance_after": str(t.balance_after),
+                    "outcome": t.outcome, "input_hash": t.input_hash,
+                }
+                for t in result.trades
+            ],
+        }
+        path = ledger_dir / "canonical.json"
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+
     def _aggregate(self, results: Sequence[JobResult], checkpoint: ResearchCheckpoint) -> ResearchResult:
+        self.persist_ledgers(results)  # ledgers always reflect all known results
         by_pair: dict[tuple[str, str], list[AcceptedSetup]] = {}
         session_ids: set[str] = set()
         for result in results:
-            by_pair[(result.session_id, result.config_hash)] = list(result.setups)
+            by_pair.setdefault((result.session_id, result.config_hash), []).extend(result.setups)
             session_ids.add(result.session_id)
         sessions = [SessionRef(sid, self.raw_root) for sid in sorted(session_ids)] or [SessionRef("_none", self.raw_root)]
 
@@ -342,9 +557,12 @@ class ResearchService:
         if self._health_provider is None:
             return requested
         health = self._health_provider()
-        # Data capture has absolute priority: any NEW current-session drop stops
-        # research entirely (zero workers), not merely reduces it.
+        # Data capture has absolute priority: any NEW current-session drop, a
+        # saturated receiver queue, or heavy lag stops research entirely (zero
+        # workers) - not merely reduces it.
         if health.current_session_drops_delta > 0:
+            return 0
+        if health.queue_occupancy >= 0.9 or health.lag_ms >= 1000:
             return 0
         return throttle_worker_count(requested, health)
 
