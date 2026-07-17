@@ -245,17 +245,38 @@ class ResearchService:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_result: ResearchResult | None = None
+        # (session_id -> ((name, size, mtime_ns)..., signature)) so finalized
+        # parquets are hashed once, not on every poll.
+        self._signature_cache: dict[str, tuple[tuple, str]] = {}
 
     # -- discovery -------------------------------------------------------------
 
     def _default_signature(self, session: SessionRef) -> str:
-        """Return a source signature from the session's build summary or manifest."""
+        """Return a source signature for a FINALIZED session's parquet inputs.
+
+        Hashing the parquets is expensive, so the digest is cached against each
+        file's (size, mtime). A finalized session's files never change, so this
+        is exact - and it stops the scheduler from re-hashing megabytes on every
+        poll (which was starving the receiver).
+        """
         from app.research.build_orchestrator import build_signature
 
         try:
-            return str(sorted(build_signature(session.session_dir)["source_file_hashes"].items()))
+            stamp = tuple(
+                (path.name, path.stat().st_size, int(path.stat().st_mtime_ns))
+                for path in sorted(session.session_dir.glob("*.parquet"))
+            )
+        except OSError:
+            return "unsigned"
+        cached = self._signature_cache.get(session.session_id)
+        if cached is not None and cached[0] == stamp:
+            return cached[1]
+        try:
+            signature = str(sorted(build_signature(session.session_dir)["source_file_hashes"].items()))
         except Exception:  # noqa: BLE001 - missing files -> unique-ish fallback
             return "unsigned"
+        self._signature_cache[session.session_id] = (stamp, signature)
+        return signature
 
     def discover_jobs(self, checkpoint: ResearchCheckpoint) -> list[ResearchJob]:
         """Return uncompleted (session, candidate) jobs; never include active sessions.
@@ -326,23 +347,29 @@ class ResearchService:
         crashed workers, and always aggregates over ALL persisted results so
         visible totals never reset to zero on an empty cycle.
         """
+        # Cheap gates FIRST. Discovery reads every session manifest and hashes
+        # parquet sources, so doing it before these checks starved the receiver's
+        # event loop (the GIL is shared with the asyncio thread) and the Bookmap
+        # bridge queue overflowed. When paused or throttled we must do NO I/O.
+        requested = resolve_worker_count(self.hardware, self.runtime_config)
+        if self._pause_event.is_set():
+            self._update(state=STATE_PAUSED, requested_workers=requested, active_workers=0)
+            return self._cached_aggregate()
+        workers = self._apply_throttle(requested)
+        if workers <= 0:
+            self._update(state=STATE_THROTTLED, requested_workers=requested, active_workers=0,
+                         throttle_reason=self._throttle_reason(requested, workers))
+            return self._cached_aggregate()
+
         checkpoint = self._load_checkpoint()
         recovered = self.claims.recover_stale(checkpoint.completed)
         if recovered:
             self._update(last_error=f"recovered {recovered} stale claim(s) from a crashed worker")
         jobs = self.discover_jobs(checkpoint)
-        requested = resolve_worker_count(self.hardware, self.runtime_config)
-        workers = self._apply_throttle(requested)
         self._update(
             state=STATE_RUNNING, requested_workers=requested, active_workers=workers,
             queued_jobs=len(jobs), running_jobs=0, throttle_reason=self._throttle_reason(requested, workers),
         )
-        if self._pause_event.is_set():
-            self._update(state=STATE_PAUSED)
-            return self._aggregate_persisted(checkpoint)
-        if workers <= 0:
-            self._update(state=STATE_THROTTLED)
-            return self._aggregate_persisted(checkpoint)
 
         claimed = [job for job in jobs if self.claims.try_claim(job.key)]
         if not claimed:
@@ -468,6 +495,17 @@ class ResearchService:
     def _aggregate_persisted(self, checkpoint: ResearchCheckpoint) -> ResearchResult:
         """Aggregate over ALL persisted results so totals survive empty cycles."""
         return self._aggregate(self.load_persisted_results(), checkpoint)
+
+    def _cached_aggregate(self) -> ResearchResult:
+        """Return the last aggregate without touching the disk.
+
+        Paused/throttled cycles must not re-read job results or rewrite ledgers -
+        that I/O is exactly what starves the receiver. Totals stay visible because
+        they come from the last computed aggregate, not from a reset.
+        """
+        if self._last_result is not None:
+            return self._last_result
+        return self._aggregate_persisted(ResearchCheckpoint.load(self.checkpoint_path))
 
     def _persist_result_setups(self, results: Sequence[JobResult]) -> None:
         """Persist accepted setups per job atomically for durable, resumable evidence."""
@@ -652,22 +690,34 @@ class ResearchService:
 
     # -- background loop -------------------------------------------------------
 
-    def start(self, *, poll_seconds: float = 2.0, use_processes: bool = True) -> None:
-        """Start the background research loop (idempotent)."""
+    def start(self, *, poll_seconds: float = 20.0, use_processes: bool = True) -> None:
+        """Start the background research loop (idempotent).
+
+        The poll interval is deliberately slow: every cycle that finds work reads
+        session manifests and can hash parquet sources, and this thread shares the
+        GIL with the receiver's asyncio loop. Polling aggressively starved data
+        capture. Idle/throttled cycles are I/O-free, and after a throttled or idle
+        cycle the loop backs off further so recording always wins.
+        """
         if self._thread is not None and self._thread.is_alive():
             return
         self._stop_event.clear()
 
         def _loop() -> None:
             while not self._stop_event.is_set():
+                delay = poll_seconds
                 if not self._pause_event.is_set():
                     try:
                         self.run_batch(use_processes=use_processes)
+                        if self._status.state in (STATE_THROTTLED, STATE_IDLE):
+                            delay = max(poll_seconds, 60.0)  # nothing to do / capture busy
                     except Exception as exc:  # noqa: BLE001 - keep the service alive
                         self._update(state=STATE_FAILED, last_error=f"{type(exc).__name__}: {exc}")
+                        delay = max(poll_seconds, 60.0)
                 else:
                     self._update(state=STATE_PAUSED)
-                self._stop_event.wait(poll_seconds)
+                    delay = max(poll_seconds, 60.0)
+                self._stop_event.wait(delay)
 
         self._thread = threading.Thread(target=_loop, name="research-service", daemon=True)
         self._thread.start()

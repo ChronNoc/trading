@@ -221,14 +221,15 @@ def make_receiver_health_provider(
         delta = max(0, current - last_seen["drops"])
         last_seen["drops"] = current
         lag_ms = 0
-        if controller.health.bookmap_connected:
+        if controller.health.bookmap_connected and not (controller.data_delay_minutes or 0):
             import time as _time
 
-            age_ns = controller.health.data_age_ns(_time.time_ns())
-            # A connected feed with no fresh events is a capture problem;
-            # research must yield until it recovers. (Delayed data carries its
-            # own event timestamps, so a large age here means true staleness.)
-            if controller.health.is_data_stale(_time.time_ns()) and age_ns is not None:
+            # Wall-clock staleness is only meaningful for a REAL-TIME entitlement.
+            # Bookmap's delayed feed carries event timestamps ~15 minutes behind
+            # wall clock, so comparing them here always looked "stale" and pinned
+            # research at zero workers forever. Delayed feeds are judged by drops
+            # and queue pressure only.
+            if controller.health.is_data_stale(_time.time_ns()):
                 lag_ms = 1000
         occupancy = 0.0
         if pipeline_holder is not None:

@@ -1769,7 +1769,15 @@ class MainWindow(QMainWindow):
             return (listening, False, False, True, 0)
         connected = runtime.bookmap_status == "connected"
         recording = bool(runtime.recording)
-        stale = runtime.data_age_ms is None or runtime.data_age_ms > 5_000
+        # Wall-clock age is meaningless for a DELAYED feed (its event timestamps
+        # are ~15 minutes behind by design), and an UNKNOWN age is not evidence of
+        # staleness either. Only a real-time feed with a genuinely old event is
+        # stale; treating unknown/delayed as stale falsely failed "Recording
+        # healthy" while data was arriving normally.
+        if (runtime.data_delay_minutes or 0) > 0 or runtime.data_age_ms is None:
+            stale = False
+        else:
+            stale = runtime.data_age_ms > 5_000
         drops = int(getattr(runtime, "current_session_dropped_message_count", 0))
         return (listening, connected, recording, stale, drops)
 
@@ -1935,7 +1943,10 @@ class MainWindow(QMainWindow):
         timer = getattr(self, "_research_poll_timer", None)
         if timer is None:
             timer = QTimer(self)
-            timer.setInterval(1500)
+            # 5 s, not 1.5 s: this repaints from the service's in-memory status
+            # only, but every GUI-thread tick competes with the receiver for the
+            # GIL. Research state changes slowly - recording does not.
+            timer.setInterval(5000)
             timer.timeout.connect(self._refresh_research_panel)
             self._research_poll_timer = timer
         if not timer.isActive():
@@ -1959,8 +1970,8 @@ class MainWindow(QMainWindow):
         ))
         if service is None:
             panel.addItem("Research service not attached (GUI-only preview). Launch via start_mnq_assistant.bat.")
-            self._run_auto_research_pass()
-            return
+            panel.addItem("Use 'Run automated research pass' to evaluate sessions on demand.")
+            return  # never replay sessions on the GUI thread from a timer
         status = service.status()
         panel.addItem(_pipeline_item(
             f"State: {status.state.upper()} | workers {status.active_workers}/{status.requested_workers} | "

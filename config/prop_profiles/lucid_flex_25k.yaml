@@ -1,0 +1,62 @@
+# Lucid Trading - LucidFlex 25K Evaluation account.
+#
+# VERIFIED 2026-07-17 from Lucid Trading's own site and help centre (URLs below).
+# Every field here was read from an official page; nothing is inferred.
+#
+# Primary sources:
+#   https://lucidtrading.com/                                                        (LucidFlex pricing card: 25K FLEX EVAL)
+#   https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account (account table)
+#   https://support.lucidtrading.com/en/articles/12945815-lucidflex-drawdown           (EOD drawdown mechanics)
+#   https://support.lucidtrading.com/en/articles/11404729-allowed-trading-times        (session times)
+#   https://support.lucidtrading.com/en/articles/11404728-permitted-activities         (news, automation, scalping)
+#   https://support.lucidtrading.com/en/articles/11404742-prohibited-microscalping     (microscalping test)
+#   https://support.lucidtrading.com/en/collections/12931279-rules-and-guidelines      (hedging, HFT)
+profile_version: "1"
+firm: Lucid Trading
+source_url: https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account
+retrieval_date: "2026-07-17"
+
+account_type: LucidFlex Evaluation (25K)
+account_size: "25000"
+
+# End-of-Day drawdown. Max Loss Limit (MLL) = $1,000. The MLL trails the highest
+# CLOSING balance until the account exceeds the Initial Trail Balance ($26,100),
+# after which the MLL locks at the Locked MLL Balance ($25,100). Touching the MLL
+# breaches the account.
+drawdown_method: "EOD trailing MLL $1000; trails highest closing balance to Initial Trail $26,100, then locks at $25,100"
+
+# LucidFlex evaluation accounts have NO daily loss limit (confirmed on both the
+# pricing card and the evaluation article).
+daily_loss_rule: "none (no DLL on LucidFlex evaluation accounts)"
+
+max_contracts: "2 mini OR 20 micros"
+
+# 50% consistency on the evaluation: no single day may supply more than 50% of
+# total profit. Lucid notes the 50% rule "has cushion built in".
+# Not applied in the funded stage ("No Consistency in Funded").
+consistency_rule: "50% max single-day share of profit (evaluation only; not applied once funded)"
+
+# Lucid does not restrict instruments for LucidFlex; MNQ (Micro E-mini Nasdaq-100)
+# is supported and is what this project trades.
+permitted_instruments: "CME futures incl. MNQ (micros count toward the 20-micro cap)"
+
+# All positions must be closed by 4:45 PM ET Mon-Fri (Lucid auto-closes at 4:45 PM
+# ET; holding past it does NOT fail the account). Market reopens 6:00 PM ET
+# Sun-Thu. On holidays with altered closes, flat before the early close.
+permitted_trading_times: "close by 16:45 ET Mon-Fri (auto-flat, non-breaching); reopen 18:00 ET Sun-Thu; flat before early holiday closes"
+
+# News trading is allowed without restriction; the trader carries all slippage and
+# velocity-logic risk.
+news_restrictions: "none - news trading allowed without restriction; trader bears slippage/velocity risk"
+
+# No swing/overnight holds: everything is auto-flattened at 16:45 ET.
+overnight_rules: "no overnight holds - all positions auto-closed at 16:45 ET"
+
+# Prohibited: microscalping (flagged if >50% of profit comes from trades held <=5
+# seconds), hedging, and high-frequency trading. Explicitly PERMITTED: automated
+# strategies and trade copiers, genuine scalping, DCA/scaling in, flipping.
+# Martingaling is strongly discouraged but not prohibited.
+prohibited: "microscalping (>50% of profit from trades held <=5s), hedging, high-frequency trading; automated strategies ARE permitted (trader owns all software errors); martingaling discouraged"
+
+effective_date: "2026-04-15"
+resolved: true

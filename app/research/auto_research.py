@@ -29,6 +29,7 @@ import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
@@ -176,12 +177,17 @@ class HardwareProfile:
     gpu_compute_library: str | None = None  # e.g. cupy/xgboost-gpu if importable
 
 
+@lru_cache(maxsize=1)
 def detect_hardware() -> HardwareProfile:
     """Detect CPU cores, memory, and a supported GPU without hard dependencies.
 
     GPU *presence* (an ``nvidia-smi`` on PATH) is reported honestly, but it is
     never treated as GPU *usage*. A GPU only counts as usable for a workload when
     a real compute library that can target it is importable.
+
+    Cached: the PATH scan and the cupy/cudf import probes are expensive (a failed
+    import rescans sys.path), and hardware does not change while the app runs.
+    Calling this on a GUI timer without the cache froze the window.
     """
     cores = os.cpu_count() or 1
     memory_gb: float | None = None

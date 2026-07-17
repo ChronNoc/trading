@@ -284,3 +284,102 @@ def test_production_health_provider_reports_real_drop_deltas() -> None:
                                      "dropped_message_count": 86214, "reason": "overflow"})
     assert provider().current_session_drops_delta == 3  # real new loss reaches research throttling
     assert provider().current_session_drops_delta == 0  # delta, not cumulative
+
+
+def test_throttled_and_paused_cycles_do_zero_disk_io(tmp_path: Path, monkeypatch) -> None:
+    """Capture-priority: a throttled/paused cycle must not touch the disk at all.
+
+    Discovery reads every session manifest and hashes parquet sources. Doing that
+    on every poll while recording starved the receiver's event loop (shared GIL)
+    and the Bookmap bridge queue overflowed by ~1M events. When research must
+    yield, it has to yield completely - no catalog build, no hashing, no ledger
+    rewrite.
+    """
+    _session(tmp_path / "raw", 10)
+    import app.research.research_service as svc_module
+
+    calls = {"catalog": 0}
+    real_build = svc_module.ResearchService.discover_jobs
+
+    def counting_discover(self, checkpoint):
+        calls["catalog"] += 1
+        return real_build(self, checkpoint)
+
+    monkeypatch.setattr(svc_module.ResearchService, "discover_jobs", counting_discover)
+
+    dropping = lambda: ReceiverHealth(current_session_drops_delta=5)  # noqa: E731
+    service = ResearchService(
+        tmp_path / "raw", tmp_path / "processed", state_dir=tmp_path / "state",
+        candidates=[canonical_candidate()], runtime_config=ResearchRuntimeConfig(worker_count=4),
+        health_provider=dropping,
+    )
+    service.run_batch(use_processes=False)
+    assert service.status().state == STATE_THROTTLED
+    assert calls["catalog"] == 0, "a throttled cycle must not build the catalog"
+
+    service.request_pause()
+    service.run_batch(use_processes=False)
+    assert calls["catalog"] == 0, "a paused cycle must not build the catalog"
+
+
+def test_parquet_signature_is_hashed_once_not_every_poll(tmp_path: Path, monkeypatch) -> None:
+    """Finalized sources are hashed once and cached; polling must not re-hash MBs."""
+    _session(tmp_path / "raw", 10)
+    import app.research.build_orchestrator as orch
+
+    calls = {"n": 0}
+    real_signature = orch.build_signature
+
+    def counting_signature(session_dir):
+        calls["n"] += 1
+        return real_signature(session_dir)
+
+    monkeypatch.setattr(orch, "build_signature", counting_signature)
+    service = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=1))
+    from app.research.auto_research import ResearchCheckpoint
+
+    empty = ResearchCheckpoint()
+    service.discover_jobs(empty)
+    service.discover_jobs(empty)
+    service.discover_jobs(empty)
+    assert calls["n"] == 1, "a finalized session's parquets must be hashed once, then cached"
+
+
+def test_idle_cycle_keeps_totals_without_rereading_disk(tmp_path: Path) -> None:
+    """An idle/throttled cycle returns cached totals - never a zeroed result."""
+    _fake_job_result(tmp_path / "state", key="k1")
+    service = _service(tmp_path)
+    first = service.run_batch(use_processes=False)
+    assert first.raw_candidate_trades == 1
+
+    # Now make the service throttle; totals must persist from cache, no I/O.
+    service._health_provider = lambda: ReceiverHealth(current_session_drops_delta=1)
+    cached = service.run_batch(use_processes=False)
+    assert service.status().state == STATE_THROTTLED
+    assert cached.raw_candidate_trades == 1, "throttling must not zero visible totals"
+
+
+def test_detect_hardware_is_cached() -> None:
+    """Hardware probing (PATH scan + import attempts) must not repeat on GUI timers."""
+    from app.research.auto_research import detect_hardware
+
+    first = detect_hardware()
+    second = detect_hardware()
+    assert first is second  # lru_cache: the expensive probe ran once
+
+
+def test_delayed_feed_is_not_falsely_marked_stale_by_wall_clock() -> None:
+    """A 15-min delayed feed must not read as 'stale' and pin research at 0 workers.
+
+    Bookmap's delayed events carry timestamps ~15 minutes behind wall clock, so a
+    naive wall-clock staleness check reported lag forever and research never ran.
+    """
+    from app.runtime.controller import AutomaticRuntimeController
+    from tools.start_assistant import make_receiver_health_provider
+
+    controller = AutomaticRuntimeController.from_config("config/session_profiles.yaml")
+    controller.handle_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    controller.handle_control_event({"type": "connected", "timestamp_ns": 2, "dropped_message_count": 0})
+    provider = make_receiver_health_provider(controller)
+    # No fresh event timestamps at all, yet a delayed feed must not report lag.
+    assert provider().lag_ms == 0
