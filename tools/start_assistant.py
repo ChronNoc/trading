@@ -127,6 +127,7 @@ async def run_headless_assistant(
     status_holder: ReceiverStatusHolder | None = None,
     research_service: object | None = None,
     pipeline_holder: object | None = None,
+    paper_engine_holder: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -143,15 +144,27 @@ async def run_headless_assistant(
     feed_guard = FeedGuard(FeedGuardConfig(source_mode=guard_source_mode))
     from app.market.bounded_pipeline import RecorderPipeline
 
+    # The delayed-paper engine evaluates the LIVE stream causally. Delayed data
+    # must never reach a broker, but it must absolutely be evaluated on paper -
+    # conflating those two rules is what left the engine idle while recording.
+    paper_engine = paper_engine_holder
+    if paper_engine is not None:
+        paper_engine.bind_session("pending", "MNQ")
+
     def _pipelined_recorder() -> MarketSessionRecorder:
         # Bounded recorder stage: a dedicated writer thread persists batches so
         # a slow GUI or research burst can never stall capture. Metrics are real.
-        return RecorderPipeline(MarketSessionRecorder(root_dir=config.output_root))  # type: ignore[return-value]
+        recorder = MarketSessionRecorder(root_dir=config.output_root)
+        # Bind the REAL session id the moment recording starts, so the GUI, the
+        # paper engine, the ledger, and the logs never show "unknown".
+        if paper_engine is not None:
+            paper_engine.bind_session(recorder.session_id, recorder.symbol or "MNQ")
+        return RecorderPipeline(recorder)  # type: ignore[return-value]
 
     server = await start_receiver_websocket_server(
         config.receiver_config,
         on_market_event=resilient_handler(
-            lambda event: controller.handle_market_event(event),
+            lambda event: _dispatch_market_event(controller, paper_engine, event),
             "market-event",
         ),
         on_control_event=resilient_handler(
@@ -199,6 +212,22 @@ async def run_headless_assistant(
             research_service.stop()
         controller.stop()
         await server.close()
+
+
+def _dispatch_market_event(
+    controller: AutomaticRuntimeController,
+    paper_engine: object | None,
+    event: dict[str, object],
+) -> None:
+    """Feed one market event to the runtime AND the delayed-paper engine.
+
+    Both consume the same validated event. The controller keeps broker/shadow
+    decisions disabled for delayed data; the paper engine evaluates it anyway,
+    because paper simulation is not broker execution.
+    """
+    controller.handle_market_event(event)
+    if paper_engine is not None:
+        paper_engine.on_market_event(event)  # type: ignore[attr-defined]
 
 
 def make_receiver_health_provider(
@@ -272,6 +301,11 @@ def run_assistant(config: AssistantConfig) -> int:
     from app.market.bounded_pipeline import PipelineStateHolder
 
     pipeline_holder = PipelineStateHolder()
+    from app.paper.streaming_engine import DelayedPaperEngine
+
+    # Automatic by construction: the engine is created at startup and fed by the
+    # receiver. No button, no finalized session, no user action required.
+    paper_engine = DelayedPaperEngine()
     research_service = _build_research_service(config, controller, pipeline_holder)
 
     if not config.gui:
@@ -279,6 +313,7 @@ def run_assistant(config: AssistantConfig) -> int:
             asyncio.run(run_headless_assistant(
                 config, controller, status_holder=status_holder,
                 research_service=research_service, pipeline_holder=pipeline_holder,
+                paper_engine_holder=paper_engine,
             ))
         except KeyboardInterrupt:
             controller.stop()
@@ -287,12 +322,12 @@ def run_assistant(config: AssistantConfig) -> int:
 
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
-        args=(config, controller, status_holder, research_service, pipeline_holder),
+        args=(config, controller, status_holder, research_service, pipeline_holder, paper_engine),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
-    return _run_gui(controller, status_holder, research_service, pipeline_holder)
+    return _run_gui(controller, status_holder, research_service, pipeline_holder, paper_engine)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
@@ -346,11 +381,13 @@ def _run_receiver_thread(
     status_holder: ReceiverStatusHolder,
     research_service: object | None,
     pipeline_holder: object | None = None,
+    paper_engine: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
             config, controller, status_holder=status_holder,
             research_service=research_service, pipeline_holder=pipeline_holder,
+            paper_engine_holder=paper_engine,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
@@ -361,6 +398,7 @@ def _run_gui(
     status_holder: ReceiverStatusHolder | None = None,
     research_service: object | None = None,
     pipeline_holder: object | None = None,
+    paper_engine: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -383,6 +421,7 @@ def _run_gui(
             research_service=research_service,
             receiver_status=status_holder.snapshot if status_holder is not None else None,
             market_state=get_current_market_state,
+            paper_engine=paper_engine,
         ),
     )
     window.show()

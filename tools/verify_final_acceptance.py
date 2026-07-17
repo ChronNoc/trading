@@ -84,10 +84,38 @@ def main() -> int:
     # 7. Bounded queues configured (intake + recorder) and wired in production.
     pipeline_source = _read("app/market/bounded_pipeline.py")
     launcher_source = _read("tools/start_assistant.py")
-    check("bounded_queues", "BoundedIntakeBuffer" in pipeline_source and "RecorderPipeline" in pipeline_source
-          and "RecorderPipeline(MarketSessionRecorder" in launcher_source
-          and "intake = BoundedIntakeBuffer(connection" in _read("tools/start_receiver.py"),
-          "intake + recorder queues exist and are constructed in production")
+    # Behavioural, not a brittle string match: construct the real bounded stages
+    # and assert they are actually bounded, and that production wires both.
+    from app.market.bounded_pipeline import BoundedIntakeBuffer, RecorderPipeline
+
+    intake_bounded = BoundedIntakeBuffer(object(), capacity=7).metrics.capacity == 7
+    wired = ("RecorderPipeline(" in launcher_source and "MarketSessionRecorder(" in launcher_source
+             and "BoundedIntakeBuffer(connection" in _read("tools/start_receiver.py"))
+    check("bounded_queues",
+          intake_bounded and hasattr(RecorderPipeline, "metrics_snapshot") and wired,
+          "intake + recorder queues are bounded and constructed in production")
+
+    # 7b. Delayed paper is evaluated automatically from the LIVE stream. The
+    # regression this guards: delayed data disabled decisions, so a healthy
+    # recording session produced zero evaluations forever.
+    from app.paper.streaming_engine import DelayedPaperEngine
+
+    probe = DelayedPaperEngine()
+    probe.bind_session("verify", "MNQ")
+    price = 29500.0
+    for i in range(320):
+        price += 0.25 if i % 2 == 0 else -0.25
+        probe.on_market_event({
+            "type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 1_000_000,
+            "symbol": "MNQ", "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
+            "previous_size": "0", "new_size": str(i % 40 + 1),
+        })
+    evaluations = probe.status().evaluations
+    check("delayed_paper_evaluates_live_stream",
+          evaluations > 0
+          and "_dispatch_market_event(controller, paper_engine, event)" in launcher_source
+          and "paper_engine.on_market_event(event)" in launcher_source,
+          f"streaming events produced {evaluations} evaluations; launcher feeds every event")
 
     # 8. Health provider wired in production research service.
     check("health_provider_wired",

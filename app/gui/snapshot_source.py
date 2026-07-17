@@ -55,6 +55,7 @@ class SnapshotSource:
         research_service: object | None = None,
         receiver_status: Callable[[], object] | None = None,
         market_state: Callable[[], object] | None = None,
+        paper_engine: object | None = None,
     ) -> None:
         """Bind the live components; all are optional for headless/GUI-only use."""
         self._controller = controller
@@ -62,6 +63,7 @@ class SnapshotSource:
         self._research = research_service
         self._receiver_status = receiver_status
         self._market_state = market_state
+        self._paper_engine = paper_engine
         from app.risk.account_profile import load_selected_profile
 
         self._profile = load_selected_profile()
@@ -126,7 +128,7 @@ class SnapshotSource:
         metrics = self._metrics()
         delay = int(getattr(runtime, "data_delay_minutes", 0) or 0) if runtime else 15
         return MarketSnapshot(
-            contract=getattr(runtime, "exact_contract", "unknown") if runtime else "unknown",
+            contract=self._contract(),
             last_price=getattr(state, "mid_price", None),
             best_bid=getattr(state, "best_bid", None),
             best_ask=getattr(state, "best_ask", None),
@@ -142,6 +144,21 @@ class SnapshotSource:
             event_rate_per_second=float(getattr(metrics, "ingress_events_per_second", 0.0)) if metrics else 0.0,
         )
 
+    def _contract(self) -> str:
+        """Resolve the display contract, falling back to the bound symbol."""
+        runtime = self._runtime()
+        resolved = getattr(runtime, "exact_contract", "") if runtime else ""
+        if resolved and resolved != "unknown":
+            return resolved
+        if self._paper_engine is not None:
+            try:
+                bound = self._paper_engine.status().contract  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001
+                bound = ""
+            if bound:
+                return f"{bound} (resolving contract month)"
+        return "resolving"
+
     def _metrics(self) -> object | None:
         if self._pipeline is None:
             return None
@@ -149,6 +166,18 @@ class SnapshotSource:
             return self._pipeline.snapshot()  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
             return None
+
+    def _session_id(self) -> str:
+        """Return the ACTIVE recorder session id, never 'unknown'."""
+        if self._paper_engine is not None:
+            try:
+                bound = self._paper_engine.status().session_id  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001
+                bound = ""
+            if bound and bound != "pending":
+                return bound
+        runtime = self._runtime()
+        return getattr(runtime, "session_date", "") if runtime else ""
 
     def _capture(self) -> CaptureSnapshot:
         runtime = self._runtime()
@@ -160,7 +189,7 @@ class SnapshotSource:
             receiver_listening=bool(binding and getattr(binding, "listening", False)),
             bookmap_connected=bool(runtime and runtime.bookmap_status == "connected"),
             recording=bool(runtime and runtime.recording),
-            session_id=getattr(runtime, "session_date", "") if runtime else "",
+            session_id=self._session_id(),
             current_session_drops=int(getattr(runtime, "current_session_dropped_message_count", 0) or 0)
             if runtime else 0,
             lifetime_bridge_drops=int(getattr(runtime, "dropped_message_count", 0) or 0) if runtime else 0,
@@ -174,8 +203,7 @@ class SnapshotSource:
 
     def _paper(self) -> PaperSnapshot:
         profile = self._profile
-        limits = profile.effective_limits()
-        return PaperSnapshot(
+        base = PaperSnapshot(
             profile_name=profile.display_name,
             balance=profile.account_size,
             starting_balance=profile.account_size,
@@ -188,6 +216,32 @@ class SnapshotSource:
             # Real trades only ever arrive from the delayed-paper engine / ledger;
             # the GUI never invents them.
             trades=0,
+        )
+        if self._paper_engine is None:
+            return base
+        try:
+            status = self._paper_engine.status()  # type: ignore[union-attr]
+            recent = self._paper_engine.recent_evaluations(limit=1)  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001 - never let the GUI die on a bad read
+            return base
+
+        from dataclasses import replace
+
+        from app.gui.view_models import SetupCheck
+
+        checks: tuple[SetupCheck, ...] = ()
+        if recent:
+            checks = tuple(
+                SetupCheck(name=c.name, passed=c.passed, reason=c.message)
+                for c in recent[-1].conditions
+            )
+        return replace(
+            base,
+            mode=f"DELAYED PAPER — {status.state}",
+            setup_name=status.last_setup or "none",
+            setup_checks=checks,
+            evaluations=status.evaluations,
+            top_rejections=status.top_rejections,
         )
 
     def _research_snapshot(self) -> ResearchSnapshot:
