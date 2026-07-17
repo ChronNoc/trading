@@ -3,7 +3,23 @@
 Every number below was produced by a command in this repository and is
 reproducible. Where something is unproven or unavailable, it says so.
 
-Base: `06f32fd` → head `1346e3f`, branch `feature/automatic-runtime`.
+Base: `06f32fd` → head `38e68d4`, branch `feature/automatic-runtime`.
+
+## Commits this continuation
+
+| Hash | Phase |
+|---|---|
+| `7795d8b` | causal paper-trading lifecycle (open/manage/close simulated positions) |
+| `2e8456b` | drain capture on shutdown instead of killing it mid-write |
+| `57c4b96` | compute MNQ rollover instead of a table that expires |
+| `6506c06` | profitability meter in the GUI, computed off the Qt thread |
+| `7cd57af` | fix the temp-file race that destroyed 31 recorded sessions |
+| `6b0fcef` | crash/hang diagnostics + Windows rename retry |
+| `1346e3f` | stop the test suite from corrupting tracked user data |
+| `d771a19` | evidence pack + implementation state |
+| `4c6e0e2` | observe feed capabilities instead of declaring them |
+| `b350887` | automatic paper-trading daily report from the real ledger |
+| `38e68d4` | versioned bridge handshake: stream/connection IDs + capabilities |
 
 ## Headline
 
@@ -18,12 +34,23 @@ and three defects that were actively destroying the evidence are fixed.
 
 | Check | Command | Result |
 |---|---|---|
-| Python suite | `.venv\Scripts\python.exe -m pytest -q` | **714 passed** |
+| Python suite | `.venv\Scripts\python.exe -m pytest -q` | **753 passed** |
 | Acceptance | `.venv\Scripts\python.exe -m tools.verify_final_acceptance` | **21/21 passed** |
-| Java addon | `gradlew clean test shadowJar` | **BUILD SUCCESSFUL, 22 tests** |
-| JAR | `build/libs/mnq-bookmap-forwarder-all.jar` | **25,501 bytes, 24 files, 0 velox** |
+| Java addon | `gradlew clean test shadowJar` | **BUILD SUCCESSFUL, 23 tests** |
+| JAR | `build/libs/mnq-bookmap-forwarder-all.jar` | **25,895 bytes, 24 files, 0 velox** |
 | Meter | `.venv\Scripts\python.exe -m tools.profitability_meter` | **6.7%, claim NOT supported** |
 | Raw data | `find data/raw -type f` | **6,316 files / 468,320,293 bytes, unmodified** |
+
+## End-to-end pipeline (real WebSocket, verified)
+
+A real receiver bound an ephemeral socket; a client streamed 1,200 depth + 400
+trade events through the whole pipeline:
+
+- 1,600 events reached the paper engine; 120 evaluations ran; 0 malformed dropped
+- observed capabilities: depth / trades / aggressor **available**, MBO **unavailable**
+- clean drain: the receiver thread exited, 5 parquet files persisted, 0 stray
+  `.tmp` files, manifest `clean_shutdown: true, continuity: continuous`
+- the resulting session finalized and produced a session + daily report
 
 ## The paper-trading lifecycle now runs end to end
 
@@ -111,6 +138,23 @@ Recorder measured at **26,160 events/s** with 0 drops on 60,000 events —
 **15.9× the 1,650 ev/s requirement**, after adding fsync and per-path locking.
 `tests/test_recorder_load.py` asserts a floor of 5,000 ev/s, itself well above
 the requirement.
+
+## Additional subsystems this continuation added
+
+- **Honest feed capabilities** (`4c6e0e2`) — observed from the stream, not a
+  constant. A depth-only feed now reports trades `DEGRADED`, matching the 71/200
+  depth-only sessions the old hardcoded "AVAILABLE" lied about. See
+  `docs/FEED_CAPABILITIES.md`.
+- **Automatic paper daily report** (`b350887`) — a fixture-safe digest computed
+  from the real ledger, written on every session finalize and via
+  `python -m tools.paper_daily_report`. Synthetic trades excluded; zero real
+  trades reported honestly. See `docs/PAPER_LEDGER.md`.
+- **Versioned bridge handshake** (`38e68d4`) — protocol version, stream id,
+  connection id, and a capability declaration on the tolerant control path; the
+  strict market-event schema is untouched. Reconnects are distinguishable from a
+  new bridge process. See `docs/FEED_CAPABILITIES.md`.
+- **Diagnostics** (`6b0fcef`) — a simulated freeze proves the `StallWatchdog`
+  names the stuck thread and the exact function it is blocked in.
 
 ## Honest limitations
 
