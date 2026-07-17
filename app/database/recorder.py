@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import itertools
 import json
+import os
+import threading
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
@@ -24,6 +27,11 @@ RECEIVER_VERSION = "0.1.0"
 # Buffered rows per Parquet partition before a batched flush. Batching turns
 # the recorder's per-event whole-file rewrite from O(n^2) into amortized O(n).
 PARQUET_FLUSH_THRESHOLD = 500
+# A fixed .tmp name lets two writers collide on the same file; these make every
+# temp path unique and serialize the rename per destination.
+_TEMP_COUNTER = itertools.count()
+_WRITE_LOCKS: dict[str, threading.Lock] = {}
+_LOCK_REGISTRY_GUARD = threading.Lock()
 
 DEPTH_SCHEMA = pa.schema(
     [
@@ -421,12 +429,49 @@ class MarketSessionRecorder:
         }
 
     def _write_manifest(self) -> None:
-        temporary = self.manifest_path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(self._manifest(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        temporary.replace(self.manifest_path)
+        payload = json.dumps(self._manifest(), indent=2, sort_keys=True) + "\n"
+        atomic_write_text(self.manifest_path, payload)
+
+
+def unique_temp_path(destination: Path, suffix: str) -> Path:
+    """Return a temp path unique to THIS writer, beside ``destination``.
+
+    A fixed ``.tmp`` name is the bug this exists to prevent: two overlapping
+    writers open the same temporary file, and whichever calls ``replace`` first
+    hits it while the other still holds a handle. On Windows that raises
+    ``PermissionError: [WinError 32] ... used by another process``; on POSIX it
+    silently interleaves two payloads, which is worse. Including the pid and a
+    per-process counter makes collision impossible.
+    """
+    return destination.with_name(
+        f"{destination.name}.{os.getpid()}.{next(_TEMP_COUNTER)}{suffix}",
+    )
+
+
+def atomic_write_text(destination: Path, payload: str) -> None:
+    """Write ``payload`` to ``destination`` atomically and durably.
+
+    Serialized per-path so two threads cannot race the rename, and the temp file
+    is always cleaned up if anything fails.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = unique_temp_path(destination, ".tmp")
+    with _write_lock_for(destination):
+        try:
+            with temporary.open("w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())  # survive a crash, not just a clean exit
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)  # never strand a temp file
+
+
+def _write_lock_for(destination: Path) -> threading.Lock:
+    """Return the process-wide lock guarding writes to ``destination``."""
+    key = str(destination.resolve() if destination.parent.exists() else destination)
+    with _LOCK_REGISTRY_GUARD:
+        return _WRITE_LOCKS.setdefault(key, threading.Lock())
 
 
 def normalize_market_event(event: Mapping[str, object]) -> RawMarketEvent:
@@ -467,9 +512,12 @@ def _write_parquet_part(parts_dir: Path, part_index: int, table: pa.Table) -> Pa
     """Atomically publish one closed and readable Parquet part."""
     parts_dir.mkdir(parents=True, exist_ok=True)
     destination = parts_dir / f"part-{part_index:06d}.parquet"
-    temporary = destination.with_suffix(".parquet.tmp")
-    pq.write_table(table, temporary)
-    temporary.replace(destination)
+    temporary = unique_temp_path(destination, ".tmp")
+    try:
+        pq.write_table(table, temporary)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
     return destination
 
 
@@ -478,7 +526,7 @@ def _merge_parquet_parts(parts_dir: Path, destination: Path, schema: pa.Schema) 
     parts = tuple(sorted(parts_dir.glob("part-*.parquet"))) if parts_dir.is_dir() else ()
     if not parts:
         return
-    temporary = destination.with_suffix(".parquet.tmp")
+    temporary = unique_temp_path(destination, ".tmp")
     writer: pq.ParquetWriter | None = None
     try:
         writer = pq.ParquetWriter(temporary, schema)
@@ -486,10 +534,15 @@ def _merge_parquet_parts(parts_dir: Path, destination: Path, schema: pa.Schema) 
             parquet = pq.ParquetFile(part)
             for batch in parquet.iter_batches(batch_size=PARQUET_FLUSH_THRESHOLD):
                 writer.write_batch(batch)
+        # The writer MUST be closed before the rename: Windows refuses to replace
+        # a file that still has an open handle (WinError 32).
+        writer.close()
+        writer = None
+        os.replace(temporary, destination)
     finally:
         if writer is not None:
             writer.close()
-    temporary.replace(destination)
+        temporary.unlink(missing_ok=True)
 
 
 def _unique_session_dir(parent: Path, base_session_id: str) -> Path:
