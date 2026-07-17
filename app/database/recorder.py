@@ -6,6 +6,7 @@ import itertools
 import json
 import os
 import threading
+import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
@@ -32,6 +33,10 @@ PARQUET_FLUSH_THRESHOLD = 500
 _TEMP_COUNTER = itertools.count()
 _WRITE_LOCKS: dict[str, threading.Lock] = {}
 _LOCK_REGISTRY_GUARD = threading.Lock()
+# Windows refuses a rename while ANY handle (incl. an AV scanner's) is open on
+# the destination, so a rename must be retried to be reliable.
+REPLACE_ATTEMPTS = 8
+REPLACE_INITIAL_DELAY = 0.01
 
 DEPTH_SCHEMA = pa.schema(
     [
@@ -448,11 +453,42 @@ def unique_temp_path(destination: Path, suffix: str) -> Path:
     )
 
 
+def replace_with_retry(
+    temporary: Path,
+    destination: Path,
+    *,
+    attempts: int = REPLACE_ATTEMPTS,
+    initial_delay: float = REPLACE_INITIAL_DELAY,
+) -> None:
+    """``os.replace`` with bounded backoff, because Windows transiently refuses.
+
+    Windows raises ``PermissionError [WinError 5] Access is denied`` when ANY
+    handle exists on the destination - including the short-lived ones Defender
+    and the search indexer take to scan a file the instant it is written. No
+    amount of locking prevents that: the other holder is not our process.
+
+    Measured, not assumed: 16 threads rewriting one manifest produced 1-2 such
+    failures per run before this retry existed. Retrying is the documented way
+    to make a rename reliable on Windows; the last attempt is allowed to raise
+    so a genuine permission problem still surfaces instead of being swallowed.
+    """
+    delay = initial_delay
+    for attempt in range(1, attempts + 1):
+        try:
+            os.replace(temporary, destination)
+            return
+        except PermissionError:
+            if attempt == attempts:
+                raise  # a real, persistent problem must not be hidden
+            time.sleep(delay)
+            delay *= 2
+
+
 def atomic_write_text(destination: Path, payload: str) -> None:
     """Write ``payload`` to ``destination`` atomically and durably.
 
-    Serialized per-path so two threads cannot race the rename, and the temp file
-    is always cleaned up if anything fails.
+    Serialized per-path so two threads cannot race the rename, retried against
+    transient Windows handle contention, and the temp file is always cleaned up.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = unique_temp_path(destination, ".tmp")
@@ -462,7 +498,7 @@ def atomic_write_text(destination: Path, payload: str) -> None:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())  # survive a crash, not just a clean exit
-            os.replace(temporary, destination)
+            replace_with_retry(temporary, destination)
         finally:
             temporary.unlink(missing_ok=True)  # never strand a temp file
 
@@ -515,7 +551,7 @@ def _write_parquet_part(parts_dir: Path, part_index: int, table: pa.Table) -> Pa
     temporary = unique_temp_path(destination, ".tmp")
     try:
         pq.write_table(table, temporary)
-        os.replace(temporary, destination)
+        replace_with_retry(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
     return destination
@@ -538,7 +574,7 @@ def _merge_parquet_parts(parts_dir: Path, destination: Path, schema: pa.Schema) 
         # a file that still has an open handle (WinError 32).
         writer.close()
         writer = None
-        os.replace(temporary, destination)
+        replace_with_retry(temporary, destination)
     finally:
         if writer is not None:
             writer.close()

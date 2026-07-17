@@ -26,6 +26,10 @@ DEFAULT_REPORT_ROOT = Path("data/reports")
 DEFAULT_PAPER_LEDGER = Path("data/paper/paper_trades.jsonl")
 # How long the app waits for capture to flush before reporting an unclean exit.
 SHUTDOWN_DRAIN_SECONDS = 10.0
+# Crash/hang evidence. The app was reported as crashing with nothing logged.
+DEFAULT_LOG_DIR = Path("logs")
+# A GUI unresponsive this long is a real stall worth a full thread dump.
+GUI_STALL_SECONDS = 12.0
 
 
 class AssistantStartupError(RuntimeError):
@@ -45,6 +49,7 @@ class AssistantConfig:
     gui: bool = True
     delayed_data_minutes: int = 0
     paper_ledger_path: Path = DEFAULT_PAPER_LEDGER
+    log_dir: Path = DEFAULT_LOG_DIR
 
     @property
     def receiver_config(self) -> ReceiverServerConfig:
@@ -142,6 +147,10 @@ async def run_headless_assistant(
     attached and recording health is good - automatic research resumes without
     any button press.
     """
+    from app.runtime.diagnostics import install_asyncio_handler
+
+    # An unhandled error inside the receiver's loop must be logged, not vanish.
+    install_asyncio_handler(asyncio.get_running_loop())
     controller.start()
     delayed_events = _delayed_control_events(config.delayed_data_minutes)
     for event in delayed_events:
@@ -318,6 +327,12 @@ def run_assistant(config: AssistantConfig) -> int:
     """Run the automatic assistant with an optional GUI."""
     repo_root = find_repo_root()
     validate_runtime_environment(repo_root, gui=config.gui)
+    # Install BEFORE anything can fail: a crash, a dying worker thread, or a
+    # frozen UI must leave evidence in logs/ instead of vanishing.
+    from app.runtime.diagnostics import install_diagnostics
+
+    logger = install_diagnostics(config.log_dir)
+    logger.info("assistant starting (gui=%s, port=%s)", config.gui, config.port)
     controller = AutomaticRuntimeController.from_config(
         config.session_config,
         report_root=config.report_root,
@@ -487,11 +502,26 @@ def _run_gui(
         ),
     )
     window.show()
+    # A frozen UI crashes nothing, so nothing is logged and the window just stops
+    # repainting. This heartbeat is the only way that becomes diagnosable: if the
+    # Qt thread stops pumping it, every thread's stack is dumped to the log.
+    from PySide6.QtCore import QTimer
+
+    from app.runtime.diagnostics import StallWatchdog
+
+    watchdog = StallWatchdog(stall_seconds=GUI_STALL_SECONDS)
+    watchdog.heartbeat()
+    heartbeat_timer = QTimer(window)
+    heartbeat_timer.timeout.connect(watchdog.heartbeat)
+    heartbeat_timer.start(1000)
+    watchdog.start()
     try:
         return int(app.exec())
     except Exception as error:  # pragma: no cover - GUI event loop defensive boundary
         controller.health.mark_gui_failed(str(error))
         raise
+    finally:
+        watchdog.stop()
 
 
 def _finalize_assistant_session(
