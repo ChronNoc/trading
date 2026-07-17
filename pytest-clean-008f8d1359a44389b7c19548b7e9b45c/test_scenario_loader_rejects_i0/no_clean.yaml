@@ -1,4 +1,0 @@
-windows:
-  - kind: warmup
-  - kind: absorption
-    level: '99.00'

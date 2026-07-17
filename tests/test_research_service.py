@@ -218,7 +218,9 @@ def test_full_run_leaves_no_claim_files_and_writes_ledgers(tmp_path: Path) -> No
     assert (ledgers / "canonical.json").exists(), "authoritative canonical ledger must persist"
     canonical = json.loads((ledgers / "canonical.json").read_text(encoding="utf-8"))
     assert canonical["is_canonical"] is True
-    assert canonical["starting_balance"] == "100000"
+    # The canonical account is the SELECTED profile (Lucid Flex 25K), never a
+    # fabricated $100,000.
+    assert canonical["starting_balance"] == "25000"
     assert "daily locks" in canonical["economics"]
 
 

@@ -113,21 +113,30 @@ class BoundedIntakeBuffer:
         if capacity <= 0:
             raise ValueError("capacity must be positive")
         self._connection = connection
-        self._queue: asyncio.Queue[str | bytes | None] = asyncio.Queue(maxsize=capacity)
+        # Only real frames (or the close sentinel) are queued; gap markers are
+        # synthesized out-of-band so they never consume capacity.
+        self._queue: asyncio.Queue[str | bytes] = asyncio.Queue(maxsize=capacity)
         self.metrics = StageMetrics(capacity=capacity)
         self._lost = 0
+        self._gap_pending = False
+        self._closed = False
 
     def _force_put(self, item: str | bytes | None) -> None:
-        """Enqueue without ever blocking: evict oldest frames (counted) if full."""
-        while self._queue.full():
-            try:
-                evicted = self._queue.get_nowait()
-            except asyncio.QueueEmpty:  # pragma: no cover - race
-                break
-            if evicted is not None:  # never count the close sentinel as data loss
-                self._lost += 1
-                self.metrics.overflow += 1
+        """Enqueue without blocking, evicting AT MOST ONE item to make room.
 
+        Every queued item is a real market frame (or the close sentinel), so an
+        eviction is always genuine data loss and is always counted. Gap markers
+        are deliberately kept OUT of the queue - see :meth:`__anext__` - so a
+        marker can never displace a real frame nor be miscounted as lost data.
+        """
+        if self._queue.full():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:  # pragma: no cover - race
+                pass
+            else:
+                self._lost += 1  # every queued item is a real market frame
+                self.metrics.overflow += 1
         self._queue.put_nowait(item)
 
     async def pump(self) -> None:
@@ -136,31 +145,50 @@ class BoundedIntakeBuffer:
             async for message in self._connection:  # type: ignore[attr-defined]
                 self.metrics.ingress += 1
                 if self._queue.full():
-                    # Loss is loud, never silent: evict the oldest frame (counted)
-                    # and enqueue an explicit gap marker carrying the running loss.
-                    self._force_put(json.dumps({
-                        "type": "data_gap", "timestamp_ns": time.time_ns(),
-                        "reason": "receiver intake queue overflow",
-                        "receiver_intake_lost": self._lost + 1,
-                    }))
+                    # Loss is loud but coalesced: the new frame displaces exactly
+                    # ONE old frame, and the gap is announced out-of-band so the
+                    # announcement itself never costs another real event.
+                    self._gap_pending = True
                 self._force_put(message)
                 self.metrics.occupancy = self._queue.qsize()
                 self.metrics.high_water = max(self.metrics.high_water, self.metrics.occupancy)
         finally:
-            self._force_put(None)  # sentinel: stream ended (never blocks)
+            # Closing is signalled out-of-band too: a queued sentinel would have
+            # displaced (and lost) one more real frame on a full queue.
+            self._closed = True
 
     def __aiter__(self) -> "BoundedIntakeBuffer":
         """Iterate messages out of the bounded queue."""
         return self
 
     async def __anext__(self) -> str | bytes:
-        """Yield the next frame or stop when the socket closed and drained."""
-        item = await self._queue.get()
-        self.metrics.occupancy = self._queue.qsize()
-        if item is None:
-            raise StopAsyncIteration
-        self.metrics.egress += 1
-        return item
+        """Yield the next frame, announcing any pending gap first.
+
+        The gap marker is synthesized here rather than queued: it occupies no
+        queue capacity, so announcing loss can never cause more loss, and it is
+        always delivered (a queued marker could be stranded behind the close
+        sentinel and never seen).
+        """
+        if self._gap_pending:
+            self._gap_pending = False
+            return json.dumps({
+                "type": "data_gap", "timestamp_ns": time.time_ns(),
+                "reason": "receiver intake queue overflow",
+                "receiver_intake_lost": self._lost,
+            })
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                if self._closed:
+                    raise StopAsyncIteration  # closed and fully drained
+                try:
+                    item = await asyncio.wait_for(self._queue.get(), timeout=0.05)
+                except (TimeoutError, asyncio.TimeoutError):
+                    continue  # re-check the closed flag, then keep waiting
+            self.metrics.occupancy = self._queue.qsize()
+            self.metrics.egress += 1
+            return item
 
 
 class RecorderPipeline:
@@ -198,6 +226,9 @@ class RecorderPipeline:
         self.last_batch_size = 0
         self.last_flush_duration_ms = 0.0
         self.flush_failures = 0
+        self.lost_events = 0  # events that could not be persisted after retries
+        self.fail_closed = False  # a write failure invalidates the segment
+        self._max_write_attempts = 3
         self.end_to_end_lag_ms = 0.0
         self._thread = threading.Thread(target=self._writer_loop, name="recorder-writer", daemon=True)
         self._thread.start()
@@ -225,11 +256,23 @@ class RecorderPipeline:
         return self._recorder.record_control_event(event)
 
     def finalize(self, *, clean_shutdown: bool, reason: str | None = None) -> None:
-        """Drain the queue completely, stop the writer, then finalize."""
+        """Drain the queue completely, stop the writer, then finalize.
+
+        A segment that lost events (write failures or queue overflow) can NEVER
+        finalize as clean, however the caller asked - a crash or a failed write
+        must produce an unclean manifest, not a falsely complete session.
+        """
         self.drain()
         self._stop.set()
         self._wake.set()
         self._thread.join(timeout=10)
+        lost = self.lost_events + self.metrics.overflow
+        if lost or self.fail_closed:
+            clean_shutdown = False
+            reason = (
+                f"recorder lost {lost} event(s): "
+                f"{self.lost_events} write failure(s), {self.metrics.overflow} queue overflow(s)"
+            )
         self._recorder.finalize(clean_shutdown=clean_shutdown, reason=reason)
 
     def drain(self) -> None:
@@ -282,11 +325,11 @@ class RecorderPipeline:
             if not batch:
                 continue
             started = self._clock()
-            try:
-                for event, _enqueued in batch:
-                    self._recorder.record(event)
-            except Exception:  # noqa: BLE001 - a failed flush is counted, not hidden
-                self.flush_failures += 1
+            persisted = self._write_batch(batch)
+            if persisted < len(batch):
+                # Fail closed: the un-persisted events are REAL loss. Count them,
+                # push the reason into the session manifest, and mark the segment
+                # unclean so it can never be presented as a complete recording.
                 continue
             finished = self._clock()
             self.metrics.egress += len(batch)
@@ -294,6 +337,33 @@ class RecorderPipeline:
             self.last_flush_duration_ms = (finished - started) * 1000.0
             self.end_to_end_lag_ms = (finished - batch[0][1]) * 1000.0
             self._rate_window.append((finished, self.metrics.ingress, self.metrics.egress))
+
+    def _write_batch(self, batch: list[tuple[Mapping[str, object], float]]) -> int:
+        """Persist a batch event-by-event with bounded retries; return count written.
+
+        A single bad event must not discard the whole batch (the old behaviour
+        lost every queued event and only bumped a counter). Each event is retried
+        briefly; an event that still cannot be written is counted as real loss,
+        recorded on the session manifest, and marks the recording unclean.
+        """
+        written = 0
+        for event, _enqueued in batch:
+            for attempt in range(self._max_write_attempts):
+                try:
+                    self._recorder.record(event)
+                    written += 1
+                    break
+                except Exception as error:  # noqa: BLE001 - retry, then fail closed
+                    if attempt + 1 >= self._max_write_attempts:
+                        self.flush_failures += 1
+                        self.lost_events += 1
+                        self.fail_closed = True
+                        note = getattr(self._recorder, "note_rejected_event", None)
+                        if note is not None:
+                            note(f"recorder write failed after retries: {type(error).__name__}: {error}")
+                        break
+                    time.sleep(0.005 * (attempt + 1))
+        return written
 
     def _has_pending(self) -> bool:
         with self._lock:

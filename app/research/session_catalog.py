@@ -69,11 +69,27 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
     counts = manifest.get("event_counts", {}) if isinstance(manifest.get("event_counts"), dict) else {}
     depth_updates = _as_int(counts.get("depth_updates")) or 0
     trades = _as_int(counts.get("trades")) or 0
-    dropped = _as_int(manifest.get("dropped_message_count")) or 0
+    # The Java bridge reports a PROCESS-LIFETIME cumulative drop total; it is not
+    # this session's loss. Prefer the per-session/connection figure when the
+    # manifest carries one, and keep the lifetime number only for display.
+    lifetime_dropped = _as_int(manifest.get("dropped_message_count")) or 0
     quality = manifest.get("data_quality", {}) if isinstance(manifest.get("data_quality"), dict) else {}
+    session_dropped = _as_int(quality.get("session_dropped_messages"))
+    if session_dropped is None:
+        session_dropped = _as_int(quality.get("bridge_dropped_messages"))
+    if session_dropped is None:
+        # No per-session figure recorded: fail closed and treat the lifetime
+        # total as this session's, rather than assuming zero loss.
+        session_dropped = lifetime_dropped
+    dropped = session_dropped
+    queue_overflow = (
+        (_as_int(quality.get("receiver_queue_overflow")) or 0)
+        + (_as_int(quality.get("recorder_queue_overflow")) or 0)
+    )
     malformed = _as_int(quality.get("malformed_events")) or 0
     rejected = _as_int(quality.get("rejected_events")) or 0
     missed_trades = _as_int(quality.get("missed_trade_events")) or 0
+    sequence_gaps = _as_int(quality.get("trade_sequence_gaps")) or 0
 
     reasons: list[str] = []
     if synthetic:
@@ -89,28 +105,45 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
     if trades == 0:
         reasons.append("no trades recorded (depth-only)")
     if dropped > 0:
-        reasons.append(f"bridge reported {dropped} dropped messages")
+        reasons.append(f"bridge dropped {dropped} messages during this session")
+    if lifetime_dropped != dropped:
+        reasons.append(f"(bridge lifetime drop total: {lifetime_dropped})")
+    if queue_overflow > 0:
+        reasons.append(f"capture queues overflowed {queue_overflow} times")
     if malformed > 0:
         reasons.append(f"receiver rejected {malformed} malformed messages")
     if rejected > 0:
         reasons.append(f"feed guard rejected {rejected} market events")
     if missed_trades > 0:
         reasons.append(f"trade sequence indicates {missed_trades} missing events")
+    if sequence_gaps > 0:
+        reasons.append(f"{sequence_gaps} trade-sequence gap(s)")
 
+    # A session is analysis-eligible only if it finalized CLEANLY (a crash or a
+    # failed write must never look like a complete recording) and its data is
+    # continuous.
     eligible = (
         finalized
+        and clean
         and not synthetic
         and provenance in _REAL_PROVENANCES
         and continuity == "continuous"
         and depth_updates > 0
     )
+    # Order-flow research additionally demands BOTH streams and a spotless
+    # quality record. `dropped` here is the per-connection/session bridge drop
+    # count (NOT the Java process-lifetime total), so the ~1M-drop run stays
+    # visibly ineligible instead of quietly qualifying.
     order_flow_eligible = (
         eligible
+        and depth_updates > 0
         and trades > 0
-        and dropped == 0
+        and session_dropped == 0
+        and queue_overflow == 0
         and malformed == 0
         and rejected == 0
         and missed_trades == 0
+        and sequence_gaps == 0
     )
     # A delayed feed is valid for offline analysis but NEVER for live decisions.
     valid_live = provenance == PROVENANCE_REAL_REALTIME and eligible and not is_delayed

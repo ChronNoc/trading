@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from app.research.session_catalog import build_catalog, classify_manifest, eligibility_report
 
 
@@ -98,3 +100,83 @@ def test_feed_quality_gap_blocks_strategy_replay_but_remains_catalogued(tmp_path
     assert entry.eligible_for_analysis is True
     assert entry.eligible_for_order_flow_replay is False
     assert any("missing events" in reason for reason in entry.reasons)
+
+
+def _manifest(**overrides: object) -> dict:
+    """A clean, order-flow-eligible delayed manifest; override to break one rule."""
+    base = {
+        "session_id": "session_test", "source_mode": "delayed", "data_delay_minutes": 15,
+        "synthetic": False, "clean_shutdown": True, "utc_end": "2026-07-15T01:00:00+00:00",
+        "utc_start": "2026-07-15T00:00:00+00:00", "continuity_status": "continuous",
+        "dropped_message_count": 0,
+        "event_counts": {"depth_updates": 10_000, "trades": 2_000},
+        "data_quality": {
+            "session_dropped_messages": 0, "receiver_queue_overflow": 0,
+            "recorder_queue_overflow": 0, "malformed_events": 0, "rejected_events": 0,
+            "missed_trade_events": 0, "trade_sequence_gaps": 0,
+        },
+    }
+    for key, value in overrides.items():
+        if key in base["data_quality"]:
+            base["data_quality"][key] = value  # type: ignore[index]
+        elif key in base["event_counts"]:
+            base["event_counts"][key] = value  # type: ignore[index]
+        else:
+            base[key] = value
+    return base
+
+
+def test_clean_manifest_is_order_flow_eligible() -> None:
+    entry = classify_manifest(_manifest(), Path("m.json"))
+    assert entry.eligible_for_order_flow_replay is True
+
+
+@pytest.mark.parametrize("override,label", [
+    ({"clean_shutdown": False}, "unclean shutdown"),
+    ({"continuity_status": "receiver_error"}, "not continuous"),
+    ({"session_dropped_messages": 1}, "one session drop"),
+    ({"receiver_queue_overflow": 1}, "receiver queue overflow"),
+    ({"recorder_queue_overflow": 1}, "recorder queue overflow"),
+    ({"malformed_events": 1}, "malformed event"),
+    ({"rejected_events": 1}, "rejected event"),
+    ({"missed_trade_events": 1}, "missing trade event"),
+    ({"trade_sequence_gaps": 1}, "trade sequence gap"),
+    ({"trades": 0}, "depth-only, no trades"),
+    ({"depth_updates": 0}, "no depth"),
+])
+def test_every_quality_failure_blocks_order_flow_eligibility(override: dict, label: str) -> None:
+    """Order-flow research demands a spotless record: any single flaw disqualifies."""
+    entry = classify_manifest(_manifest(**override), Path("m.json"))
+    assert entry.eligible_for_order_flow_replay is False, f"{label} must disqualify"
+
+
+def test_million_drop_session_stays_visibly_ineligible() -> None:
+    """The observed ~1M-drop run must never qualify for research."""
+    entry = classify_manifest(
+        _manifest(session_dropped_messages=1_036_394, dropped_message_count=1_036_394),
+        Path("m.json"),
+    )
+    assert entry.eligible_for_order_flow_replay is False
+    assert entry.eligible_for_analysis is True  # catalogued and visible, just not researchable
+    assert any("1036394" in r.replace(",", "") or "1,036,394" in r for r in entry.reasons)
+
+
+def test_lifetime_drop_total_is_distinguished_from_session_drops() -> None:
+    """A huge Java LIFETIME total with zero session loss must not disqualify."""
+    entry = classify_manifest(
+        _manifest(dropped_message_count=1_031_435, session_dropped_messages=0),
+        Path("m.json"),
+    )
+    assert entry.dropped_message_count == 0  # the per-session figure is what counts
+    assert entry.eligible_for_order_flow_replay is True
+    assert any("lifetime" in r for r in entry.reasons)  # still surfaced for the user
+
+
+def test_missing_session_drop_figure_fails_closed() -> None:
+    """With no per-session figure, the lifetime total is assumed - never zero."""
+    manifest = _manifest(dropped_message_count=5_000)
+    manifest["data_quality"].pop("session_dropped_messages", None)  # type: ignore[union-attr]
+    manifest["data_quality"].pop("bridge_dropped_messages", None)  # type: ignore[union-attr]
+    entry = classify_manifest(manifest, Path("m.json"))
+    assert entry.dropped_message_count == 5_000
+    assert entry.eligible_for_order_flow_replay is False

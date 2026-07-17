@@ -1,2 +1,0 @@
-recorded_at,setup,decision,failed_conditions,explanations
-20:12:31,Rejected lookalike,REJECTED,2,[fail] Bid liquidity did not reload | [fail] Reclaim confirmation not completed

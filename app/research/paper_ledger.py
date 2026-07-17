@@ -1,8 +1,15 @@
-"""One fixed $100,000 paper ledger for quality-gated real outcomes only."""
+"""One fixed paper ledger, sized by the SELECTED prop profile, for quality-gated
+real outcomes only.
+
+The account is whatever profile the user selected (Lucid Flex 25K by default) -
+never a fabricated $100,000 - so the ledger, the risk checks, and the GUI all
+describe the same account. There are no resets: a blown account stops and the
+loss stands.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Sequence
 
@@ -15,12 +22,35 @@ MNQ_TICK_VALUE = Decimal("0.50")
 
 @dataclass(frozen=True, slots=True)
 class RealPaperLedgerConfig:
-    """Fixed-account and daily-lock assumptions for offline paper results."""
+    """Account and daily-lock assumptions for offline paper results.
 
-    starting_balance: Decimal = Decimal("100000")
-    remaining_allowable_drawdown: Decimal = Decimal("100000")
+    Defaults come from the SELECTED prop profile (Lucid Flex 25K), not a
+    fabricated $100,000 account. Use :meth:`from_profile` so the paper ledger,
+    the risk checks, and the GUI all describe the same account the user chose.
+    """
+
+    starting_balance: Decimal = Decimal("25000")
+    remaining_allowable_drawdown: Decimal = Decimal("1000")
     max_entries_per_day: int = 3
     max_losses_per_day: int = 3
+    max_contracts: int = 20
+    profile_id: str = "lucid_flex_25k"
+
+    @classmethod
+    def from_profile(cls, profile: object | None = None) -> "RealPaperLedgerConfig":
+        """Build the ledger config from a typed account profile."""
+        from app.risk.account_profile import load_selected_profile
+
+        account = profile if profile is not None else load_selected_profile()
+        limits = account.effective_limits()  # type: ignore[union-attr]
+        return cls(
+            starting_balance=account.account_size,  # type: ignore[union-attr]
+            remaining_allowable_drawdown=account.max_loss_limit,  # type: ignore[union-attr]
+            max_entries_per_day=limits.max_entries_per_day,
+            max_losses_per_day=limits.max_losses_per_day,
+            max_contracts=limits.max_contracts,
+            profile_id=account.profile_id,  # type: ignore[union-attr]
+        )
 
     def __post_init__(self) -> None:
         """Validate paper-account assumptions."""
@@ -28,6 +58,8 @@ class RealPaperLedgerConfig:
             raise ValueError("account and drawdown amounts must be positive")
         if self.max_entries_per_day <= 0 or self.max_losses_per_day <= 0:
             raise ValueError("daily entry and loss limits must be positive")
+        if self.max_contracts <= 0:
+            raise ValueError("max_contracts must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +185,11 @@ def run_real_paper_ledger(
         if day_realized_loss >= sizing.daily_risk_budget:
             skipped.append(_skip(outcome, "daily loss-budget lock reached"))
             continue
+        # The prop profile's contract cap binds in addition to risk sizing: never
+        # size above what the selected account (e.g. Lucid Flex 25K = 20 micros)
+        # actually permits.
+        if sizing.contracts > settings.max_contracts:
+            sizing = replace(sizing, contracts=settings.max_contracts)
         if sizing.contracts <= 0:
             skipped.append(_skip(outcome, "risk sizing allowed zero contracts"))
             continue

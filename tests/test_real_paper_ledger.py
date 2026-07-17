@@ -10,13 +10,26 @@ from app.research.real_episodes import CompletedRealOutcome
 
 
 def test_fixed_account_uses_actual_net_pnl_and_never_resets() -> None:
+    """The account is the SELECTED profile (Lucid Flex 25K), not a fabricated $100k."""
+    from app.risk.account_profile import lucid_flex_25k
+
+    start = lucid_flex_25k().account_size
     win = _outcome("a", 1, pnl=Decimal("18.00"), r=Decimal("0.8"))
     loss = _outcome("b", 10, pnl=Decimal("-22.00"), r=Decimal("-1"))
     result = run_real_paper_ledger((win, loss))
     first, second = result.trades
-    assert first.balance_after == Decimal("100000") + Decimal(first.contracts) * Decimal("18")
+    assert result.starting_balance == start == Decimal("25000")
+    assert first.balance_after == start + Decimal(first.contracts) * Decimal("18")
     assert second.balance_after == first.balance_after + Decimal(second.contracts) * Decimal("-22")
-    assert result.starting_balance == Decimal("100000")
+
+
+def test_position_size_never_exceeds_the_profile_contract_cap() -> None:
+    """Lucid Flex 25K permits 20 micros; sizing may never exceed the account's cap."""
+    from app.risk.account_profile import lucid_flex_25k
+
+    cap = lucid_flex_25k().max_micro_contracts
+    result = run_real_paper_ledger((_outcome("a", 1, pnl=Decimal("18.00"), r=Decimal("0.8")),))
+    assert all(t.contracts <= cap for t in result.trades)
 
 
 def test_daily_entry_limit_and_one_position_limit_are_enforced() -> None:

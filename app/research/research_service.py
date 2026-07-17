@@ -557,8 +557,11 @@ class ResearchService:
             by_hash.setdefault(result.config_hash, []).extend(result.setups)
             if result.is_canonical:
                 canonical_hash = result.config_hash
+        from app.risk.account_profile import load_selected_profile
+
+        starting = load_selected_profile().account_size  # selected profile, never a fixed $100k
         for config_hash, setups in by_hash.items():
-            balance = Decimal("100000")
+            balance = starting
             rows = []
             for setup in sorted(setups, key=lambda s: (s.decision_ts_ns, s.session_id)):
                 balance += setup.net_pnl_per_contract
@@ -574,7 +577,7 @@ class ResearchService:
                 "config_hash": config_hash,
                 "is_canonical": config_hash == canonical_hash,
                 "economics": "per-contract candidate accounting (costs inside net_pnl_per_contract)",
-                "starting_balance": "100000",
+                "starting_balance": str(starting),
                 "ending_balance": str(balance),
                 "trades": rows,
             }

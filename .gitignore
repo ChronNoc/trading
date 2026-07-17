@@ -20,3 +20,7 @@ data/research_state/
 
 # Execution gateway runtime logs (paper + demo order/discrepancy logs)
 data/execution_state/
+
+# Test temp trees must never be tracked (regression-guarded in tests)
+pytest-clean-*/
+.pytest-tmp/

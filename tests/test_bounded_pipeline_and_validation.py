@@ -159,3 +159,109 @@ def test_progress_ladder_includes_walk_forward_and_demo_soak_gates() -> None:
     by_id = {g.gate_id: g for g in progress.gates}
     assert by_id["walk_forward"].status == "insufficient_evidence"  # zero outcomes never pass
     assert by_id["demo_soak"].status == "insufficient_evidence"
+
+
+# --- named defect regressions -------------------------------------------------
+
+
+def test_gap_marker_is_never_counted_as_lost_market_data() -> None:
+    """A synthetic gap marker displaced from the queue is not market-data loss."""
+    async def run() -> BoundedIntakeBuffer:
+        frames = [json.dumps({"n": i}) for i in range(30)]
+        buffer = BoundedIntakeBuffer(_FakeConnection(frames), capacity=4)
+        await buffer.pump()
+        out = [str(item) async for item in buffer]
+        # Real frames delivered + real frames lost must equal frames sent. If a
+        # marker were miscounted as lost, this identity would break.
+        real_out = [o for o in out if "data_gap" not in o]
+        assert len(real_out) + buffer.metrics.overflow == 30
+        return buffer
+
+    buffer = asyncio.run(run())
+    assert buffer.metrics.overflow > 0  # loss really happened and was counted
+
+
+def test_one_incoming_frame_evicts_at_most_one_queued_frame() -> None:
+    """The gap marker must not cost a second real event per overflow."""
+    async def run() -> tuple[int, int]:
+        frames = [json.dumps({"n": i}) for i in range(20)]
+        buffer = BoundedIntakeBuffer(_FakeConnection(frames), capacity=5)
+        await buffer.pump()
+        out = [str(item) async for item in buffer]
+        return len([o for o in out if "data_gap" not in o]), buffer.metrics.overflow
+
+    delivered, lost = asyncio.run(run())
+    # 20 frames into a capacity-5 queue: exactly 15 displaced, one per overflow.
+    assert delivered == 5
+    assert lost == 15
+    assert delivered + lost == 20
+
+
+def test_overflow_emits_a_coalesced_gap_marker_with_running_total() -> None:
+    """Loss stays loud: a marker carrying the running lost count is delivered."""
+    async def run() -> list[str]:
+        frames = [json.dumps({"n": i}) for i in range(12)]
+        buffer = BoundedIntakeBuffer(_FakeConnection(frames), capacity=3)
+        await buffer.pump()
+        return [str(item) async for item in buffer]
+
+    out = asyncio.run(run())
+    gaps = [json.loads(o) for o in out if "data_gap" in o]
+    assert gaps, "overflow must still announce an explicit data_gap"
+    assert gaps[-1]["receiver_intake_lost"] > 0
+    assert gaps[-1]["reason"] == "receiver intake queue overflow"
+
+
+class _FlakyRecorder:
+    """Recorder whose write fails for one specific event."""
+
+    def __init__(self, real, bad_timestamp: int) -> None:
+        self._real = real
+        self._bad = bad_timestamp
+        self.rejected: list[str] = []
+
+    def record(self, event):
+        if int(event.get("timestamp", 0)) == self._bad:
+            raise OSError("disk write failed")
+        return self._real.record(event)
+
+    def note_rejected_event(self, reason: str) -> None:
+        self.rejected.append(reason)
+
+    def finalize(self, *, clean_shutdown: bool, reason=None):
+        self.clean_shutdown = clean_shutdown
+        self.finalize_reason = reason
+        return self._real.finalize(clean_shutdown=clean_shutdown, reason=reason)
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def test_one_bad_event_does_not_discard_the_whole_batch(tmp_path: Path) -> None:
+    """The old code lost every queued event on one exception; now only the bad one."""
+    flaky = _FlakyRecorder(_recorder(tmp_path), bad_timestamp=5)
+    pipeline = RecorderPipeline(flaky, capacity=1000, batch_size=100)
+    for i in range(10):
+        pipeline.record({"type": "depth_update", "timestamp": i, "symbol": "MNQ", "side": "bid",
+                         "price": "29500.00", "previous_size": "0", "new_size": "5"})
+    pipeline.finalize(clean_shutdown=True)
+    import pyarrow.parquet as pq
+
+    # 9 of 10 persisted; only the poisoned event was lost.
+    assert pq.ParquetFile(flaky.depth_path).metadata.num_rows == 9
+    assert pipeline.lost_events == 1
+    assert pipeline.flush_failures >= 1
+
+
+def test_write_failure_propagates_to_manifest_and_fails_closed(tmp_path: Path) -> None:
+    """A lost event must reach the manifest and force an UNCLEAN finalize."""
+    flaky = _FlakyRecorder(_recorder(tmp_path), bad_timestamp=3)
+    pipeline = RecorderPipeline(flaky, capacity=1000, batch_size=10)
+    for i in range(6):
+        pipeline.record({"type": "depth_update", "timestamp": i, "symbol": "MNQ", "side": "bid",
+                         "price": "29500.00", "previous_size": "0", "new_size": "5"})
+    pipeline.finalize(clean_shutdown=True)  # caller asks for clean...
+    assert pipeline.fail_closed is True
+    assert flaky.clean_shutdown is False, "a segment that lost events can never be clean"
+    assert "lost" in (flaky.finalize_reason or "")
+    assert any("write failed" in r for r in flaky.rejected), "loss must reach the manifest"

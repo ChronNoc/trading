@@ -1,4 +1,0 @@
-recorded_at,setup,decision,failed_conditions,explanations
-14:00:00,Long absorption reclaim,ACCEPTED,0,[pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
-14:10:00,Long absorption reclaim,ACCEPTED,0,[pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
-15:00:00,Long absorption reclaim,ACCEPTED,0,[pass] Bid liquidity reloaded 2 times | [pass] Reclaim confirmation completed
