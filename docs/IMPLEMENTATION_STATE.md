@@ -33,11 +33,20 @@ forwarder-shutdown work below.
   drain, terminal marker actually delivered, **unclean** reported when the drain
   or the marker send fails, idempotent. 3 new Java tests (22 total).
 
+- **Streaming delayed-paper engine** (`app/paper/streaming_engine.py`) — FIXED the
+  regression where delayed data disabled all evaluation. Causal, auto-started by
+  the launcher, shares the offline strategy, bounded visible warm-up, full
+  lineage, no-broker proof, capability gating. Session id/contract no longer
+  "unknown". See `docs/AUTOMATIC_PAPER_PIPELINE.md`. 12 tests + acceptance check
+  `delayed_paper_evaluates_live_stream`.
+
 ## NOT DONE — outstanding
 
 - Process isolation / lifecycle supervisor (Phase 2): receiver still runs as a
   daemon thread in the GUI process.
-- Streaming delayed-paper engine (Phase 3): mode is still recording-only.
+- Paper ORDER simulation (fills/stop/target/ledger rows) from streaming setups:
+  the engine evaluates and records decisions; it does not yet open simulated
+  positions (no setup has qualified on real data, so no row exists either way).
 - Session rotation + restart catch-up (Phase 4).
 - Forwarder protocol version / stream id / capability handshake / batching
   (rest of Phase 5).
