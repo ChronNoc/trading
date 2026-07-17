@@ -26,21 +26,28 @@ from app.gui.view_models import (
     ResearchSnapshot,
 )
 
-# What the current Bookmap bridge genuinely delivers. Anything the feed cannot
-# support must say so rather than be silently rendered.
+# Capabilities that are STRUCTURAL - true regardless of what arrives on the wire,
+# because the API cannot express them at all. Everything else is observed from the
+# real stream (see app/market/capabilities.py), because a hardcoded
+# "Trade prints: AVAILABLE" lied on the 71 of 200 recorded sessions that carried
+# no trades whatsoever.
+STRUCTURAL_CAPABILITIES: tuple[tuple[str, Capability, str], ...] = (
+    ("Heatmap pixels", Capability.UNAVAILABLE,
+     "Bookmap's visual heatmap is not exposed through the add-on API"),
+    ("Broker execution", Capability.UNAVAILABLE, "delayed data may never place an order"),
+)
+
+# Kept for callers with no live engine attached: the honest pre-observation view.
 DEFAULT_CAPABILITIES: tuple[tuple[str, Capability, str], ...] = (
-    ("Aggregated depth", Capability.AVAILABLE, "bridge forwards depth_update events"),
-    ("Trade prints", Capability.AVAILABLE, "bridge forwards trade events"),
-    ("Aggressor side", Capability.AVAILABLE,
-     "TradeInfo.isBidAggressor verified against the installed Bookmap jars"),
-    ("CVD / rolling delta", Capability.AVAILABLE, "derived from verified aggressor side"),
+    ("Aggregated depth", Capability.UNVERIFIED, "no depth update observed yet"),
+    ("Trade prints", Capability.UNVERIFIED, "no trade observed yet"),
+    ("Aggressor side", Capability.UNVERIFIED, "no trade observed yet"),
+    ("CVD / rolling delta", Capability.UNVERIFIED, "no trade observed yet"),
     ("Liquidity blocks / reloads / absorption", Capability.HEURISTIC,
      "derived from depth persistence - not native Bookmap indicator values"),
     ("MBO / native iceberg", Capability.UNAVAILABLE,
      "the bridge receives no order IDs; native iceberg data is not exposed"),
-    ("Heatmap pixels", Capability.UNAVAILABLE,
-     "Bookmap's visual heatmap is not exposed through the add-on API"),
-    ("Broker execution", Capability.UNAVAILABLE, "delayed data may never place an order"),
+    *STRUCTURAL_CAPABILITIES,
 )
 
 
@@ -79,7 +86,7 @@ class SnapshotSource:
             profitability=self._profitability_snapshot(),
             execution=self._execution(),
             components=self._components(),
-            capabilities=DEFAULT_CAPABILITIES,
+            capabilities=self._capabilities(),
             next_action=self._next_action(),
             blocker=self._blocker(),
         )
@@ -275,6 +282,23 @@ class SnapshotSource:
             risk_rejections=tuple(risk_rejections),
             recent_trades=rows,
             malformed_events=status.malformed_events,
+        )
+
+    def _capabilities(self) -> tuple[tuple[str, Capability, str], ...]:
+        """Report what the feed has ACTUALLY delivered, plus structural limits.
+
+        A hardcoded constant claimed "Trade prints: AVAILABLE" on the 71 of 200
+        recorded sessions that contained no trades at all.
+        """
+        if self._paper_engine is None or not hasattr(self._paper_engine, "capabilities"):
+            return DEFAULT_CAPABILITIES
+        try:
+            observed = self._paper_engine.capabilities().states()  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - the GUI must never die on a read
+            return DEFAULT_CAPABILITIES
+        return (
+            *((state.label, Capability(state.status.value), state.reason) for state in observed),
+            *STRUCTURAL_CAPABILITIES,
         )
 
     def _profitability_snapshot(self) -> "ProfitabilitySnapshot":

@@ -192,11 +192,20 @@ class DelayedPaperEngine:
         self._sync_execution_status(None)
         # A capability the feed cannot supply disables only the setups that need
         # it - never the whole engine.
+        from app.market.capabilities import CapabilityId, FeedCapabilities
+
+        self._capabilities = FeedCapabilities()
         caps = dict(capabilities or {})
         disabled: list[tuple[str, str]] = []
-        if not caps.get("mbo", False):
+        # MBO is structurally unavailable on this bridge (no per-order IDs), so
+        # the setup that needs it is disabled unless a caller proves otherwise.
+        if not caps.get(CapabilityId.MBO.value, caps.get("mbo", False)):
             disabled.append(("iceberg_continuation", "requires MBO (order-by-order) data"))
         self._disabled = tuple(disabled)
+
+    def capabilities(self) -> "FeedCapabilities":  # noqa: F821 - imported in __init__
+        """Return what the feed has ACTUALLY delivered this session."""
+        return self._capabilities
 
     # -- session identity ---------------------------------------------------------
 
@@ -226,6 +235,9 @@ class DelayedPaperEngine:
 
         self._window.append(self._state)
         self._event_index += 1
+        # Capabilities are OBSERVED from the real stream, never declared: a
+        # depth-only feed must report trades as degraded, not available.
+        self._capabilities = self._capabilities.observe_event(event)
         tick = self._tick()
 
         # An event first resolves exposure that already exists (fills, stops,

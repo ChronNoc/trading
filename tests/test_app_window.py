@@ -338,8 +338,48 @@ def test_snapshot_source_declares_unavailable_capabilities_honestly() -> None:
     assert caps["MBO / native iceberg"] == Capability.UNAVAILABLE
     assert caps["Heatmap pixels"] == Capability.UNAVAILABLE
     assert caps["Broker execution"] == Capability.UNAVAILABLE
-    assert caps["Aggressor side"] == Capability.AVAILABLE
     assert caps["Liquidity blocks / reloads / absorption"] == Capability.HEURISTIC
+    # With no feed attached, nothing has been observed. This previously claimed
+    # AVAILABLE, which is what made the panel lie on depth-only sessions.
+    assert caps["Aggressor side"] == Capability.UNVERIFIED
+    assert caps["Trade prints"] == Capability.UNVERIFIED
+
+
+def test_capabilities_report_what_the_feed_actually_delivered() -> None:
+    """Observed evidence, not a constant: AVAILABLE only after real trades."""
+    from app.gui.snapshot_source import SnapshotSource
+    from app.paper.streaming_engine import DelayedPaperEngine
+
+    engine = DelayedPaperEngine()
+    engine.on_market_event({
+        "timestamp_ns": 1, "price": "29500.00", "size": "1",
+        "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 1,
+    })
+    caps = dict((name, cap) for name, cap, _ in
+                SnapshotSource(paper_engine=engine)().capabilities)
+    assert caps["Trade prints"] == Capability.AVAILABLE
+    assert caps["Aggressor side"] == Capability.AVAILABLE
+    assert caps["MBO / native iceberg"] == Capability.UNAVAILABLE, "structural, always"
+
+
+def test_a_depth_only_feed_is_reported_as_degraded_not_available() -> None:
+    """The measured failure: 71 of 200 recorded sessions carried no trades."""
+    from app.gui.snapshot_source import SnapshotSource
+    from app.market.capabilities import DEPTH_ONLY_DEGRADED_THRESHOLD
+    from app.paper.streaming_engine import DelayedPaperEngine
+
+    engine = DelayedPaperEngine()
+    for i in range(DEPTH_ONLY_DEGRADED_THRESHOLD):
+        engine.on_market_event({
+            "type": "depth_update", "timestamp": 1 + i, "symbol": "MNQ", "side": "bid",
+            "price": "29500.00", "previous_size": "0", "new_size": "10",
+        })
+    caps = {name: (cap, reason) for name, cap, reason in
+            SnapshotSource(paper_engine=engine)().capabilities}
+    assert caps["Aggregated depth"][0] == Capability.AVAILABLE
+    status, reason = caps["Trade prints"]
+    assert status == Capability.DEGRADED, "a depth-only feed must not claim trades work"
+    assert "ZERO trades" in reason
 
 
 def test_launcher_uses_the_redesigned_window_not_the_legacy_tabs() -> None:
