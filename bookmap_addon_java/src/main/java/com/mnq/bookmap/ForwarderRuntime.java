@@ -20,6 +20,10 @@ public final class ForwarderRuntime implements Closeable {
     private final ReconnectState reconnectState;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    /** Bounded budget for draining the queue on shutdown. */
+    private static final long SHUTDOWN_DRAIN_MILLIS = 2_000L;
+    /** True when the last close() could not deliver every queued message. */
+    private volatile boolean uncleanShutdown;
     private final AtomicReference<String> sourceMode = new AtomicReference<>("historical");
     private ScheduledExecutorService executor;
 
@@ -94,16 +98,94 @@ public final class ForwarderRuntime implements Closeable {
     }
 
     @Override
+    /**
+     * Shut down with a bounded graceful drain. Idempotent.
+     *
+     * <p>Order matters. The send loop runs {@code while (running.get())}, so the
+     * previous implementation flipped {@code running} to false, enqueued
+     * {@code session_ended} into a queue nobody was draining any more, and then
+     * called {@code shutdownNow()} - the terminal marker was never delivered and
+     * Python could not tell a clean close from a crash.
+     *
+     * <p>Now: stop the periodic tasks, let the loop finish its current send,
+     * enqueue the terminal marker, then drain the queue synchronously on this
+     * thread while the transport is still open. If the drain cannot complete
+     * within the deadline the session is marked UNCLEAN and we say so explicitly
+     * rather than implying a complete recording.
+     */
     public void close() {
         if (!running.compareAndSet(true, false)) {
-            return;
+            return; // idempotent: a second close is a no-op
         }
-        publishSessionEnded();
         if (executor != null) {
-            executor.shutdownNow();
+            executor.shutdown(); // stop heartbeats; let sendLoop exit its while()
+            try {
+                if (!executor.awaitTermination(SHUTDOWN_DRAIN_MILLIS, TimeUnit.MILLISECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                executor.shutdownNow();
+            }
             executor = null;
         }
+
+        // The send loop has stopped; drain what is left on THIS thread so the
+        // terminal marker is genuinely delivered.
+        long undelivered = drainRemaining(SHUTDOWN_DRAIN_MILLIS);
+        boolean drained = undelivered == 0;
+        if (!drained) {
+            // Loud, explicit: never let an undrained queue look like a clean end.
+            trySend(messageFactory.control("data_gap", nowNs(), sourceMode.get(),
+                    queue.droppedCount(), "unclean shutdown: " + undelivered + " message(s) undelivered"));
+        }
+        // The terminal marker must actually be DELIVERED. A close that could not
+        // tell the consumer the session ended is unclean by definition - the
+        // consumer would otherwise be unable to distinguish it from a crash.
+        boolean markerDelivered = trySend(messageFactory.control(
+                "session_ended", nowNs(), sourceMode.get(), queue.droppedCount(),
+                drained ? "clean shutdown" : "unclean shutdown"));
+        uncleanShutdown = !drained || !markerDelivered;
         transport.close();
+    }
+
+    /** Returns true when the last close() could not deliver every queued message. */
+    public boolean isUncleanShutdown() {
+        return uncleanShutdown;
+    }
+
+    /**
+     * Sends queued messages until the queue is empty or the deadline passes.
+     *
+     * @return the number of messages still undelivered (0 means a full drain).
+     */
+    private long drainRemaining(long budgetMillis) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMillis);
+        while (System.nanoTime() < deadline) {
+            String payload;
+            try {
+                payload = queue.take(10, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            if (payload == null) {
+                return 0; // queue drained
+            }
+            if (!trySend(payload)) {
+                break; // transport is gone; remaining messages cannot be delivered
+            }
+            queue.markSent();
+        }
+        return queue.size();
+    }
+
+    private boolean trySend(String payload) {
+        try {
+            return transport.send(payload);
+        } catch (RuntimeException error) {
+            return false;
+        }
     }
 
     private void sendLoop() {

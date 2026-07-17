@@ -50,6 +50,9 @@ public final class TestRunner {
         testReconnectBackoff();
         testLoopbackPolicy();
         testRuntimeReplayLiveLifecycle();
+        testCloseDrainsAndDeliversSessionEnded();
+        testCloseIsIdempotent();
+        testCloseMarksUncleanWhenTransportIsGone();
         testRuntimeFormatsDepthAndTrade();
         testForwarderBookmapAnnotations();
         testForwarderSettingsVersionAndDefaults();
@@ -181,6 +184,66 @@ public final class TestRunner {
         assertContains(runtime.queue().take(1, TimeUnit.SECONDS), "\"type\":\"replay_started\"", "replay event");
         assertContains(runtime.queue().take(1, TimeUnit.SECONDS), "\"type\":\"realtime_started\"", "live event");
         assertContains(runtime.queue().take(1, TimeUnit.SECONDS), "\"type\":\"session_ended\"", "ended event");
+        testsRun++;
+    }
+
+    private void testCloseDrainsAndDeliversSessionEnded() throws Exception {
+        // Regression: close() used to set running=false, THEN enqueue
+        // session_ended into a queue nobody drained, then shutdownNow() - so the
+        // terminal marker never reached Python and a crash was indistinguishable
+        // from a clean close.
+        BridgeConfig config = BridgeConfig.defaults();
+        RecordingTransport transport = new RecordingTransport();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                transport,
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+        runtime.start();
+        runtime.publishDepth(100L, true, 119085, 12);
+        runtime.close();
+
+        String all = String.join(" | ", transport.sent());
+        assertContains(all, "\"type\":\"session_ended\"", "session_ended must be DELIVERED on close");
+        assertContains(all, "clean shutdown", "a fully drained close reports clean shutdown");
+        assertFalse(runtime.isUncleanShutdown(), "a drained close is clean");
+        testsRun++;
+    }
+
+    private void testCloseIsIdempotent() throws Exception {
+        BridgeConfig config = BridgeConfig.defaults();
+        RecordingTransport transport = new RecordingTransport();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                transport,
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+        runtime.start();
+        runtime.close();
+        int afterFirst = transport.sent().size();
+        runtime.close();
+        runtime.close();
+        assertEquals(afterFirst, transport.sent().size(), "repeated close must be a no-op");
+        testsRun++;
+    }
+
+    private void testCloseMarksUncleanWhenTransportIsGone() throws Exception {
+        // A transport that refuses sends cannot deliver the terminal marker: the
+        // session must be reported UNCLEAN, never silently clean.
+        BridgeConfig config = BridgeConfig.defaults();
+        RecordingTransport transport = new RecordingTransport();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                transport,
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+        runtime.start();
+        Thread.sleep(50L);
+        runtime.publishDepth(100L, true, 119085, 12);
+        runtime.publishDepth(101L, true, 119086, 13);
+        transport.close(); // sender is dead before the drain runs
+        runtime.close();
+        assertTrue(runtime.isUncleanShutdown(), "an undrainable queue must be UNCLEAN");
         testsRun++;
     }
 
@@ -444,6 +507,39 @@ public final class TestRunner {
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run();
+    }
+
+    /** Records every payload the runtime genuinely delivered. */
+    private static final class RecordingTransport implements JsonTransport {
+        private final java.util.List<String> sent = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private volatile boolean open = true;
+
+        @Override
+        public void connect(URI uri) {
+        }
+
+        @Override
+        public boolean send(String payload) {
+            if (!open) {
+                return false;
+            }
+            sent.add(payload);
+            return true;
+        }
+
+        @Override
+        public boolean isOpen() {
+            return open;
+        }
+
+        @Override
+        public void close() {
+            open = false;
+        }
+
+        java.util.List<String> sent() {
+            return sent;
+        }
     }
 
     private static final class CaptureTransport implements JsonTransport {

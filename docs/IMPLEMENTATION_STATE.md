@@ -1,47 +1,53 @@
-# Implementation state — final automation/GUI/Lucid task
+# Implementation state
 
-Durable checkpoint. Base commit `0d4e33e`; work landed in `0e6d78e` and follow-ups.
+Base `0d4e33e`. Landed: `0e6d78e`, `8d032af`, `5e5f0e2`, `300d4fa`, and the
+forwarder-shutdown work below.
 
-## DONE (verified by tests, not by assertion)
+## DONE (verified by tests)
 
-1. **Repo hygiene** — 426 tracked `pytest-clean-*` files untracked (kept on disk),
-   pattern ignored, `tests/test_repo_hygiene.py` guards temp trees, `.env`, and a
-   repo-relative pytest basetemp.
-2. **`BoundedIntakeBuffer`** — overflow now displaces exactly ONE frame; gap
-   markers and the close sentinel are out-of-band so they can neither consume
-   capacity nor be miscounted as lost market data. `delivered + lost == sent`.
-3. **`RecorderPipeline`** — per-event bounded retry instead of discarding a whole
-   batch on one exception; unwritable events counted as real loss, pushed to the
-   session manifest, and `finalize()` **fails closed** (a segment that lost
-   anything can never be clean).
-4. **`session_catalog`** — order-flow eligibility requires clean shutdown,
-   continuous data, depth AND trades, and zero session-drops/overflow/malformed/
-   rejected/missing/sequence-gaps. Java **lifetime** drop total is distinguished
-   from per-session loss; a missing per-session figure fails closed. Verified on
-   real data: all 80 finalized sessions with >1k drops (incl. 1.03M and 10.7M)
-   are ineligible; the one clean session still qualifies.
-5. **Typed Lucid Flex 25K profile** (`app/risk/account_profile.py`) — Decimal/int/
-   enum/tz-aware fields, EOD trailing→lock mechanics, consistency, contract cap,
-   provenance (URL + retrieval/effective date + excerpt hash). Project safety
-   limits always bind as the stricter rule.
-6. **Hardcoded $100,000 removed** — paper ledger, service ledgers, and the GUI
-   banner all use the selected profile; sizing capped at the profile's limit.
+- **Repo hygiene** — 426 tracked `pytest-clean-*` files untracked; guard test.
+- **BoundedIntakeBuffer** — one overflow displaces exactly one frame; gap markers
+  and the close sentinel are out-of-band; `delivered + lost == sent`.
+- **RecorderPipeline** — per-event bounded retry; lost events reach the manifest;
+  `finalize()` fails closed.
+- **session_catalog** — eligibility requires clean shutdown, continuity, depth AND
+  trades, zero session-drops/overflow/malformed/rejected/missing/gaps. Lifetime vs
+  per-session drops separated; missing figure fails closed. All 80 real sessions
+  with >1k drops (incl. 1.03M, 10.7M) are ineligible.
+- **Typed Lucid Flex 25K** (`app/risk/account_profile.py`) — Decimal/int/enum/tz
+  fields, EOD trail→lock, provenance + excerpt hash. Fabricated $100k removed
+  everywhere (ledger, service, GUI banner); sizing capped at the profile limit.
+- **Bookmap semantics verified** (`docs/bookmap_api_verification.md`) —
+  `isBidAggressor==true` ⇒ BUY (proved from `Bar.addTrade` bytecode); simplified
+  `onTrade` price is pip-denominated (no `dmul` on the dispatch path). CVD is not
+  inverted; the single `pips` multiply is correct. Pinned by tests.
+- **GUI redesign (Phase 1)** — `app/gui/{view_models,screens,app_window,
+  snapshot_source}.py`: 8-screen sidebar window, snapshot-only rendering, retained
+  widgets, plain-language status bar, themes/scale/reset, honest capability
+  labelling. **It is now the launched GUI** (`tools/start_assistant.py`); a test
+  asserts the legacy 13-tab window is no longer constructed. 23 offscreen tests
+  incl. a no-file-I/O-on-refresh guard and a no-dead-space budget.
+- **Forwarder shutdown (Phase 5, partial)** — `ForwarderRuntime.close()` used to
+  flip `running=false`, enqueue `session_ended` into an undrained queue, then
+  `shutdownNow()`: the terminal marker was never delivered. Now: bounded graceful
+  drain, terminal marker actually delivered, **unclean** reported when the drain
+  or the marker send fails, idempotent. 3 new Java tests (22 total).
 
-## NOT DONE — outstanding, do not claim these
+## NOT DONE — outstanding
 
-- **GUI redesign** (sidebar nav, 8 screens, status bar, 1366x768 fit, model/view
-  tables, themes, screenshots at 3 resolutions). `app/gui/main_window.py` is still
-  the ~2.9k-line 13-tab window. This is the largest remaining item.
-- **GUI off-thread work** — `refresh_live_dashboard()` still runs on a 1 s timer
-  and uses `findChild` tree walks per label.
-- **Process isolation** — receiver/recorder still share the GUI process (research
-  already runs in child processes; the 2 s starvation loop was fixed in `0d4e33e`).
-- **Lifecycle supervisor** — staged startup/heartbeats/coordinated shutdown.
-- **Session rotation** while connected; delayed paper engine; catch-up jobs.
-- **Stress test ≥1650 ev/s** with GUI+research load; soak command.
-- **Crash diagnostics** — faulthandler + structured rotating logs.
-- **Daily summary** automation.
+- Process isolation / lifecycle supervisor (Phase 2): receiver still runs as a
+  daemon thread in the GUI process.
+- Streaming delayed-paper engine (Phase 3): mode is still recording-only.
+- Session rotation + restart catch-up (Phase 4).
+- Forwarder protocol version / stream id / capability handshake / batching
+  (rest of Phase 5).
+- Daily report automation (Phase 7); crash diagnostics.
+- Stress test ≥1650 ev/s with GUI+research load; 30-min soak.
+- `docs/BOT_SURVEY_50.md`, `docs/PRIORITIZED_IMPROVEMENTS_200.md` (Phase 9).
 
-Next actor: start with the GUI redesign as a NEW window class alongside the
-existing one (additive, so a partial rewrite can never break the working app),
-then move `refresh_live_dashboard` to snapshot-only updates.
+## Environment limits
+
+- Offscreen QPA reports **zero font families**, so test screenshots render tofu
+  glyphs. Geometry/clipping/dead-space are still verified; use
+  `python -m tools.capture_gui_screenshots` on a machine with fonts for readable
+  images.
