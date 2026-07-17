@@ -24,6 +24,8 @@ DEFAULT_CONFIG_PATH = Path("config/session_profiles.yaml")
 DEFAULT_REPORT_ROOT = Path("data/reports")
 # The paper ledger is user-owned data: append-only and never overwritten.
 DEFAULT_PAPER_LEDGER = Path("data/paper/paper_trades.jsonl")
+# How long the app waits for capture to flush before reporting an unclean exit.
+SHUTDOWN_DRAIN_SECONDS = 10.0
 
 
 class AssistantStartupError(RuntimeError):
@@ -131,6 +133,7 @@ async def run_headless_assistant(
     research_service: object | None = None,
     pipeline_holder: object | None = None,
     paper_engine_holder: object | None = None,
+    shutdown: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -206,15 +209,34 @@ async def run_headless_assistant(
             print("Automatic paper research resumed (background; data capture has priority).", flush=True)
         except Exception as error:  # pragma: no cover - service must never break recording
             print(f"Automatic research could not start: {error}", file=sys.stderr, flush=True)
+    # A future the GUI can resolve from its own thread. Without this the loop
+    # waits forever and the daemon thread is killed at process exit, losing the
+    # tail of the recording and skipping finalization entirely.
+    stop_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+    if shutdown is not None:
+        shutdown.bind(asyncio.get_running_loop(), stop_future)  # type: ignore[attr-defined]
+    drain_error = ""
     try:
-        await asyncio.Future()
+        await stop_future
     finally:
-        if status_holder is not None:
-            status_holder.mark_unbound()
-        if research_service is not None and hasattr(research_service, "stop"):
-            research_service.stop()
-        controller.stop()
-        await server.close()
+        try:
+            if status_holder is not None:
+                status_holder.mark_unbound()
+            if research_service is not None and hasattr(research_service, "stop"):
+                research_service.stop()
+            # Close any open simulated position before the engine stops receiving
+            # events, so the ledger reflects what the simulation actually knows
+            # instead of abandoning the position mid-flight.
+            if paper_engine is not None and hasattr(paper_engine, "flatten"):
+                paper_engine.flatten()  # type: ignore[attr-defined]
+            controller.stop()
+            await server.close()
+        except Exception as error:  # noqa: BLE001 - a drain failure must be reported
+            drain_error = f"{type(error).__name__}: {error}"
+            raise
+        finally:
+            if shutdown is not None:
+                shutdown.mark_drained(drain_error)  # type: ignore[attr-defined]
 
 
 def _dispatch_market_event(
@@ -328,14 +350,42 @@ def run_assistant(config: AssistantConfig) -> int:
             return 0
         return 0
 
+    from app.runtime.shutdown import ShutdownSignal
+
+    shutdown = ShutdownSignal()
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
-        args=(config, controller, status_holder, research_service, pipeline_holder, paper_engine),
+        args=(config, controller, status_holder, research_service, pipeline_holder,
+              paper_engine, shutdown),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
-    return _run_gui(controller, status_holder, research_service, pipeline_holder, paper_engine)
+    try:
+        return _run_gui(controller, status_holder, research_service, pipeline_holder, paper_engine)
+    finally:
+        # The window is gone; drain capture instead of letting process exit kill
+        # the daemon thread mid-write.
+        _shutdown_receiver(shutdown, receiver_thread)
+
+
+def _shutdown_receiver(shutdown: object, thread: threading.Thread,
+                       timeout: float = SHUTDOWN_DRAIN_SECONDS) -> bool:
+    """Ask capture to stop and wait a bounded time for it to really drain.
+
+    Returns whether the drain completed. An incomplete drain is REPORTED, never
+    silently ignored: it means recorded data may be missing its tail.
+    """
+    shutdown.request_stop()  # type: ignore[attr-defined]
+    drained = shutdown.wait_for_drain(timeout)  # type: ignore[attr-defined]
+    thread.join(timeout=timeout)
+    if not drained or thread.is_alive():
+        detail = shutdown.drain_error or f"capture did not drain within {timeout:.0f}s"  # type: ignore[attr-defined]
+        print(f"WARNING: unclean shutdown - {detail}. "
+              "The last recorded events may not have been flushed.",
+              file=sys.stderr, flush=True)
+        return False
+    return True
 
 
 def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
@@ -390,15 +440,19 @@ def _run_receiver_thread(
     research_service: object | None,
     pipeline_holder: object | None = None,
     paper_engine: object | None = None,
+    shutdown: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
             config, controller, status_holder=status_holder,
             research_service=research_service, pipeline_holder=pipeline_holder,
-            paper_engine_holder=paper_engine,
+            paper_engine_holder=paper_engine, shutdown=shutdown,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
+        if shutdown is not None:
+            # A crashed receiver must release the GUI's drain wait immediately.
+            shutdown.mark_drained(str(error))  # type: ignore[attr-defined]
 
 
 def _run_gui(
