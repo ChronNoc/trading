@@ -309,7 +309,7 @@ class PaperTradingScreen(_ListScreen):
         super().__init__("screen_paper_trading", "Paper Trading")
 
     def render(self, snapshot: AppSnapshot) -> None:
-        """Show the account and an honest empty state when nothing qualified."""
+        """Show the live simulated position, the ledger, and an honest empty state."""
         p = snapshot.paper
         lines = [
             f"Mode: {p.mode}   Profile: {p.profile_name}",
@@ -317,7 +317,28 @@ class PaperTradingScreen(_ListScreen):
             f"Target {_money(p.profit_target)} — {p.target_progress:.0%}",
             f"Drawdown room {_money(p.drawdown_room)}   Net P&L {_money(p.net_pnl)}",
             f"Trades {p.trades}   Wins {p.wins}   Losses {p.losses}",
+            "",
+            "Position:",
         ]
+        if p.flat:
+            lines.append(f"  flat   Pending order: {p.pending_order}")
+        else:
+            lines += [
+                f"  {p.open_position} @ {p.position_entry}",
+                f"  Stop {p.position_stop}   Target {p.position_target}   "
+                f"Unrealized {_money(p.unrealized_pnl)}",
+            ]
+        lines += ["", f"Candidates {p.candidates}   Blocked by risk {p.risk_rejected}"]
+        for name, count in p.risk_rejections[:3]:
+            lines.append(f"  • {name}: {count}")
+        lines += ["", "Closed trades (newest first):"]
+        if p.recent_trades:
+            lines += [f"  {row.label}" for row in p.recent_trades[:10]]
+        else:
+            lines.append("  none")
+        if p.malformed_events:
+            lines += ["", f"WARNING: {p.malformed_events} market event(s) could not be parsed "
+                          "and were dropped. Downstream numbers are incomplete."]
         if p.empty_reason:
             lines += ["", p.empty_reason]
         self.body.setText("\n".join(lines))

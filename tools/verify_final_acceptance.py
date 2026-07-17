@@ -117,6 +117,46 @@ def main() -> int:
           and "paper_engine.on_market_event(event)" in launcher_source,
           f"streaming events produced {evaluations} evaluations; launcher feeds every event")
 
+    # 7c. Delayed paper actually OPENS, MANAGES and CLOSES simulated positions.
+    # The regression this guards: the engine evaluated setups and recorded
+    # decisions but never took a position, so the ledger could only ever be empty.
+    from decimal import Decimal
+
+    from app.paper.execution import ExecutionConfig, MarketTick, PaperExecutor, align_to_tick
+    from app.paper.models import CloseReason, Direction, PaperOrderIntent, RiskDecision, SetupProvenance
+
+    executor = PaperExecutor(starting_balance=Decimal("25000"), max_contracts=20,
+                             config=ExecutionConfig(), is_synthetic_fixture=True)
+    probe_intent = PaperOrderIntent(
+        direction=Direction.LONG, entry_reference=Decimal("29500.00"),
+        stop=Decimal("29490.00"), target=Decimal("29520.00"),
+        provenance=SetupProvenance(session_id="verify", setup_id="verify:long:1",
+                                   strategy_version="verify", contract="MNQU6",
+                                   decision_event_index=1, decision_ts_ns=1),
+    )
+    executor.submit(probe_intent,
+                    RiskDecision(approved=True, contracts=1, reason_code="approved", reason="ok"),
+                    MarketTick(event_index=1, ts_ns=1, price=Decimal("29500.00")), trading_day="d")
+    same_event_fill = executor.on_tick(MarketTick(event_index=1, ts_ns=1, price=Decimal("29500.00")))
+    executor.on_tick(MarketTick(event_index=2, ts_ns=2, price=Decimal("29500.00")))
+    opened = executor.position is not None
+    closed = executor.on_tick(MarketTick(event_index=3, ts_ns=3, price=Decimal("29520.00")))
+    ledger_wired = ("PaperLedger(config.paper_ledger_path)" in launcher_source
+                    and "paper_engine.on_trade_closed(paper_ledger.append)" in launcher_source)
+    tick_aligned = closed is not None and closed.exit_price % Decimal("0.25") == 0
+    check("delayed_paper_opens_and_closes_positions",
+          same_event_fill is None and opened and closed is not None
+          and closed.close_reason is CloseReason.TARGET and closed.net_pnl == Decimal("38.26")
+          and tick_aligned and ledger_wired,
+          "signal event cannot fill; a later event opens; target closes at "
+          f"net {closed.net_pnl if closed else 'n/a'} on the tick grid; ledger wired in the launcher")
+
+    # 7d. Simulated fills can only occur at prices MNQ can actually trade.
+    check("paper_fills_are_tick_aligned",
+          align_to_tick(Decimal("29500.875"), round_up=True) == Decimal("29501.00")
+          and align_to_tick(Decimal("29500.875"), round_up=False) == Decimal("29500.75"),
+          "fills snap to the 0.25 grid, adversely (never a better price than reality)")
+
     # 8. Health provider wired in production research service.
     check("health_provider_wired",
           "health_provider=make_receiver_health_provider(controller, pipeline_holder)" in launcher_source,

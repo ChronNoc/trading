@@ -348,3 +348,87 @@ def test_launcher_uses_the_redesigned_window_not_the_legacy_tabs() -> None:
     assert "from app.gui.app_window import AppWindow" in source
     assert "AppWindow(" in source
     assert "MainWindow(" not in source, "launcher still constructs the legacy 13-tab window"
+
+
+# --- the Paper Trading screen must show the executor's real state ------------------
+
+
+def _paper_body(qtbot: object, **paper: object) -> str:
+    """Render the paper screen with the given execution state and return its text."""
+    from dataclasses import replace
+
+    snapshot = replace(_rich_snapshot(), paper=replace(_rich_snapshot().paper, **paper))
+    window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Paper Trading")
+    window.refresh_from_snapshot()
+    return window.findChild(QLabel, "screen_paper_trading_body").text()
+
+
+def test_paper_screen_shows_the_open_position_with_stop_and_target(qtbot: object) -> None:
+    """An open simulated position must be fully visible, not just a trade count."""
+    body = _paper_body(
+        qtbot,
+        open_position="long 2", position_entry="29501.00", position_stop="29490.00",
+        position_target="29520.00", unrealized_pnl=Decimal("38.00"),
+    )
+    assert "long 2 @ 29501.00" in body
+    assert "Stop 29490.00" in body
+    assert "Target 29520.00" in body
+    assert "Unrealized" in body
+
+
+def test_paper_screen_shows_pending_order_when_flat(qtbot: object) -> None:
+    body = _paper_body(qtbot, open_position="flat", pending_order="long 2 awaiting causal fill")
+    assert "flat" in body
+    assert "awaiting causal fill" in body
+
+
+def test_paper_screen_lists_closed_trades_newest_first(qtbot: object) -> None:
+    from app.gui.view_models import TradeRow
+
+    body = _paper_body(
+        qtbot,
+        trades=2, wins=1, losses=1,
+        recent_trades=(
+            TradeRow(direction="long", contracts=2, entry="29501.00", exit="29520.00",
+                     net_pnl="+38.26", close_reason="target"),
+            TradeRow(direction="short", contracts=1, entry="29499.75", exit="29510.00",
+                     net_pnl="-21.74", close_reason="stop"),
+        ),
+    )
+    assert "long 2 @ 29501.00 → 29520.00  +38.26  (target)" in body
+    assert "short 1 @ 29499.75 → 29510.00  -21.74  (stop)" in body
+
+
+def test_paper_screen_labels_synthetic_fixture_trades(qtbot: object) -> None:
+    """A fixture trade must never be mistakable for a real result."""
+    from app.gui.view_models import TradeRow
+
+    body = _paper_body(
+        qtbot,
+        trades=1,
+        recent_trades=(TradeRow(direction="long", contracts=1, entry="1", exit="2",
+                                net_pnl="+2.00", close_reason="target",
+                                is_synthetic_fixture=True),),
+    )
+    assert "[FIXTURE]" in body
+
+
+def test_paper_screen_explains_a_qualifying_setup_blocked_by_risk(qtbot: object) -> None:
+    """'Setup qualified but no trade' must say WHY, not look like a silent failure."""
+    body = _paper_body(
+        qtbot,
+        trades=0, evaluations=40, candidates=3,
+        risk_rejections=(("one_position_max", 2), ("risk_zero_contracts", 1)),
+    )
+    assert "3 setup(s) qualified" in body
+    assert "one_position_max" in body
+    assert "Risk rules are never relaxed" in body
+
+
+def test_paper_screen_warns_when_market_events_were_dropped(qtbot: object) -> None:
+    """Silent data loss would corrupt every number on this screen."""
+    body = _paper_body(qtbot, malformed_events=7)
+    assert "7 market event(s) could not be parsed" in body
+    assert "incomplete" in body

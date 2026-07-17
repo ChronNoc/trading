@@ -222,12 +222,14 @@ class SnapshotSource:
         try:
             status = self._paper_engine.status()  # type: ignore[union-attr]
             recent = self._paper_engine.recent_evaluations(limit=1)  # type: ignore[union-attr]
+            trades = self._paper_engine.recent_trades(limit=25)  # type: ignore[union-attr]
+            risk_rejections = self._paper_engine.top_risk_rejections()  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001 - never let the GUI die on a bad read
             return base
 
         from dataclasses import replace
 
-        from app.gui.view_models import SetupCheck
+        from app.gui.view_models import SetupCheck, TradeRow
 
         checks: tuple[SetupCheck, ...] = ()
         if recent:
@@ -235,6 +237,18 @@ class SnapshotSource:
                 SetupCheck(name=c.name, passed=c.passed, reason=c.message)
                 for c in recent[-1].conditions
             )
+        rows = tuple(
+            TradeRow(
+                direction=trade.direction.value, contracts=trade.contracts,
+                entry=str(trade.entry_price), exit=str(trade.exit_price),
+                net_pnl=f"{trade.net_pnl:+.2f}", close_reason=trade.close_reason.value,
+                is_synthetic_fixture=trade.is_synthetic_fixture,
+            )
+            for trade in reversed(trades)  # newest first
+        )
+        # Account figures come from the EXECUTOR's real balance, not the profile
+        # defaults: the panel must never show money the simulation does not hold.
+        balance = Decimal(status.balance)
         return replace(
             base,
             mode=f"DELAYED PAPER — {status.state}",
@@ -242,6 +256,24 @@ class SnapshotSource:
             setup_checks=checks,
             evaluations=status.evaluations,
             top_rejections=status.top_rejections,
+            balance=balance,
+            net_pnl=Decimal(status.realized_pnl),
+            target_progress=profile.target_progress(balance),
+            drawdown_room=profile.drawdown_room(balance, max(balance, profile.account_size)),
+            trades=status.trades,
+            wins=status.wins,
+            losses=status.losses,
+            open_position=status.open_position or "flat",
+            pending_order=status.pending_order or "none",
+            position_entry=status.position_entry,
+            position_stop=status.position_stop,
+            position_target=status.position_target,
+            unrealized_pnl=Decimal(status.unrealized_pnl),
+            candidates=status.candidates,
+            risk_rejected=status.risk_rejected,
+            risk_rejections=tuple(risk_rejections),
+            recent_trades=rows,
+            malformed_events=status.malformed_events,
         )
 
     def _research_snapshot(self) -> ResearchSnapshot:

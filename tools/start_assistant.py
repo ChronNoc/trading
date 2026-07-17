@@ -22,6 +22,8 @@ from tools.start_receiver import ReceiverServerConfig, start_receiver_websocket_
 
 DEFAULT_CONFIG_PATH = Path("config/session_profiles.yaml")
 DEFAULT_REPORT_ROOT = Path("data/reports")
+# The paper ledger is user-owned data: append-only and never overwritten.
+DEFAULT_PAPER_LEDGER = Path("data/paper/paper_trades.jsonl")
 
 
 class AssistantStartupError(RuntimeError):
@@ -40,6 +42,7 @@ class AssistantConfig:
     session_config: Path = DEFAULT_CONFIG_PATH
     gui: bool = True
     delayed_data_minutes: int = 0
+    paper_ledger_path: Path = DEFAULT_PAPER_LEDGER
 
     @property
     def receiver_config(self) -> ReceiverServerConfig:
@@ -301,11 +304,16 @@ def run_assistant(config: AssistantConfig) -> int:
     from app.market.bounded_pipeline import PipelineStateHolder
 
     pipeline_holder = PipelineStateHolder()
+    from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
 
     # Automatic by construction: the engine is created at startup and fed by the
     # receiver. No button, no finalized session, no user action required.
     paper_engine = DelayedPaperEngine()
+    # Every closed simulated trade is appended to the durable ledger. Opening an
+    # existing ledger continues it - a prior run's trades are never overwritten.
+    paper_ledger = PaperLedger(config.paper_ledger_path)
+    paper_engine.on_trade_closed(paper_ledger.append)
     research_service = _build_research_service(config, controller, pipeline_holder)
 
     if not config.gui:

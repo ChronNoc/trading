@@ -129,6 +129,26 @@ class SetupCheck:
 
 
 @dataclass(frozen=True, slots=True)
+class TradeRow:
+    """One closed simulated trade, formatted for display."""
+
+    direction: str
+    contracts: int
+    entry: str
+    exit: str
+    net_pnl: str
+    close_reason: str
+    is_synthetic_fixture: bool = False
+
+    @property
+    def label(self) -> str:
+        """Return a single-line description of the trade."""
+        tag = " [FIXTURE]" if self.is_synthetic_fixture else ""
+        return (f"{self.direction} {self.contracts} @ {self.entry} → {self.exit}  "
+                f"{self.net_pnl}  ({self.close_reason}){tag}")
+
+
+@dataclass(frozen=True, slots=True)
 class PaperSnapshot:
     """Delayed-paper state: real outcomes only, or an honest zero."""
 
@@ -150,6 +170,22 @@ class PaperSnapshot:
     evaluations: int = 0
     top_rejections: tuple[tuple[str, int], ...] = ()
     risk_remaining: Decimal = Decimal("0")
+    # --- live simulated execution --------------------------------------------
+    pending_order: str = "none"
+    position_entry: str = ""
+    position_stop: str = ""
+    position_target: str = ""
+    unrealized_pnl: Decimal = Decimal("0")
+    candidates: int = 0
+    risk_rejected: int = 0
+    risk_rejections: tuple[tuple[str, int], ...] = ()
+    recent_trades: tuple[TradeRow, ...] = ()
+    malformed_events: int = 0
+
+    @property
+    def flat(self) -> bool:
+        """Return whether there is no open simulated position."""
+        return self.open_position in ("flat", "none", "")
 
     @property
     def empty_reason(self) -> str:
@@ -158,6 +194,13 @@ class PaperSnapshot:
             return ""
         if not self.evaluations:
             return "No setup has been evaluated yet on real delayed data."
+        if self.candidates and self.risk_rejections:
+            blocked = ", ".join(f"{name} ({count})" for name, count in self.risk_rejections[:3])
+            return (
+                f"{self.evaluations} evaluated, {self.candidates} setup(s) qualified, but no "
+                f"position was opened. Blocked by: {blocked}. "
+                "Risk rules are never relaxed to create a trade."
+            )
         top = ", ".join(f"{name} ({count})" for name, count in self.top_rejections[:3])
         return (
             f"{self.evaluations} opportunities evaluated, none qualified. "

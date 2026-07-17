@@ -21,6 +21,9 @@ data/research_state/
 # Execution gateway runtime logs (paper + demo order/discrepancy logs)
 data/execution_state/
 
+# Simulated paper trade ledgers are user-owned trading records, never committed
+data/paper/
+
 # Test temp trees must never be tracked (regression-guarded in tests)
 pytest-clean-*/
 .pytest-tmp/

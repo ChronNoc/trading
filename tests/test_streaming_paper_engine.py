@@ -156,16 +156,25 @@ def test_a_bad_event_does_not_kill_the_engine() -> None:
 
 
 def test_paper_engine_cannot_reach_any_broker_module() -> None:
-    """Structural proof: delayed paper is simulation-only by construction."""
-    tree = ast.parse(Path("app/paper/streaming_engine.py").read_text(encoding="utf-8"))
-    names: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names.extend(a.name for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.append(node.module)
-    banned = ("execution", "tradovate", "broker", "live_execution", "gateway")
-    assert not any(any(b in n.lower() for b in banned) for n in names), names
+    """Structural proof: delayed paper is simulation-only by construction.
+
+    Checked across the WHOLE app/paper package, not just this one module, so a
+    broker import cannot be smuggled in one hop away. ``app.paper.execution`` is
+    the simulator and is allowed; the broker package ``app.execution`` is not.
+    """
+    banned = ("app.execution", "tradovate", "broker", "gateway", "live_execution", "order_lifecycle")
+    offenders: list[str] = []
+    for module in sorted(Path("app/paper").glob("*.py")):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        names: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.extend(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names.append(node.module)
+        offenders += [f"{module.as_posix()}:{n}" for n in names
+                      if any(b in n.lower() for b in banned)]
+    assert not offenders, offenders
 
 
 def test_launcher_feeds_every_market_event_to_the_paper_engine() -> None:
