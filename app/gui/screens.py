@@ -387,6 +387,17 @@ class ResearchHealthScreen(_ListScreen):
             lines += ["", r.throttle_reason]
         if r.gpu_note:
             lines += ["", r.gpu_note]
+        # How close the bot is to PROVEN profitable. This is an evidence ladder,
+        # not a forecast: a gate counts only once every earlier gate has passed.
+        p = snapshot.profitability
+        lines += ["", "=" * 60, p.summary]
+        if p.headline:
+            lines += ["", p.headline]
+        if p.gates:
+            lines += ["", "Evidence gates:"]
+            for gate in p.gates:
+                lines.append(f"  [{gate.status.upper():>21}] {gate.label}")
+                lines.append(f"{'':>26}observed {gate.observed} vs {gate.threshold}")
         self.body.setText("\n".join(lines))
 
 

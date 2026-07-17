@@ -432,3 +432,54 @@ def test_paper_screen_warns_when_market_events_were_dropped(qtbot: object) -> No
     body = _paper_body(qtbot, malformed_events=7)
     assert "7 market event(s) could not be parsed" in body
     assert "incomplete" in body
+
+
+# --- the profitability meter must be visible in the GUI ---------------------------
+
+
+def _meter_body(qtbot: object, **fields: object) -> str:
+    """Render the research screen with a given profitability snapshot."""
+    from dataclasses import replace
+
+    from app.gui.view_models import ProfitabilitySnapshot
+
+    snapshot = replace(_rich_snapshot(), profitability=ProfitabilitySnapshot(**fields))
+    window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Research and Model Health")
+    window.refresh_from_snapshot()
+    return window.findChild(QLabel, "screen_research_health_body").text()
+
+
+def test_research_screen_shows_the_profitability_meter(qtbot: object) -> None:
+    """The user asked for a meter; it must actually be on screen."""
+    from app.gui.view_models import ProgressGateRow
+
+    body = _meter_body(
+        qtbot,
+        fraction=0.067, computed=True, claim_supported=False,
+        headline="Data-collection stage: zero setups have completed on real data yet.",
+        gates=(
+            ProgressGateRow(label="Data capture healthy", status="passed",
+                            observed="1 clean session", threshold=">=1 clean session"),
+            ProgressGateRow(label="Minimum completed-setup sample", status="blocked",
+                            observed="0 completed", threshold=">= 100 completed setups"),
+        ),
+    )
+    assert "Progress to proven profitable: 7%" in body
+    assert "NOT claimed — unproven" in body
+    assert "Data-collection stage" in body
+    assert "Minimum completed-setup sample" in body
+    assert "BLOCKED" in body
+
+
+def test_meter_says_it_is_computing_before_the_first_refresh(qtbot: object) -> None:
+    """A meter that has not run must say so, not show a misleading 0%."""
+    body = _meter_body(qtbot)
+    assert "computing on the research thread" in body
+
+
+def test_meter_never_claims_profitability_it_cannot_support(qtbot: object) -> None:
+    body = _meter_body(qtbot, fraction=0.067, computed=True, claim_supported=False)
+    assert "NOT claimed" in body
+    assert "profitable" in body.lower()

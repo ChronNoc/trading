@@ -248,6 +248,11 @@ class ResearchService:
         # (session_id -> ((name, size, mtime_ns)..., signature)) so finalized
         # parquets are hashed once, not on every poll.
         self._signature_cache: dict[str, tuple[tuple, str]] = {}
+        # The profitability meter is real disk work, so it is computed HERE on the
+        # background loop and only read (never computed) by the GUI.
+        from app.research.profitability_progress import ProgressCache
+
+        self.progress_cache = ProgressCache(self.raw_root, self.processed_root)
 
     # -- discovery -------------------------------------------------------------
 
@@ -720,6 +725,12 @@ class ResearchService:
                 else:
                     self._update(state=STATE_PAUSED)
                     delay = max(poll_seconds, 60.0)
+                # Refresh the profitability meter on THIS thread (it reads disk),
+                # rate-limited internally so it cannot starve capture.
+                try:
+                    self.progress_cache.refresh_if_due()
+                except Exception:  # noqa: BLE001,S110 - the meter must never stop research
+                    pass
                 self._stop_event.wait(delay)
 
         self._thread = threading.Thread(target=_loop, name="research-service", daemon=True)

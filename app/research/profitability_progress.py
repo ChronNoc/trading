@@ -15,6 +15,8 @@ deterministic and testable. :func:`load_progress` is the thin disk-reading wrapp
 
 from __future__ import annotations
 
+import threading
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -644,3 +646,80 @@ def load_progress(
     outcomes = load_completed_real_outcomes(processed_root)
     ledger = run_real_paper_ledger(outcomes) if outcomes else None
     return compute_progress(catalog, outcomes, ledger, config)
+
+
+class ProgressCache:
+    """Compute the meter on a background thread; serve the GUI instantly.
+
+    ``load_progress`` builds the session catalog and reads processed episodes,
+    which is real disk work. Calling it from the Qt timer is what starved the
+    receiver of the GIL and froze the app, so the GUI must NEVER trigger it.
+
+    The contract here is: ``refresh_if_due`` does the I/O and is called only from
+    an existing background loop; ``snapshot`` touches no disk and never blocks.
+    """
+
+    def __init__(
+        self,
+        raw_root: Path,
+        processed_root: Path,
+        *,
+        config: ProgressConfig | None = None,
+        min_interval_seconds: float = 300.0,
+    ) -> None:
+        """Create an empty cache. Nothing is computed until a refresh is due."""
+        self._raw_root = raw_root
+        self._processed_root = processed_root
+        self._config = config
+        self._min_interval = min_interval_seconds
+        self._lock = threading.Lock()
+        self._value: ProfitabilityProgress | None = None
+        self._computed_at: float = 0.0
+        self._error: str = ""
+
+    def snapshot(self) -> ProfitabilityProgress | None:
+        """Return the last computed meter, or None if it has not run yet.
+
+        Safe from the GUI thread: no disk access, no blocking.
+        """
+        with self._lock:
+            return self._value
+
+    @property
+    def error(self) -> str:
+        """The last refresh error, if the computation failed."""
+        with self._lock:
+            return self._error
+
+    @property
+    def computed_at(self) -> float:
+        """Monotonic timestamp of the last successful computation (0 = never)."""
+        with self._lock:
+            return self._computed_at
+
+    def is_due(self, *, now: float | None = None) -> bool:
+        """Whether enough time has passed to recompute."""
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            if self._value is None and not self._error:
+                return True
+            return (moment - self._computed_at) >= self._min_interval
+
+    def refresh_if_due(self, *, now: float | None = None) -> bool:
+        """Recompute when due. Call ONLY from a background thread.
+
+        Returns whether a computation actually ran.
+        """
+        if not self.is_due(now=now):
+            return False
+        moment = time.monotonic() if now is None else now
+        try:
+            value = load_progress(self._raw_root, self._processed_root, self._config)
+        except Exception as error:  # noqa: BLE001 - the meter must never kill research
+            with self._lock:
+                self._error = f"{type(error).__name__}: {error}"
+                self._computed_at = moment
+            return True
+        with self._lock:
+            self._value, self._error, self._computed_at = value, "", moment
+        return True

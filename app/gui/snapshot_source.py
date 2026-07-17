@@ -76,6 +76,7 @@ class SnapshotSource:
             capture=self._capture(),
             paper=self._paper(),
             research=self._research_snapshot(),
+            profitability=self._profitability_snapshot(),
             execution=self._execution(),
             components=self._components(),
             capabilities=DEFAULT_CAPABILITIES,
@@ -274,6 +275,37 @@ class SnapshotSource:
             risk_rejections=tuple(risk_rejections),
             recent_trades=rows,
             malformed_events=status.malformed_events,
+        )
+
+    def _profitability_snapshot(self) -> "ProfitabilitySnapshot":
+        """Read the meter the research thread computed. Never computes it here.
+
+        Computing this touches disk (session catalog + processed episodes), and
+        doing that on the Qt timer is what starved capture and froze the app.
+        """
+        from app.gui.view_models import ProfitabilitySnapshot, ProgressGateRow
+
+        cache = getattr(self._research, "progress_cache", None)
+        if cache is None:
+            return ProfitabilitySnapshot()
+        try:
+            progress = cache.snapshot()
+            error = cache.error
+        except Exception as exc:  # noqa: BLE001 - the GUI must never die on a read
+            return ProfitabilitySnapshot(error=f"{type(exc).__name__}: {exc}")
+        if progress is None:
+            return ProfitabilitySnapshot(error=error)
+        return ProfitabilitySnapshot(
+            fraction=progress.fraction,
+            headline=progress.headline,
+            claim_supported=progress.profitable_claim_supported,
+            computed=True,
+            error=error,
+            gates=tuple(
+                ProgressGateRow(label=gate.label, status=gate.status,
+                                observed=str(gate.observed), threshold=str(gate.threshold))
+                for gate in progress.gates
+            ),
         )
 
     def _research_snapshot(self) -> ResearchSnapshot:

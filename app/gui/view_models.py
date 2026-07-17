@@ -129,6 +129,38 @@ class SetupCheck:
 
 
 @dataclass(frozen=True, slots=True)
+class ProgressGateRow:
+    """One profitability-ladder gate, formatted for display."""
+
+    label: str
+    status: str
+    observed: str
+    threshold: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProfitabilitySnapshot:
+    """How close the bot is to PROVEN profitable — never a claim, only evidence."""
+
+    fraction: float = 0.0
+    headline: str = ""
+    claim_supported: bool = False
+    gates: tuple[ProgressGateRow, ...] = ()
+    computed: bool = False
+    error: str = ""
+
+    @property
+    def summary(self) -> str:
+        """A single honest line for the header."""
+        if self.error:
+            return f"Progress meter unavailable: {self.error}"
+        if not self.computed:
+            return "Progress meter: computing on the research thread…"
+        claim = "supported by evidence" if self.claim_supported else "NOT claimed — unproven"
+        return f"Progress to proven profitable: {self.fraction:.0%} — profitability {claim}"
+
+
+@dataclass(frozen=True, slots=True)
 class TradeRow:
     """One closed simulated trade, formatted for display."""
 
@@ -254,6 +286,7 @@ class AppSnapshot:
     capture: CaptureSnapshot = field(default_factory=CaptureSnapshot)
     paper: PaperSnapshot = field(default_factory=PaperSnapshot)
     research: ResearchSnapshot = field(default_factory=ResearchSnapshot)
+    profitability: ProfitabilitySnapshot = field(default_factory=ProfitabilitySnapshot)
     execution: ExecutionSnapshot = field(default_factory=ExecutionSnapshot)
     components: tuple[ComponentHealth, ...] = ()
     capabilities: tuple[tuple[str, Capability, str], ...] = ()
