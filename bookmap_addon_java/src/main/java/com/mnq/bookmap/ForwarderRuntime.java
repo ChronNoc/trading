@@ -59,7 +59,7 @@ public final class ForwarderRuntime implements Closeable {
     }
 
     public void publishConnected() {
-        enqueue(messageFactory.control("connected", nowNs(), sourceMode.get(), queue.droppedCount()));
+        enqueue(messageFactory.connected(nowNs(), sourceMode.get(), queue.droppedCount()));
         enqueue(messageFactory.control("replay_started", nowNs(), "historical", queue.droppedCount()));
     }
 

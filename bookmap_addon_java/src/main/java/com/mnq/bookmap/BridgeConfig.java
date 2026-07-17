@@ -9,6 +9,19 @@ public final class BridgeConfig {
     public static final String DEFAULT_URL = "ws://127.0.0.1:8765/bookmap";
     public static final String DEFAULT_ALLOWED_SYMBOL = "MNQ";
     public static final String ADDON_VERSION = "0.1.0";
+    /**
+     * Wire-protocol version. Bumped only on a breaking envelope change, so the
+     * Python receiver can detect and refuse an incompatible bridge instead of
+     * silently misparsing. It is carried on the handshake and every control
+     * message; the strict market-event schemas are intentionally unchanged.
+     */
+    public static final String PROTOCOL_VERSION = "1.0";
+    /**
+     * What this bridge genuinely delivers. It exposes aggregated depth, trades,
+     * and the verified aggressor side, but NOT order-by-order (MBO) data, so the
+     * receiver can disable only the setups that need what is absent.
+     */
+    public static final String CAPABILITIES = "aggregated_depth,trades,aggressor_side,source_timestamps";
 
     private final URI websocketUri;
     private final boolean allowNonLoopback;

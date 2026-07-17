@@ -45,6 +45,7 @@ public final class TestRunner {
         testDepthTrackingAndRemoval();
         testTradeSideAndSequence();
         testJsonSchemas();
+        testProtocolHandshakeFields();
         testQueueDropAndDataGap();
         testQueueGapMarkersAreRateLimited();
         testReconnectBackoff();
@@ -110,6 +111,38 @@ public final class TestRunner {
         assertContains(trade, "\"sequence_id\":42", "trade sequence");
         assertContains(heartbeat, "\"session_id\":\"session_test\"", "heartbeat session");
         assertContains(heartbeat, "\"addon_version\":\"" + BridgeConfig.ADDON_VERSION + "\"", "heartbeat version");
+        testsRun++;
+    }
+
+    private void testProtocolHandshakeFields() {
+        MessageFactory factory = factory();
+        String handshake = factory.connected(1L, "delayed", 0L);
+        // The handshake carries the protocol version and a capability declaration
+        // so the receiver can detect an incompatible bridge and gate setups.
+        assertContains(handshake, "\"type\":\"connected\"", "handshake type");
+        assertContains(handshake, "\"protocol_version\":\"" + BridgeConfig.PROTOCOL_VERSION + "\"",
+                "handshake protocol version");
+        assertContains(handshake, "\"capabilities\":\"" + BridgeConfig.CAPABILITIES + "\"",
+                "handshake capabilities");
+        assertContains(handshake, "\"provider\":\"bookmap\"", "handshake provider");
+        // The feed is depth+trades+aggressor only: MBO must NOT be declared.
+        // (Check the capability list, not the whole payload - "symbol" contains "mbo".)
+        assertTrue(!BridgeConfig.CAPABILITIES.contains("mbo"), "capabilities must not claim MBO");
+
+        // Stream and connection ids appear on every control message, so the
+        // receiver can distinguish a reconnect (same stream, new connection).
+        String heartbeat = factory.heartbeat(2L, "delayed", 0L, 1L);
+        assertContains(heartbeat, "\"stream_id\":", "heartbeat stream id");
+        assertContains(heartbeat, "\"connection_id\":", "heartbeat connection id");
+        assertContains(heartbeat, "\"protocol_version\":\"" + BridgeConfig.PROTOCOL_VERSION + "\"",
+                "heartbeat protocol version");
+
+        // A second instrument/connection gets a NEW connection id but the SAME
+        // stream id (same JVM load) - that is what makes a reconnect detectable.
+        InstrumentContext a = InstrumentContext.synthetic("MNQ", "MNQ", 0.25, BridgeConfig.defaults());
+        InstrumentContext b = InstrumentContext.synthetic("MNQ", "MNQ", 0.25, BridgeConfig.defaults());
+        assertTrue(!a.connectionId().equals(b.connectionId()), "distinct connection ids");
+        assertTrue(a.streamId().equals(b.streamId()), "shared stream id within one JVM");
         testsRun++;
     }
 

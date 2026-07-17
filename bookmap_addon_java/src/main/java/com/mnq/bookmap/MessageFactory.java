@@ -47,6 +47,18 @@ public final class MessageFactory {
         return toJson(controlMap(type, timestampNs, sourceMode, droppedCount));
     }
 
+    /**
+     * The handshake. It is a normal "connected" control message plus the feed's
+     * capability declaration, so the receiver learns on connect what this bridge
+     * can and cannot supply (no MBO) and can gate setups accordingly.
+     */
+    public String connected(long timestampNs, String sourceMode, long droppedCount) {
+        Map<String, Object> payload = controlMap("connected", timestampNs, sourceMode, droppedCount);
+        payload.put("capabilities", BridgeConfig.CAPABILITIES);
+        payload.put("provider", "bookmap");
+        return toJson(payload);
+    }
+
     public String control(String type, long timestampNs, String sourceMode, long droppedCount, String reason) {
         Map<String, Object> payload = controlMap(type, timestampNs, sourceMode, droppedCount);
         payload.put("reason", reason == null ? "unspecified" : reason);
@@ -63,6 +75,9 @@ public final class MessageFactory {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", type);
         payload.put("timestamp_ns", timestampNs);
+        payload.put("protocol_version", BridgeConfig.PROTOCOL_VERSION);
+        payload.put("stream_id", instrument.streamId());
+        payload.put("connection_id", instrument.connectionId());
         payload.put("session_id", instrument.sessionId());
         payload.put("alias", instrument.alias());
         payload.put("symbol", instrument.symbol());

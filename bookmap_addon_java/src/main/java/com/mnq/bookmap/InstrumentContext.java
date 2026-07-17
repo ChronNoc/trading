@@ -9,10 +9,19 @@ import velox.api.layer1.data.InstrumentInfo;
 
 /** Bookmap instrument metadata used by the message factory and filters. */
 public final class InstrumentContext {
+    /**
+     * Identifies this JVM/add-on load. It is stable across reconnects within one
+     * Bookmap run, so the receiver can tell a reconnect (same stream, new
+     * connection) from a genuinely new bridge process (new stream).
+     */
+    private static final String STREAM_ID = UUID.randomUUID().toString();
+
     private final String alias;
     private final String symbol;
     private final String requestedSymbol;
     private final String sessionId;
+    /** New per instrument/connection, so a reconnect is visible to the receiver. */
+    private final String connectionId;
     private final boolean shouldForward;
     private final PriceConverter priceConverter;
     private final DepthBookTracker depthTracker;
@@ -31,6 +40,7 @@ public final class InstrumentContext {
         this.symbol = symbol;
         this.requestedSymbol = requestedSymbol;
         this.sessionId = sessionId;
+        this.connectionId = UUID.randomUUID().toString();
         this.shouldForward = shouldForward;
         this.priceConverter = priceConverter;
         this.depthTracker = depthTracker;
@@ -83,6 +93,14 @@ public final class InstrumentContext {
 
     public String sessionId() {
         return sessionId;
+    }
+
+    public String streamId() {
+        return STREAM_ID;
+    }
+
+    public String connectionId() {
+        return connectionId;
     }
 
     public boolean shouldForward() {
