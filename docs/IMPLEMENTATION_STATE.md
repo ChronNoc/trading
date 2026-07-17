@@ -40,19 +40,63 @@ forwarder-shutdown work below.
   "unknown". See `docs/AUTOMATIC_PAPER_PIPELINE.md`. 12 tests + acceptance check
   `delayed_paper_evaluates_live_stream`.
 
+- **Paper ORDER simulation** (`app/paper/{models,execution,ledger}.py`, `7795d8b`)
+  — the full causal lifecycle: accepted setup → candidate → risk → simulated
+  order → causal fill → managed position → stop/target/time-stop exit → P&L and
+  costs → append-only ledger → GUI. An order is fillable only from
+  `event_index + 1`; stop+target in one event books at the STOP as `AMBIGUOUS`;
+  a gap through the stop fills at the gapped price. Fills take the opposing side
+  of the book and snap to the 0.25 grid, because mid+slippage produced prices
+  MNQ cannot trade (`29500.875`). See `docs/PAPER_EXECUTION_MODEL.md`.
+- **Clean shutdown** (`app/runtime/shutdown.py`, `2e8456b`) — the receiver was a
+  `daemon=True` thread awaiting `asyncio.Future()`, so process exit killed it and
+  its drain `finally` never ran. The GUI now requests a stop, capture drains, and
+  an incomplete drain is reported. Verified against the real receiver.
+- **MNQ rollover computed** (`57c4b96`) — third Friday of Mar/Jun/Sep/Dec, front
+  contract's last day = expiry − 8 days. Reproduces all 5 hand-verified table
+  periods exactly. Previously raised `ValueError` past 2027-03-11.
+- **Profitability meter in the GUI** (`6506c06`) — computed on the research
+  thread via `ProgressCache` and only *read* by Qt; a test forbids the GUI from
+  importing the disk-reading loader (that call on the Qt timer was the freeze).
+  Plus `tools/profitability_meter.py`.
+- **Recorder atomic writes** (`7cd57af`, `6b0fcef`) — a FIXED `.tmp` name let
+  writers collide (destroyed 31 real sessions); temp paths are now unique per
+  writer and renames retry through Windows' transient handle contention.
+- **Crash/hang diagnostics** (`app/runtime/diagnostics.py`, `6b0fcef`) —
+  faulthandler, main/worker/asyncio excepthooks, rotating logs, and a
+  `StallWatchdog` that dumps every thread's stack when the GUI stops heartbeating.
+- **Stress ≥1650 ev/s** — measured **26,160 ev/s**, 0 drops (15.9× headroom);
+  `tests/test_recorder_load.py` asserts a 5,000 ev/s floor.
+- **Test/user-data isolation** (`1346e3f`) — the suite was appending ~291 rows
+  per run to the tracked `data/prototype/automation/decisions_log.csv`; an
+  autouse `tests/conftest.py` guard now sandboxes GUI output roots.
+
 ## NOT DONE — outstanding
 
-- Process isolation / lifecycle supervisor (Phase 2): receiver still runs as a
-  daemon thread in the GUI process.
-- Paper ORDER simulation (fills/stop/target/ledger rows) from streaming setups:
-  the engine evaluates and records decisions; it does not yet open simulated
-  positions (no setup has qualified on real data, so no row exists either way).
+- Process isolation / lifecycle supervisor (Phase 2): the receiver still runs as
+  a thread in the GUI process. It is no longer killed at exit (`2e8456b`), but it
+  is not a separate process.
 - Session rotation + restart catch-up (Phase 4).
 - Forwarder protocol version / stream id / capability handshake / batching
   (rest of Phase 5).
-- Daily report automation (Phase 7); crash diagnostics.
-- Stress test ≥1650 ev/s with GUI+research load; 30-min soak.
+- Typed feed-capability model (currently a `dict[str, bool]` passed to the
+  paper engine).
+- Daily report automation (Phase 7).
+- 30-minute soak under combined GUI + research load (throughput is proven; a
+  long-duration soak is not).
+- Tradovate DEMO wiring (LIVE stays locked; `live_enabled` false; 12 Lucid
+  prop-rule fields unresolved).
 - `docs/BOT_SURVEY_50.md`, `docs/PRIORITIZED_IMPROVEMENTS_200.md` (Phase 9).
+
+## Measured bottleneck to profitability evidence
+
+Of **200 finalized sessions only 1 is order-flow-eligible**: 192× unclean
+shutdown, 145× continuity `receiver_error` (31 of them the temp-file race), 71×
+depth-only, 11× no depth. The two dominant causes are fixed, so new recordings
+should convert far better — but that is a **prediction, not proven**: it needs
+new Bookmap sessions. The meter is honestly **6.7%**, `profitable_claim_supported
+= False`, **0 completed setups on real data**. See
+`reports/FINAL_EVIDENCE_PACK.md`.
 
 ## Environment limits
 
