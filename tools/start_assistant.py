@@ -365,17 +365,25 @@ def _run_gui(
     try:
         from PySide6.QtWidgets import QApplication
 
-        from app.gui.main_window import MainWindow
+        from app.gui.app_window import AppWindow
+        from app.gui.snapshot_source import SnapshotSource
     except ImportError as error:
         controller.health.mark_gui_failed(str(error))
         raise AssistantStartupError("PySide6 is not installed; run with --no-gui or install the GUI dependency.") from error
 
+    from app.market.receiver import get_current_market_state
+
     app = QApplication.instance() or QApplication(sys.argv)
-    window = MainWindow(
-        runtime_snapshot_provider=controller.snapshot,
-        research_service=research_service,
-        receiver_status_provider=status_holder.snapshot if status_holder is not None else None,
-        pipeline_metrics_provider=pipeline_holder.snapshot if pipeline_holder is not None else None,  # type: ignore[union-attr]
+    # The redesigned eight-screen window is the default GUI. It renders only
+    # immutable snapshots, so the Qt thread never competes with capture.
+    window = AppWindow(
+        snapshot_provider=SnapshotSource(
+            controller=controller,
+            pipeline_holder=pipeline_holder,
+            research_service=research_service,
+            receiver_status=status_holder.snapshot if status_holder is not None else None,
+            market_state=get_current_market_state,
+        ),
     )
     window.show()
     try:

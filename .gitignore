@@ -24,3 +24,6 @@ data/execution_state/
 # Test temp trees must never be tracked (regression-guarded in tests)
 pytest-clean-*/
 .pytest-tmp/
+
+# Rendered GUI screenshots (regenerate: python -m tools.capture_gui_screenshots)
+reports/screenshots/
