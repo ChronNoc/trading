@@ -1,33 +1,47 @@
 # Implementation state — final automation/GUI/Lucid task
 
-Durable checkpoint. Update as work lands. Base commit: `0d4e33e`.
+Durable checkpoint. Base commit `0d4e33e`; work landed in `0e6d78e` and follow-ups.
 
-## Order of work (priority)
+## DONE (verified by tests, not by assertion)
 
-1. **[in progress] Repo hygiene** — untrack 426 `pytest-clean-*` artifacts, ignore them,
-   add a regression guard so tests can never write temp trees into the repo.
-2. **[in progress] Typed Lucid Flex 25K profile** — replace prose fields with typed
-   Decimal/int/enum/tz fields; make it the selected default; remove the hardcoded
-   `$100,000` canonical account so paper/risk/GUI all use the selected profile.
-3. **[todo] Named defects**
-   - `BoundedIntakeBuffer`: full-queue path can evict >1 item per frame and can
-     count control markers as lost data.
-   - `RecorderPipeline`: batch write exception loses the whole batch (counter only)
-     — needs retry/fail-closed + manifest propagation.
-   - `session_catalog`: require clean shutdown, continuous, zero current-session
-     drops, zero overflow, zero malformed/rejected/missing, depth AND trades.
-4. **[todo] GUI off-thread** — `refresh_live_dashboard()` (1 s) must not do disk I/O,
-   automation, replay rescans, or full table rebuilds. Snapshots only + model/view.
-5. **[todo] GUI redesign** — sidebar nav (Overview / Live Order Flow / Paper Trading /
-   Sessions & Replay / Research & Model Health / Risk & Lucid Account / Execution /
-   Diagnostics & Settings), status bar, 1366x768 fit, screenshots.
-6. **[todo] Process isolation** — receiver+recorder in a supervised child process;
-   bounded IPC with coalesced snapshots; lifecycle supervisor with graceful drain.
-7. **[todo] Automatic workflow** — session rotation (America/New_York, 15-min delay),
-   delayed paper engine, catch-up jobs on restart, daily report.
-8. **[todo] Stress test** ≥1650 ev/s with GUI+research load; screenshots; Java suite.
+1. **Repo hygiene** — 426 tracked `pytest-clean-*` files untracked (kept on disk),
+   pattern ignored, `tests/test_repo_hygiene.py` guards temp trees, `.env`, and a
+   repo-relative pytest basetemp.
+2. **`BoundedIntakeBuffer`** — overflow now displaces exactly ONE frame; gap
+   markers and the close sentinel are out-of-band so they can neither consume
+   capacity nor be miscounted as lost market data. `delivered + lost == sent`.
+3. **`RecorderPipeline`** — per-event bounded retry instead of discarding a whole
+   batch on one exception; unwritable events counted as real loss, pushed to the
+   session manifest, and `finalize()` **fails closed** (a segment that lost
+   anything can never be clean).
+4. **`session_catalog`** — order-flow eligibility requires clean shutdown,
+   continuous data, depth AND trades, and zero session-drops/overflow/malformed/
+   rejected/missing/sequence-gaps. Java **lifetime** drop total is distinguished
+   from per-session loss; a missing per-session figure fails closed. Verified on
+   real data: all 80 finalized sessions with >1k drops (incl. 1.03M and 10.7M)
+   are ineligible; the one clean session still qualifies.
+5. **Typed Lucid Flex 25K profile** (`app/risk/account_profile.py`) — Decimal/int/
+   enum/tz-aware fields, EOD trailing→lock mechanics, consistency, contract cap,
+   provenance (URL + retrieval/effective date + excerpt hash). Project safety
+   limits always bind as the stricter rule.
+6. **Hardcoded $100,000 removed** — paper ledger, service ledgers, and the GUI
+   banner all use the selected profile; sizing capped at the profile's limit.
 
-## Honest status
+## NOT DONE — outstanding, do not claim these
 
-Nothing in sections 3–8 is claimed until its tests pass. See the final response for
-what is verified vs. outstanding — do not infer completion from this file.
+- **GUI redesign** (sidebar nav, 8 screens, status bar, 1366x768 fit, model/view
+  tables, themes, screenshots at 3 resolutions). `app/gui/main_window.py` is still
+  the ~2.9k-line 13-tab window. This is the largest remaining item.
+- **GUI off-thread work** — `refresh_live_dashboard()` still runs on a 1 s timer
+  and uses `findChild` tree walks per label.
+- **Process isolation** — receiver/recorder still share the GUI process (research
+  already runs in child processes; the 2 s starvation loop was fixed in `0d4e33e`).
+- **Lifecycle supervisor** — staged startup/heartbeats/coordinated shutdown.
+- **Session rotation** while connected; delayed paper engine; catch-up jobs.
+- **Stress test ≥1650 ev/s** with GUI+research load; soak command.
+- **Crash diagnostics** — faulthandler + structured rotating logs.
+- **Daily summary** automation.
+
+Next actor: start with the GUI redesign as a NEW window class alongside the
+existing one (additive, so a partial rewrite can never break the working app),
+then move `refresh_live_dashboard` to snapshot-only updates.

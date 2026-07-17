@@ -1556,15 +1556,21 @@ class MainWindow(QMainWindow):
         tab.setObjectName("paper_trading_tab")
         layout = QVBoxLayout(tab)
 
+        # The banner must describe the SELECTED account, never a fabricated one.
+        from app.risk.account_profile import load_selected_profile
+
+        account = load_selected_profile()
+        limits = account.effective_limits()
         intro = QLabel(
-            "REAL delayed Bookmap data, offline replay. One fixed $100,000 "
-            "paper account (10-point stop, max 3 trades / 3 losses per day, "
-            "1% daily-risk sizing), NO resets: a blown account stops and the "
-            "loss stands. Every row traces to a real recorded session and a "
-            "detected setup - completed real outcomes only. Delayed data is "
-            "valid for offline research; it is never live-decision-ready and "
-            "no real orders are placed. If no eligible real setup has "
-            "completed, the ledger is empty and makes no performance claim.",
+            f"REAL delayed Bookmap data, offline replay. Account: {account.display_name} - "
+            f"${account.account_size} start, ${account.profit_target} profit target, "
+            f"${account.max_loss_limit} end-of-day trailing max loss, max {limits.max_contracts} micros, "
+            f"max {limits.max_entries_per_day} trades / {limits.max_losses_per_day} losses per day. "
+            "NO resets: a blown account stops and the loss stands. Every row traces to a real "
+            "recorded session and a detected setup - completed real outcomes only. Delayed data is "
+            "valid for offline research; it is never live-decision-ready and no real orders are "
+            "placed. If no eligible real setup has completed, the ledger is empty and makes no "
+            "performance claim.",
         )
         intro.setWordWrap(True)
         intro.setStyleSheet(BANNER_STYLE)

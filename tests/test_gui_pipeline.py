@@ -177,3 +177,20 @@ def test_pipeline_receiver_stage_uses_actual_bound_state(qtbot: object, tmp_path
     receiver_line = next(panel.item(i).text() for i in range(panel.count()) if "1. Receiver listening" in panel.item(i).text())
     assert "[READY]" in receiver_line  # now genuinely bound
 
+
+
+def test_paper_tab_describes_the_selected_lucid_account_not_a_fabricated_100k(
+    qtbot: object, tmp_path: Path,
+) -> None:
+    """The GUI must advertise the SELECTED profile's real numbers."""
+    from PySide6.QtWidgets import QLabel
+
+    from app.risk.account_profile import load_selected_profile
+
+    window = _window(qtbot, tmp_path)
+    account = load_selected_profile()
+    texts = " ".join(lbl.text() for lbl in window.findChildren(QLabel))
+    assert "$100,000" not in texts and "$100000" not in texts
+    assert account.display_name in texts  # "LucidFlex 25K Evaluation"
+    assert "25000" in texts.replace(",", "")
+    assert "1250" in texts.replace(",", "")  # profit target
