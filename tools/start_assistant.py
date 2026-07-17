@@ -189,7 +189,7 @@ async def run_headless_assistant(
         recorder_factory=_pipelined_recorder,
         initial_control_events=delayed_events,
         on_session_finalized=lambda recorder: _finalize_assistant_session(
-            controller, config, recorder, research_service,
+            controller, config, recorder, research_service, paper_engine,
         ),
         feed_guard=feed_guard,
         on_connection_started=(pipeline_holder.attach if pipeline_holder is not None else None),  # type: ignore[union-attr]
@@ -529,6 +529,7 @@ def _finalize_assistant_session(
     config: AssistantConfig,
     recorder: MarketSessionRecorder,
     research_service: object | None = None,
+    paper_engine: object | None = None,
 ) -> None:
     """Write reports and auto-build episodes when one Bookmap session ends cleanly."""
     session_date = recorder.session_start_utc.astimezone(UTC).date()
@@ -538,6 +539,7 @@ def _finalize_assistant_session(
         session_date=session_date,
         recorder_manifest=manifest,
     )
+    _write_paper_daily_report(config, session_date, paper_engine, controller)
     # Automatically schedule the idempotent episode build for the finalized
     # session in the background (never opens an active session). The research
     # service will then pick up the new build on its next batch.
@@ -559,6 +561,29 @@ def _finalize_assistant_session(
     )
     print(f"Session report written: {report_dir}", flush=True)
     print(f"Daily learning summary written: {paths.markdown_path}", flush=True)
+
+
+def _write_paper_daily_report(
+    config: AssistantConfig,
+    session_date: object,
+    paper_engine: object | None,
+    controller: AutomaticRuntimeController,
+) -> None:
+    """Generate the automatic paper-trading daily report from the real ledger."""
+    try:
+        from app.paper.daily_report import write_paper_daily_report
+        from app.risk.account_profile import load_selected_profile
+
+        status = paper_engine.status() if paper_engine is not None else None  # type: ignore[union-attr]
+        report_root = Path(config.report_root) / "paper"
+        markdown = write_paper_daily_report(
+            report_root, str(session_date), config.paper_ledger_path,
+            starting_balance=load_selected_profile().account_size,
+            engine_status=status,
+        )
+        print(f"Paper trading report written: {markdown}", flush=True)
+    except Exception as error:  # pragma: no cover - reporting must never break capture
+        controller.health.record_event("paper_report", "failed", f"paper report failed: {error}")
 
 
 def _schedule_auto_build(config: AssistantConfig) -> None:
