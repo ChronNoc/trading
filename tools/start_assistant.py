@@ -54,6 +54,29 @@ class AssistantConfig:
     # runtime/ files. --in-process keeps everything in one process (dev/tests).
     in_process: bool = False
     runtime_dir: Path = Path("runtime")
+    # Research/learning roots. Defaults are the real production trees; a
+    # harness that overrides output_root gets sandboxed siblings so a test
+    # backend can never write builds or research state into the real dirs.
+    processed_root: Path = Path("data/processed")
+    labels_root: Path = Path("data/labels")
+    research_state_root: Path = Path("data/research_state")
+
+    @staticmethod
+    def sandboxed(output_root: Path, **overrides: object) -> "AssistantConfig":
+        """Config whose EVERY writable tree lives beside ``output_root``.
+
+        The latent defect this closes: harness backends with a temp
+        output_root still pointed processed/labels/research-state at the
+        REAL data tree via hardcoded paths.
+        """
+        base = Path(output_root).parent
+        overrides.setdefault("processed_root", base / "processed")
+        overrides.setdefault("labels_root", base / "labels")
+        overrides.setdefault("research_state_root", base / "research_state")
+        overrides.setdefault("report_root", base / "reports")
+        overrides.setdefault("paper_ledger_path", base / "paper/ledger.jsonl")
+        overrides.setdefault("log_dir", base / "logs")
+        return AssistantConfig(output_root=Path(output_root), **overrides)  # type: ignore[arg-type]
 
     @property
     def receiver_config(self) -> ReceiverServerConfig:
@@ -360,8 +383,8 @@ def _build_research_service(
 
         return ResearchService(
             config.output_root,
-            Path("data/processed"),
-            state_dir=Path("data/research_state"),
+            config.processed_root,
+            state_dir=config.research_state_root,
             health_provider=make_receiver_health_provider(controller, pipeline_holder),
         )
     except Exception as error:  # pragma: no cover - never block the app on research
@@ -687,7 +710,7 @@ def _schedule_auto_build(config: AssistantConfig) -> None:
     try:
         from app.research.build_orchestrator import schedule_pending_builds
 
-        schedule_pending_builds(config.output_root, Path("data/processed"), Path("data/labels"))
+        schedule_pending_builds(config.output_root, config.processed_root, config.labels_root)
     except Exception as error:  # pragma: no cover - reporting must not break recording
         print(f"Automatic episode build could not start: {error}", file=sys.stderr, flush=True)
 

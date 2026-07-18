@@ -75,6 +75,13 @@ class EpisodeConfig:
     evaluation_interval_ms: float = 1000.0
     # Evaluation begins once the window covers this much market time.
     warmup_span_seconds: float = 60.0
+    # Liquidity-block size thresholds. Canonical defaults (90 / 400) were set
+    # against synthetic fixtures; the MEASURED real delayed MNQ book runs
+    # ~20 levels/side with top sizes 13-63 in thin RTH stretches, so these are
+    # candidate-learnable dimensions. Canonical values stay unchanged here;
+    # only EXPERIMENTAL research candidates explore alternatives.
+    large_block_minimum: Decimal = Decimal("90")
+    absorption_volume_minimum: Decimal = Decimal("400")
     timeout_seconds: int = 900
     dedupe_price_ticks: Decimal = Decimal("4")
     dedupe_seconds: int = 300
@@ -395,7 +402,11 @@ def build_episodes(
 ) -> BuildResult:
     """Stream one session through strategy, entry, and outcome state machines."""
     cfg = config or EpisodeConfig()
-    thr = thresholds or OrderFlowThresholds(tick_size=cfg.tick_size)
+    thr = thresholds or OrderFlowThresholds(
+        tick_size=cfg.tick_size,
+        large_block_minimum=cfg.large_block_minimum,
+        absorption_volume_minimum=cfg.absorption_volume_minimum,
+    )
     tracker = level_tracker or CausalLevelTracker()
     result = BuildResult(session_id=session_id, provenance=provenance)
     result.source_file_hashes = _source_hashes(session_dir)

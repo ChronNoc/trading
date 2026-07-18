@@ -63,6 +63,16 @@ DEFAULT_CANDIDATES: tuple[CandidateConfig, ...] = (
     canonical_candidate(),
     CandidateConfig(stop_buffer_points=Decimal("12"), label="exp_wider_stop"),
     CandidateConfig(decision_stride=20, label="exp_finer_stride"),
+    # Feed-scale block calibration. MEASURED on real delayed MNQ recordings:
+    # the book holds ~20 levels/side with top sizes 13-63 during thin RTH
+    # stretches (max observed 63), while overnight sessions do reach 90+.
+    # The canonical 90/400 stays canonical; these EXPERIMENTAL candidates
+    # let finalized-session research measure the trade-quality/threshold
+    # relationship instead of anyone hand-tuning it.
+    CandidateConfig(large_block_minimum=Decimal("60"),
+                    absorption_volume_minimum=Decimal("250"), label="exp_blocks_60_250"),
+    CandidateConfig(large_block_minimum=Decimal("40"),
+                    absorption_volume_minimum=Decimal("150"), label="exp_blocks_40_150"),
 )
 
 

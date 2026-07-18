@@ -71,11 +71,16 @@ def run_backend(
     if result.stale_lock_cleaned:
         print(f"NOTE: {result.reason}", flush=True)
 
-    config = AssistantConfig(
-        host=host, port=port, gui=False,
-        output_root=output_root if output_root is not None else Path("data/raw"),
-        delayed_data_minutes=delayed_data_minutes,
-    )
+    if output_root is not None:
+        # A non-default output root sandboxes EVERY writable tree beside it,
+        # so a test backend can never touch the real data directories.
+        config = AssistantConfig.sandboxed(
+            output_root, host=host, port=port, gui=False,
+            delayed_data_minutes=delayed_data_minutes,
+        )
+    else:
+        config = AssistantConfig(host=host, port=port, gui=False,
+                                 delayed_data_minutes=delayed_data_minutes)
     logger = install_diagnostics(config.log_dir)
     logger.info("backend starting (pid=%s, runtime=%s)", __import__("os").getpid(), runtime_dir)
 

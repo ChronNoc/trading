@@ -50,6 +50,8 @@ class CandidateConfig:
     strategy_version: str = STRATEGY_VERSION
     stop_buffer_points: Decimal = Decimal("10")
     fixed_slippage_ticks: Decimal = Decimal("1")
+    large_block_minimum: Decimal = Decimal("90")
+    absorption_volume_minimum: Decimal = Decimal("400")
     decision_stride: int = 25
     timeout_seconds: int = 900
     label: str = "canonical"
@@ -63,6 +65,8 @@ class CandidateConfig:
                 "strategy_version": self.strategy_version,
                 "stop_buffer_points": str(self.stop_buffer_points),
                 "fixed_slippage_ticks": str(self.fixed_slippage_ticks),
+                "large_block_minimum": str(self.large_block_minimum),
+                "absorption_volume_minimum": str(self.absorption_volume_minimum),
                 "decision_stride": self.decision_stride,
                 "timeout_seconds": self.timeout_seconds,
                 "builder_version": BUILDER_VERSION,
@@ -78,6 +82,8 @@ class CandidateConfig:
             fixed_slippage_ticks=self.fixed_slippage_ticks,
             decision_stride=self.decision_stride,
             timeout_seconds=self.timeout_seconds,
+            large_block_minimum=self.large_block_minimum,
+            absorption_volume_minimum=self.absorption_volume_minimum,
         )
 
 

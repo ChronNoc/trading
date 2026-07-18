@@ -124,9 +124,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from tools.start_assistant import AssistantConfig, _run_receiver_thread, _shutdown_receiver
 
     tmp = Path(tempfile.mkdtemp(prefix="loadtest_"))
-    config = AssistantConfig(port=0, output_root=tmp / "raw", report_root=tmp / "reports",
-                             gui=False, log_dir=tmp / "logs",
-                             paper_ledger_path=tmp / "paper/ledger.jsonl")
+    config = AssistantConfig.sandboxed(tmp / "raw", port=0, gui=False)
     controller = AutomaticRuntimeController.from_config(config.session_config,
                                                         report_root=config.report_root)
     status_holder = ReceiverStatusHolder()

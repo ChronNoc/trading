@@ -118,6 +118,14 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         reasons.append(f"trade sequence indicates {missed_trades} missing events")
     if sequence_gaps > 0:
         reasons.append(f"{sequence_gaps} trade-sequence gap(s)")
+    if not synthetic and provenance not in _REAL_PROVENANCES:
+        # An eligibility gate must never be silent: a session recorded with no
+        # declared source mode (no delayed_mode/realtime control event) is
+        # excluded from analysis, and the catalog must say exactly why.
+        reasons.append(
+            f"provenance {provenance}: source mode was never declared "
+            "(missing delayed_mode/realtime_started control event)"
+        )
 
     # A session is analysis-eligible only if it finalized CLEANLY (a crash or a
     # failed write must never look like a complete recording) and its data is

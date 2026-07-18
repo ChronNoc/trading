@@ -238,7 +238,10 @@ def evaluate_day_trading_plan(
         raise ValueError("snapshots must contain at least one MarketState")
 
     snapshot_tuple = tuple(snapshots)
-    defending_block = _select_defending_block(snapshot_tuple, context, thresholds)
+    defending_block = (
+        _select_defending_block(snapshot_tuple, context, thresholds)
+        if context.defended_level_price is not None else None
+    )
     dol = find_direction_of_liquidity(snapshot_tuple, context, thresholds)
     controlling_side = identify_controlling_side(snapshot_tuple, thresholds)
     reaction_ticks = _reaction_ticks(snapshot_tuple[-1], defending_block, context.direction, thresholds)
@@ -370,6 +373,13 @@ def _check_opening_observation(
 
     required_ns = context.session_open_timestamp_ns + thresholds.first_observation_minutes * NANOSECONDS_PER_MINUTE
     if snapshots[-1].timestamp_ns < required_ns:
+        if snapshots[-1].timestamp_ns < context.session_open_timestamp_ns:
+            # Hours before the bell is not "inside the first minutes" - say so.
+            return _fail(
+                "opening_observation_complete",
+                "Outside regular trading hours (before the 09:30 New York open); "
+                "this day-trading plan trades RTH only",
+            )
         return _fail(
             "opening_observation_complete",
             f"Still inside first {thresholds.first_observation_minutes} minutes; observe bias first",

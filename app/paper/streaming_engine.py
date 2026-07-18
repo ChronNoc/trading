@@ -182,7 +182,11 @@ class DelayedPaperEngine:
             is_synthetic_fixture=is_synthetic_fixture,
         )
         self._config = config or EpisodeConfig()
-        self._thresholds = thresholds or OrderFlowThresholds(tick_size=self._config.tick_size)
+        self._thresholds = thresholds or OrderFlowThresholds(
+            tick_size=self._config.tick_size,
+            large_block_minimum=self._config.large_block_minimum,
+            absorption_volume_minimum=self._config.absorption_volume_minimum,
+        )
         self._tracker = CausalLevelTracker()
         from app.strategy.causal_window import CausalWindow
 
