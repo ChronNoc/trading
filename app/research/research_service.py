@@ -382,15 +382,26 @@ class ResearchService:
             self._update(last_error=f"recovered {recovered} stale claim(s) from a crashed worker")
         jobs = self.discover_jobs(checkpoint)
         self._update(
-            state=STATE_RUNNING, requested_workers=requested, active_workers=workers,
+            state=STATE_RUNNING, requested_workers=requested, active_workers=0,
             queued_jobs=len(jobs), running_jobs=0, throttle_reason=self._throttle_reason(requested, workers),
         )
 
         claimed = [job for job in jobs if self.claims.try_claim(job.key)]
         if not claimed:
             aggregate = self._aggregate_persisted(checkpoint)
-            self._update(state=STATE_IDLE, queued_jobs=0, last_checkpoint_keys=len(checkpoint.completed))
+            self._update(
+                state=STATE_IDLE, active_workers=0, queued_jobs=0, running_jobs=0,
+                last_checkpoint_keys=len(checkpoint.completed),
+            )
             return aggregate
+
+        execution_workers = workers if use_processes and workers > 1 else 1
+        active = min(execution_workers, len(claimed))
+        self._update(
+            active_workers=active,
+            queued_jobs=max(0, len(claimed) - active),
+            running_jobs=active,
+        )
 
         results: list[JobResult] = []
         cancelled: list[ResearchJob] = []
@@ -405,6 +416,12 @@ class ResearchService:
                     for future in done:
                         results.append(future.result())
                         self.claims.heartbeat(futures[future].key)
+                    active = min(execution_workers, len(pending))
+                    self._update(
+                        active_workers=active,
+                        queued_jobs=max(0, len(pending) - active),
+                        running_jobs=active,
+                    )
                     # Mid-batch receiver check: new event loss cancels remaining work.
                     if self._apply_throttle(workers) <= 0:
                         for future in pending:
@@ -417,11 +434,18 @@ class ResearchService:
                 if owns:
                     pool.shutdown(wait=True, cancel_futures=True)
         else:
-            for job in claimed:
+            for index, job in enumerate(claimed):
                 if self._apply_throttle(workers) <= 0 or self._pause_event.is_set():
                     cancelled.append(job)
                     continue
                 results.append(run_research_job(job))
+                remaining = len(claimed) - index - 1
+                active = min(execution_workers, remaining)
+                self._update(
+                    active_workers=active,
+                    queued_jobs=max(0, remaining - active),
+                    running_jobs=active,
+                )
 
         for job in cancelled:
             self.claims.release(job.key)  # cancelled work retries next cycle
@@ -441,8 +465,9 @@ class ResearchService:
         self._persist_result_setups(results)
 
         aggregate = self._aggregate_persisted(checkpoint)
+        final_state = STATE_THROTTLED if cancelled else STATE_IDLE
         self._update(
-            state=STATE_IDLE, running_jobs=0,
+            state=final_state, active_workers=0, queued_jobs=len(cancelled), running_jobs=0,
             completed_jobs=self._status.completed_jobs + completed,
             failed_jobs=self._status.failed_jobs + failed,
             last_checkpoint_keys=len(checkpoint.completed),

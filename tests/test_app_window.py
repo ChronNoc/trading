@@ -63,7 +63,7 @@ def _rich_snapshot() -> AppSnapshot:
             risk_remaining=Decimal("250"),
         ),
         research=ResearchSnapshot(
-            state="idle", active_workers=15, requested_workers=15, canonical_trades=0,
+            state="idle", active_workers=0, requested_workers=15, canonical_trades=0,
             experimental_trades=0, unique_setups=0, independent_days=0,
             gpu_note="NVIDIA GPU present, but deterministic replay is CPU/I-O bound; GPU not used.",
         ),

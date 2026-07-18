@@ -12,6 +12,7 @@ from pathlib import Path
 from app.database.recorder import MarketSessionRecorder
 from app.research.auto_research import ReceiverHealth, ResearchRuntimeConfig, canonical_candidate
 from app.research.research_service import (
+    STATE_IDLE,
     STATE_PAUSED,
     STATE_THROTTLED,
     ClaimRegistry,
@@ -186,6 +187,35 @@ def test_restart_restores_results_and_empty_cycle_never_zeroes_totals(tmp_path: 
     # A second empty cycle must not zero the totals.
     service.run_batch(use_processes=False)
     assert service.status().raw_candidate_trades == 1
+
+
+def test_idle_service_reports_capacity_without_claiming_active_workers(tmp_path: Path) -> None:
+    """Configured worker capacity must not be presented as active work when no job exists."""
+    service = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=4))
+
+    service.run_batch(use_processes=False)
+
+    status = service.status()
+    assert status.state == STATE_IDLE
+    assert status.requested_workers == 4
+    assert status.active_workers == 0
+    assert status.running_jobs == 0
+    assert status.queued_jobs == 0
+
+
+def test_completed_batch_returns_worker_counts_to_idle(tmp_path: Path) -> None:
+    """Workers are active only while jobs execute, not for the rest of the process lifetime."""
+    _session(tmp_path / "raw", 10)
+    service = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=4))
+
+    service.run_batch(use_processes=False)
+
+    status = service.status()
+    assert status.state == STATE_IDLE
+    assert status.requested_workers == 4
+    assert status.active_workers == 0
+    assert status.running_jobs == 0
+    assert status.queued_jobs == 0
 
 
 def test_superseded_results_never_double_count(tmp_path: Path) -> None:

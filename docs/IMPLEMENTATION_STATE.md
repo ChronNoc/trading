@@ -1,7 +1,7 @@
 # Implementation state
 
 Updated 2026-07-19. Starting HEAD for this continuation:
-`dfc3759c8806256adcf006431f24544dc987b11a` on
+`84e362a` on
 `feature/automatic-runtime`.
 
 ## Completed and verified in this continuation
@@ -37,10 +37,14 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 - Clean-session finalization was exercised through the real backend integration
   path: episode and label build, idempotent research, daily learning summary,
   paper report, and restart/reconnect separation all completed.
+- Research worker diagnostics now distinguish configured capacity from workers
+  that are actually executing jobs. An idle service reports `0/15`, not `15/15`,
+  and a capture-pressure interruption remains visibly throttled instead of being
+  overwritten by a misleading idle state.
 
 ## Verification evidence
 
-- Python: `804 passed, 4 warnings` in 106.03 seconds.
+- Python: `806 passed, 4 warnings` in 111.63 seconds.
 - Java: `26` bridge tests; `clean test shadowJar` succeeded.
 - Acceptance verifier: `23/23` checks passed.
 - JAR: `bookmap_addon_java/build/libs/mnq-bookmap-forwarder-all.jar`,
@@ -48,10 +52,10 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 - Production-path load, 1,650 events/second target plus 5,000 burst:
   21,500 accepted and persisted, zero overflow/loss, final analysis lag 2.9188 ms.
 - Production-path load, 2,500 events/second target plus 6,000 burst:
-  31,000 accepted and persisted, zero overflow/loss, final analysis lag 1.8601 ms.
+  31,000 accepted and persisted, zero overflow/loss, final analysis lag 1.8766 ms.
 - 72-second production-process soak at 1,650 events/second:
-  122,924 accepted and persisted, zero skipped analysis events, 30 causal paper
-  evaluations, analysis queue high-water 31, PASS.
+  122,684 accepted and persisted, zero skipped analysis events, 30 causal paper
+  evaluations, analysis queue high-water 32, PASS.
 - External machine-readable evidence is stored outside the repository under
   `C:/Users/roiga/Documents/Codex/2026-07-18/referenced-chatgpt-conversation-this-is-untrusted/work/`.
 
@@ -77,6 +81,7 @@ research/report generation, and GUI reattachment. Then run the configurable
 
 ## Working-tree protection
 
-The untracked `.serena/` directory and all untracked files below `data/` are
-user-owned/generated and must not be staged, rewritten, or deleted. Only the
-explicit implementation and test files from this continuation may be committed.
+The untracked `.serena/` and `v/` directories and all untracked files below
+`data/` are user-owned/generated and must not be staged, rewritten, or deleted.
+Only the explicit implementation, documentation, and test files from this
+continuation may be committed.
