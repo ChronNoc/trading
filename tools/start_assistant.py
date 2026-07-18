@@ -205,7 +205,7 @@ async def run_headless_assistant(
         feed.add_gap_sink(paper_engine.notify_causality_gap)
     feed.start()
 
-    def _pipelined_recorder() -> MarketSessionRecorder:
+    def _make_session_pipeline() -> RecorderPipeline:
         # Bounded recorder stage: a dedicated writer thread persists batches so
         # a slow GUI or research burst can never stall capture. Metrics are real.
         recorder = MarketSessionRecorder(root_dir=config.output_root)
@@ -216,7 +216,25 @@ async def run_headless_assistant(
         # events_prevalidated: everything reaching this pipeline came out of
         # parse_stream_message; re-validating per event in the writer thread
         # (a JSON round-trip each) made the writer the throughput ceiling.
-        return RecorderPipeline(recorder, events_prevalidated=True)  # type: ignore[return-value]
+        return RecorderPipeline(recorder, events_prevalidated=True)
+
+    def _pipelined_recorder() -> MarketSessionRecorder:
+        # A session invalidated by data loss must not keep swallowing clean
+        # events forever (the real failure: drops climbed 17k -> 43k in ONE
+        # session). The rotator finalizes the damaged session once the
+        # pipeline has been healthy for a quiet window and starts a fresh one;
+        # the damaged session keeps its full loss accounting and stays
+        # research-ineligible. Paper is told at the FIRST drop - bridge drops
+        # mean its tape already has holes - so it flattens and re-warms.
+        from app.runtime.session_rotation import RotatingRecorder
+
+        return RotatingRecorder(  # type: ignore[return-value]
+            _make_session_pipeline,
+            on_rotated_out=lambda old: _finalize_assistant_session(
+                controller, config, old, research_service, paper_engine,
+            ),
+            on_damage=(paper_engine.notify_causality_gap if paper_engine is not None else None),
+        )
 
     server = await start_receiver_websocket_server(
         config.receiver_config,

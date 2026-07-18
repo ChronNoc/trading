@@ -115,7 +115,10 @@ def test_missing_absorption_rejects_entry() -> None:
     result = evaluate_day_trading_plan(_long_absorption_snapshots(include_absorption=False), _long_context())
 
     assert _condition(result, "absorption_confirmed").passed is False
-    assert "No clear aggressive flow" in _condition(result, "absorption_confirmed").message
+    # The failure message now carries observed vs required values.
+    message = _condition(result, "absorption_confirmed").message
+    assert "opposite aggressive volume" in message
+    assert "requires >=" in message
 
 
 def test_vanished_or_moving_block_rejects_entry() -> None:

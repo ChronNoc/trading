@@ -213,6 +213,13 @@ class PaperSnapshot:
     risk_rejections: tuple[tuple[str, int], ...] = ()
     recent_trades: tuple[TradeRow, ...] = ()
     malformed_events: int = 0
+    # (condition, passes, failures, last observed-vs-required evidence) -
+    # the honest answer to "why zero candidates", worst failures first.
+    condition_stats: tuple[tuple[str, int, int, str], ...] = ()
+    # Analysis-stream integrity: skipped-for-analysis events and gaps.
+    analysis_events_skipped: int = 0
+    causality_breaks: int = 0
+    window_span_seconds: float = 0.0
 
     @property
     def flat(self) -> bool:

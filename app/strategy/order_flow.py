@@ -399,7 +399,11 @@ def _check_clear_target(
 
     distance_ticks = _directed_distance_ticks(current_price, target_price, context.direction, thresholds.tick_size)
     if distance_ticks is None or distance_ticks < thresholds.minimum_target_ticks:
-        return _fail("clear_take_profit", "TP is too close or not in the trade direction")
+        return _fail(
+            "clear_take_profit",
+            f"TP room {distance_ticks if distance_ticks is not None else 'n/a'} ticks, "
+            f"requires >= {thresholds.minimum_target_ticks}",
+        )
     return _pass("clear_take_profit", f"TP has {distance_ticks} ticks of room")
 
 
@@ -417,7 +421,10 @@ def _check_stop_location(
         distance_ticks = (context.stop_price - defending_block.price) / thresholds.tick_size
 
     if distance_ticks < thresholds.minimum_stop_ticks:
-        return _fail("valid_stop_location", "Stop is too close to the defended block")
+        return _fail(
+            "valid_stop_location",
+            f"stop {distance_ticks} ticks beyond the block, requires >= {thresholds.minimum_stop_ticks}",
+        )
     return _pass("valid_stop_location", f"Stop sits {distance_ticks} ticks beyond the defended block")
 
 
@@ -437,7 +444,12 @@ def _check_cvd_support(
         return _pass("cvd_supports_direction", f"CVD supports buyers by {cvd_delta}")
     if direction == TradeDirection.SHORT and cvd_delta <= -thresholds.cvd_support_minimum:
         return _pass("cvd_supports_direction", f"CVD supports sellers by {cvd_delta}")
-    return _fail("cvd_supports_direction", "CVD contradicts or does not support the direction")
+    return _fail(
+        "cvd_supports_direction",
+        f"CVD delta {cvd_delta}, requires "
+        f"{'>=' if direction == TradeDirection.LONG else '<='} "
+        f"{thresholds.cvd_support_minimum if direction == TradeDirection.LONG else -thresholds.cvd_support_minimum}",
+    )
 
 
 def _check_directional_bubbles(
@@ -448,7 +460,8 @@ def _check_directional_bubbles(
     if directional_volume < thresholds.follow_through_volume_minimum:
         return _fail(
             "market_bubbles_support_direction",
-            f"Not enough market bubbles in the {direction.value} direction",
+            f"{directional_volume} aggressive contracts in the {direction.value} direction, "
+            f"requires >= {thresholds.follow_through_volume_minimum}",
         )
     return _pass(
         "market_bubbles_support_direction",
@@ -464,7 +477,11 @@ def _check_durable_block(
     if block is None:
         return _fail("durable_defending_block", f"No strong {'bid' if direction == TradeDirection.LONG else 'ask'} block")
     if not block.is_durable(thresholds):
-        return _fail("durable_defending_block", "The defending block appeared but did not persist")
+        return _fail(
+            "durable_defending_block",
+            f"block at {block.price} seen {block.observations} snapshot(s), "
+            f"requires >= {thresholds.durable_block_min_snapshots}",
+        )
     return _pass("durable_defending_block", f"Defending block held at {block.price} across {block.observations} snapshots")
 
 
@@ -478,7 +495,10 @@ def _check_block_holds(
     if block.vanished_by_end:
         return _fail("defending_block_holds", "The block appeared and vanished too fast")
     if block.latest_size < thresholds.large_block_minimum:
-        return _fail("defending_block_holds", "The defending block is no longer large enough")
+        return _fail(
+            "defending_block_holds",
+            f"block size {block.latest_size}, requires >= {thresholds.large_block_minimum}",
+        )
     side_text = "buying" if direction == TradeDirection.LONG else "selling"
     return _pass("defending_block_holds", f"{side_text.title()} block is still defending {block.price}")
 
@@ -491,7 +511,10 @@ def _check_reload(
     if block is None:
         return _fail("reload_confirmed", "No block available to evaluate reload")
     if block.reload_count < thresholds.min_reload_count:
-        return _fail("reload_confirmed", "The defending block did not reload")
+        return _fail(
+            "reload_confirmed",
+            f"block reloaded {block.reload_count} time(s), requires >= {thresholds.min_reload_count}",
+        )
     side_text = "bid" if direction == TradeDirection.LONG else "ask"
     return _pass("reload_confirmed", f"Defending {side_text} reloaded {block.reload_count} times")
 
@@ -524,9 +547,17 @@ def _check_absorption(
     opposite_volume = _opposite_aggressive_volume_delta(snapshots, direction)
     progress_ticks = _progress_through_block_ticks(snapshots, block, direction, thresholds)
     if opposite_volume < thresholds.absorption_volume_minimum:
-        return _fail("absorption_confirmed", "No clear aggressive flow hitting the block")
+        return _fail(
+            "absorption_confirmed",
+            f"opposite aggressive volume {opposite_volume}, "
+            f"requires >= {thresholds.absorption_volume_minimum}",
+        )
     if progress_ticks > thresholds.absorption_max_progress_ticks:
-        return _fail("absorption_confirmed", "Aggressive flow broke too far through the block")
+        return _fail(
+            "absorption_confirmed",
+            f"price progressed {progress_ticks} tick(s) through the block, "
+            f"allows <= {thresholds.absorption_max_progress_ticks}",
+        )
     return _pass("absorption_confirmed", f"Absorption confirmed: {opposite_volume} contracts hit the block")
 
 
@@ -552,7 +583,10 @@ def _check_loading(
     thresholds: OrderFlowThresholds,
 ) -> SetupConditionResult:
     if loading_liquidity < thresholds.loading_liquidity_minimum:
-        return _fail("loading_confirmed", "No fresh blocks loading in the trade direction")
+        return _fail(
+            "loading_confirmed",
+            f"loading liquidity {loading_liquidity}, requires >= {thresholds.loading_liquidity_minimum}",
+        )
     return _pass("loading_confirmed", f"{loading_liquidity} contracts loaded behind the {direction.value} idea")
 
 
@@ -569,11 +603,21 @@ def _check_continuation(
     if controlling_side != expected_control:
         return _fail("continuation_confirmed", "Continuation is missing because control is unclear")
     if directional_volume < thresholds.follow_through_volume_minimum:
-        return _fail("continuation_confirmed", "Continuation is missing directional market orders")
+        return _fail(
+            "continuation_confirmed",
+            f"directional volume {directional_volume}, "
+            f"requires >= {thresholds.follow_through_volume_minimum}",
+        )
     if loading_liquidity < thresholds.loading_liquidity_minimum:
-        return _fail("continuation_confirmed", "Continuation is missing reloaded defending liquidity")
+        return _fail(
+            "continuation_confirmed",
+            f"loading liquidity {loading_liquidity}, requires >= {thresholds.loading_liquidity_minimum}",
+        )
     if reaction_ticks < thresholds.min_continuation_ticks:
-        return _fail("continuation_confirmed", "Continuation has not moved far enough from absorption")
+        return _fail(
+            "continuation_confirmed",
+            f"reaction {reaction_ticks} tick(s), requires >= {thresholds.min_continuation_ticks}",
+        )
     return _pass("continuation_confirmed", "Continuation confirmed after absorption")
 
 

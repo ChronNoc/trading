@@ -295,7 +295,8 @@ class LiveOrderFlowScreen(_ListScreen):
         if snapshot.paper.setup_checks:
             for check in snapshot.paper.setup_checks:
                 mark = "PASS" if check.passed else "FAIL"
-                lines.append(f"  [{mark}] {check.name}: observed {check.observed} vs {check.threshold}")
+                evidence = check.reason or f"observed {check.observed} vs {check.threshold}"
+                lines.append(f"  [{mark}] {check.name}: {evidence}")
         else:
             lines.append("  no setup evaluated yet")
         self.body.setText("\n".join(lines))
@@ -328,6 +329,16 @@ class PaperTradingScreen(_ListScreen):
                 f"  Stop {p.position_stop}   Target {p.position_target}   "
                 f"Unrealized {_money(p.unrealized_pnl)}",
             ]
+        lines += ["", f"Analysis window: {p.window_span_seconds:.0f}s of market time"]
+        if p.causality_breaks:
+            lines.append(
+                f"CAUSALITY: {p.causality_breaks} gap(s), {p.analysis_events_skipped:,} "
+                "event(s) skipped for analysis - entries blocked until re-warmed"
+            )
+        if p.condition_stats:
+            lines += ["", "Condition evidence (worst failures first):"]
+            for name, passes, failures, evidence in p.condition_stats[:8]:
+                lines.append(f"  {name}: {passes:,} pass / {failures:,} fail — {evidence}")
         lines += ["", f"Candidates {p.candidates}   Blocked by risk {p.risk_rejected}"]
         for name, count in p.risk_rejections[:3]:
             lines.append(f"  • {name}: {count}")

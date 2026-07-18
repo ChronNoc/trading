@@ -200,6 +200,9 @@ class DelayedPaperEngine:
             state=STATE_WAITING,
         )
         self._rejections: Counter[str] = Counter()
+        # name -> [passes, failures, last evidence message] so the GUI can
+        # show observed-vs-required values instead of bare counts.
+        self._condition_stats: dict[str, list[object]] = {}
         self._event_index = 0
         self._decision_opportunities = 0
         self._evaluations: deque[EvaluationRecord] = deque(maxlen=500)
@@ -434,6 +437,9 @@ class DelayedPaperEngine:
         )
         self._evaluations.append(record)
         for condition in conditions:
+            stats = self._condition_stats.setdefault(condition.name, [0, 0, ""])
+            stats[0 if condition.passed else 1] += 1
+            stats[2] = condition.message
             if not condition.passed:
                 self._rejections[condition.name] += 1
         with self._lock:
@@ -591,6 +597,19 @@ class DelayedPaperEngine:
     def recent_trades(self, limit: int = 50) -> tuple[PaperTrade, ...]:
         """Return the most recent closed simulated trades, newest last."""
         return tuple(self._closed_trades)[-limit:]
+
+    def condition_stats(self) -> tuple[tuple[str, int, int, str], ...]:
+        """Return (condition, passes, failures, last evidence), worst first.
+
+        This is the honest answer to "why zero candidates": every condition
+        shows how often it passed, how often it failed, and its latest
+        observed-vs-required message.
+        """
+        rows = tuple(
+            (name, int(stats[0]), int(stats[1]), str(stats[2]))
+            for name, stats in self._condition_stats.items()
+        )
+        return tuple(sorted(rows, key=lambda row: row[2], reverse=True))
 
     def top_risk_rejections(self, limit: int = 5) -> tuple[tuple[str, int], ...]:
         """Return why candidates did not become orders (the honest zero-trade view)."""
