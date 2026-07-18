@@ -191,3 +191,26 @@ def test_launcher_wires_rotation_with_paper_notification() -> None:
     assert "on_rotated_out=lambda old: _finalize_assistant_session(" in source, (
         "a rotated-out session must still produce its reports"
     )
+
+
+def test_pipeline_holder_sees_metrics_through_the_rotating_wrapper(tmp_path) -> None:
+    """Regression: isinstance(RecorderPipeline) silently dropped the wrapper.
+
+    That lost recorder metrics AND the capture-priority pressure signal (the
+    analysis feed could no longer see recorder occupancy). Found by soak
+    metrics showing recorder occupancy None mid-run.
+    """
+    from app.database.recorder import MarketSessionRecorder
+    from app.market.bounded_pipeline import PipelineStateHolder, RecorderPipeline
+
+    def make():  # noqa: ANN202
+        return RecorderPipeline(MarketSessionRecorder(root_dir=tmp_path))
+
+    wrapper = RotatingRecorder(make)
+    holder = PipelineStateHolder()
+    holder.attach(object(), wrapper)  # exactly how on_connection_started calls it
+    snap = holder.snapshot()
+    assert snap.recorder, "recorder metrics must survive the rotating wrapper"
+    assert "capacity" in snap.recorder and int(snap.recorder["capacity"]) > 0
+    # The pressure gauge must see the recorder again.
+    assert holder.worst_queue_occupancy_fraction() >= 0.0

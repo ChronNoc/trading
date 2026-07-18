@@ -74,10 +74,16 @@ class PipelineStateHolder:
         self._recorder: RecorderPipeline | None = None
 
     def attach(self, intake: object, recorder: object) -> None:
-        """Attach the current connection's intake buffer and recorder pipeline."""
+        """Attach the current connection's intake buffer and recorder pipeline.
+
+        Duck-typed on ``metrics_snapshot``, NOT isinstance: the recorder is now
+        wrapped by RotatingRecorder (which delegates metrics to the current
+        inner pipeline), and the old isinstance check silently dropped it -
+        losing recorder metrics AND the capture-priority pressure signal.
+        """
         with self._lock:
             self._intake = intake if isinstance(intake, BoundedIntakeBuffer) else None
-            self._recorder = recorder if isinstance(recorder, RecorderPipeline) else None
+            self._recorder = recorder if hasattr(recorder, "metrics_snapshot") else None
 
     def snapshot(self) -> PipelineMetricsSnapshot:
         """Return the current combined pipeline measurements."""
