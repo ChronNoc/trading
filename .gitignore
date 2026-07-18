@@ -30,3 +30,7 @@ pytest-clean-*/
 
 # Rendered GUI screenshots (regenerate: python -m tools.capture_gui_screenshots)
 reports/screenshots/
+
+# Process-isolation runtime files (PID lock, heartbeats, stop requests).
+# Anchored to the repo root: app/runtime/ is source code and must stay tracked.
+/runtime/

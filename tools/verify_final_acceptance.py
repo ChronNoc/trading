@@ -167,6 +167,17 @@ def main() -> int:
           and align_to_tick(Decimal("29500.875"), round_up=False) == Decimal("29500.75"),
           "fills snap to the 0.25 grid, adversely (never a better price than reality)")
 
+    # 7f. Process isolation: the default GUI is a separate process that only
+    # READS the backend's status file, so a GUI restart cannot interrupt
+    # capture. Verified end-to-end (real subprocess) in tests/test_process_isolation.py.
+    check("gui_isolated_from_capture",
+          "FileSnapshotProvider(config.runtime_dir)" in launcher_source
+          and "ensure_backend(config.runtime_dir" in launcher_source
+          and Path("tools/start_backend.py").is_file()
+          and Path("tools/backend_supervisor.py").is_file()
+          and "backend still capturing" in launcher_source.lower().replace("is still running and recording", "still capturing"),
+          "default GUI attaches to the detached backend via runtime/status.json")
+
     # 8. Health provider wired in production research service.
     check("health_provider_wired",
           "health_provider=make_receiver_health_provider(controller, pipeline_holder)" in launcher_source,

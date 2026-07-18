@@ -50,6 +50,10 @@ class AssistantConfig:
     delayed_data_minutes: int = 0
     paper_ledger_path: Path = DEFAULT_PAPER_LEDGER
     log_dir: Path = DEFAULT_LOG_DIR
+    # Process isolation: the default GUI attaches to a detached backend via
+    # runtime/ files. --in-process keeps everything in one process (dev/tests).
+    in_process: bool = False
+    runtime_dir: Path = Path("runtime")
 
     @property
     def receiver_config(self) -> ReceiverServerConfig:
@@ -375,6 +379,36 @@ def run_assistant(config: AssistantConfig) -> int:
 
     logger = install_diagnostics(config.log_dir)
     logger.info("assistant starting (gui=%s, port=%s)", config.gui, config.port)
+
+    if config.gui and not config.in_process:
+        # PROCESS ISOLATION (the default). The capture backend runs as its own
+        # detached process (started here if absent, attached if already alive -
+        # repeated launches never double-record) and the GUI only READS its
+        # runtime/status.json heartbeat. Closing or restarting this GUI process
+        # cannot interrupt capture, recording, paper, or research: the GUI holds
+        # no socket, thread, or object of the backend's.
+        from tools.backend_supervisor import ensure_backend
+
+        if not ensure_backend(config.runtime_dir, port=config.port,
+                              delayed_data_minutes=config.delayed_data_minutes):
+            print("Backend did not start; see runtime/backend.out", file=sys.stderr, flush=True)
+            return 2
+        from app.gui.file_snapshot import FileSnapshotProvider
+
+        exit_code = _run_gui(
+            AutomaticRuntimeController.from_config(
+                config.session_config, report_root=config.report_root,
+            ),
+            provider=FileSnapshotProvider(config.runtime_dir),
+        )
+        print(
+            "GUI closed. The capture backend is still running and recording.\n"
+            "  status: python -m tools.backend_supervisor --status\n"
+            "  stop:   python -m tools.backend_supervisor --stop",
+            flush=True,
+        )
+        return exit_code
+
     controller = AutomaticRuntimeController.from_config(
         config.session_config,
         report_root=config.report_root,
@@ -464,6 +498,10 @@ def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
     parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
     parser.add_argument("--session-config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--no-gui", action="store_true", help="Run recording/controller services without the GUI.")
+    parser.add_argument("--in-process", action="store_true",
+                        help="Legacy single-process mode (GUI owns capture). Default is the "
+                             "isolated backend + attached GUI.")
+    parser.add_argument("--runtime-dir", type=Path, default=Path("runtime"))
     parser.add_argument(
         "--delayed-data-minutes",
         type=int,
@@ -486,6 +524,8 @@ def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
         session_config=Path(args.session_config),
         gui=not bool(args.no_gui),
         delayed_data_minutes=int(args.delayed_data_minutes),
+        in_process=bool(args.in_process),
+        runtime_dir=Path(args.runtime_dir),
     )
 
 
@@ -530,6 +570,7 @@ def _run_gui(
     pipeline_holder: object | None = None,
     paper_engine: object | None = None,
     analysis_feed: object | None = None,
+    provider: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -546,7 +587,7 @@ def _run_gui(
     # The redesigned eight-screen window is the default GUI. It renders only
     # immutable snapshots, so the Qt thread never competes with capture.
     window = AppWindow(
-        snapshot_provider=SnapshotSource(
+        snapshot_provider=provider if provider is not None else SnapshotSource(
             controller=controller,
             pipeline_holder=pipeline_holder,
             research_service=research_service,
