@@ -5,15 +5,26 @@ import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
 
 /** Creates JSON messages sent from Bookmap to the Python receiver. */
 public final class MessageFactory {
     private final InstrumentContext instrument;
     /** Every ordinary wire event receives one sequence, across depth/trade/control. */
     private final AtomicLong streamSequence = new AtomicLong(1L);
+    private final AtomicReference<String> connectionId;
 
     public MessageFactory(InstrumentContext instrument) {
         this.instrument = instrument;
+        this.connectionId = new AtomicReference<>(instrument.connectionId());
+    }
+
+    /** Start a new transport connection identity while preserving stream identity. */
+    public String rotateConnection() {
+        String next = UUID.randomUUID().toString();
+        connectionId.set(next);
+        return next;
     }
 
     public String depthUpdate(long timestampNs, DepthUpdate update) {
@@ -93,7 +104,7 @@ public final class MessageFactory {
         payload.put("timestamp_ns", timestampNs);
         payload.put("protocol_version", BridgeConfig.PROTOCOL_VERSION);
         payload.put("stream_id", instrument.streamId());
-        payload.put("connection_id", instrument.connectionId());
+        payload.put("connection_id", connectionId.get());
         payload.put("session_id", instrument.sessionId());
         payload.put("alias", instrument.alias());
         payload.put("symbol", instrument.symbol());

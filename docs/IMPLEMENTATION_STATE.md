@@ -20,7 +20,9 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 - Bookmap bridge protocol 1.1 carries stream/session/connection identity,
   capabilities, provenance, and a global sequence across market and control
   events. Legacy single-event messages remain accepted outside strict production
-  mode. Production requires a compatible handshake.
+  mode. Production requires a compatible handshake. A transport reconnect
+  discards and counts the dead-socket backlog, rotates `connection_id`, and sends
+  a fresh handshake before the new Python WebSocket handler accepts market data.
 - Transport sends removed from the Java queue but not confirmed by the socket are
   counted as losses. The final JAR contains no Bookmap `velox` classes.
 - Session drop accounting now baselines the Java process-lifetime counter at each
@@ -39,10 +41,10 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 ## Verification evidence
 
 - Python: `804 passed, 4 warnings` in 106.03 seconds.
-- Java: `24` bridge tests; `clean test shadowJar` succeeded.
+- Java: `26` bridge tests; `clean test shadowJar` succeeded.
 - Acceptance verifier: `23/23` checks passed.
 - JAR: `bookmap_addon_java/build/libs/mnq-bookmap-forwarder-all.jar`,
-  26,226 bytes, 19 application classes, 0 `velox` classes.
+  26,816 bytes, 19 application classes, 0 `velox` classes.
 - Production-path load, 1,650 events/second target plus 5,000 burst:
   21,500 accepted and persisted, zero overflow/loss, final analysis lag 2.9188 ms.
 - Production-path load, 2,500 events/second target plus 6,000 burst:

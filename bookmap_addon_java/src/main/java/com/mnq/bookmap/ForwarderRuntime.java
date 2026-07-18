@@ -20,6 +20,8 @@ public final class ForwarderRuntime implements Closeable {
     private final ReconnectState reconnectState;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean reconnecting = new AtomicBoolean(false);
+    private final AtomicBoolean everConnected = new AtomicBoolean(false);
     /** Bounded budget for draining the queue on shutdown. */
     private static final long SHUTDOWN_DRAIN_MILLIS = 2_000L;
     /** True when the last close() could not deliver every queued message. */
@@ -224,10 +226,37 @@ public final class ForwarderRuntime implements Closeable {
             reconnectState.reset();
             return;
         }
-        transport.connect(config.websocketUri());
+        if (!everConnected.get()) {
+            transport.connect(config.websocketUri());
+            everConnected.set(true);
+            reconnectState.reset();
+            return;
+        }
+
+        // A new WebSocket handler requires a new protocol handshake before it
+        // will accept market events. Anything queued for the dead socket is an
+        // explicitly accounted causal gap, never replayed across the boundary.
+        reconnecting.set(true);
+        try {
+            queue.discardForReconnect();
+            messageFactory.rotateConnection();
+            transport.connect(config.websocketUri());
+            if (!transport.send(messageFactory.connected(
+                    nowNs(), sourceMode.get(), queue.droppedCount()))) {
+                throw new IllegalStateException("reconnect handshake was not confirmed");
+            }
+            queue.markSent();
+            reconnectState.reset();
+        } finally {
+            reconnecting.set(false);
+        }
     }
 
     private void enqueue(String payload) {
+        if (reconnecting.get()) {
+            queue.markTransportDrop();
+            return;
+        }
         queue.enqueue(payload);
     }
 

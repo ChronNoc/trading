@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import velox.api.layer1.annotations.Layer1ApiVersion;
 import velox.api.layer1.annotations.Layer1SimpleAttachable;
 import velox.api.layer1.annotations.Layer1StrategyName;
@@ -49,6 +51,8 @@ public final class TestRunner {
         testQueueDropAndDataGap();
         testTransportDropIsAccounted();
         testQueueGapMarkersAreRateLimited();
+        testReconnectDiscardsOldBacklog();
+        testRuntimeSendsFreshHandshakeAfterReconnect();
         testReconnectBackoff();
         testLoopbackPolicy();
         testRuntimeReplayLiveLifecycle();
@@ -193,6 +197,41 @@ public final class TestRunner {
             }
         }
         assertEquals(1L, gapMarkers, "one rate-limited gap marker for the burst");
+        testsRun++;
+    }
+
+    private void testReconnectDiscardsOldBacklog() throws Exception {
+        ForwardingQueue queue = new ForwardingQueue(4, factory());
+        queue.enqueue("one");
+        queue.enqueue("two");
+        assertEquals(2, queue.discardForReconnect(), "abandoned backlog count");
+        assertEquals(2L, queue.droppedCount(), "abandoned payloads are explicit drops");
+        assertContains(queue.take(1, TimeUnit.SECONDS), "\"type\":\"data_gap\"",
+                "fresh connection receives a gap marker");
+        testsRun++;
+    }
+
+    private void testRuntimeSendsFreshHandshakeAfterReconnect() throws Exception {
+        BridgeConfig config = BridgeConfig.defaults();
+        ReconnectingTransport transport = new ReconnectingTransport();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                transport,
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+        runtime.start();
+        runtime.publishConnected();
+        waitUntil(() -> transport.connectedPayloads() >= 1, 2_000L,
+                "initial handshake was not delivered");
+        String first = transport.firstConnectionId();
+        transport.failNextSend();
+        runtime.publishDepth(100L, true, 119085, 12);
+        waitUntil(() -> transport.connectCount() >= 2 && transport.connectedPayloads() >= 2,
+                2_000L, "fresh reconnect handshake was not delivered");
+        String last = transport.lastConnectionId();
+        runtime.close();
+        assertTrue(first != null && last != null && !first.equals(last),
+                "reconnect must rotate connection_id");
         testsRun++;
     }
 
@@ -555,6 +594,91 @@ public final class TestRunner {
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run();
+    }
+
+    private static void waitUntil(BooleanSupplier condition, long timeoutMillis, String message)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        while (System.nanoTime() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.sleep(10L);
+        }
+        throw new AssertionError(message);
+    }
+
+    private static String jsonString(String payload, String field) {
+        String prefix = "\"" + field + "\":\"";
+        int start = payload.indexOf(prefix);
+        if (start < 0) {
+            return null;
+        }
+        start += prefix.length();
+        int end = payload.indexOf('"', start);
+        return end < 0 ? null : payload.substring(start, end);
+    }
+
+    /** A deterministic socket that can fail one send and then reconnect. */
+    private static final class ReconnectingTransport implements JsonTransport {
+        private final java.util.List<String> sent = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final java.util.concurrent.atomic.AtomicInteger connects =
+                new java.util.concurrent.atomic.AtomicInteger();
+        private final AtomicBoolean failNext = new AtomicBoolean();
+        private volatile boolean open;
+
+        @Override
+        public void connect(URI uri) {
+            connects.incrementAndGet();
+            open = true;
+        }
+
+        @Override
+        public boolean send(String payload) {
+            if (!open || failNext.compareAndSet(true, false)) {
+                open = false;
+                return false;
+            }
+            sent.add(payload);
+            return true;
+        }
+
+        @Override
+        public boolean isOpen() {
+            return open;
+        }
+
+        @Override
+        public void close() {
+            open = false;
+        }
+
+        void failNextSend() {
+            failNext.set(true);
+        }
+
+        int connectCount() {
+            return connects.get();
+        }
+
+        int connectedPayloads() {
+            return (int) sent.stream().filter(value -> value.contains("\"type\":\"connected\"")).count();
+        }
+
+        String firstConnectionId() {
+            return sent.stream().filter(value -> value.contains("\"type\":\"connected\""))
+                    .findFirst().map(value -> jsonString(value, "connection_id")).orElse(null);
+        }
+
+        String lastConnectionId() {
+            String result = null;
+            for (String payload : sent) {
+                if (payload.contains("\"type\":\"connected\"")) {
+                    result = jsonString(payload, "connection_id");
+                }
+            }
+            return result;
+        }
     }
 
     /** Records every payload the runtime genuinely delivered. */

@@ -24,7 +24,7 @@ preserving the historical evidence. Starting HEAD:
 - Strategy checks now expose observed and required values. MBO-only behavior is
   `UNAVAILABLE` on the aggregated bridge rather than a generic failed condition.
 - Complete Python suite: **804 passed, 4 third-party deprecation warnings**.
-- Java: **24 bridge tests**, clean `shadowJar`; JAR 26,226 bytes, 19 classes,
+- Java: **26 bridge tests**, clean `shadowJar`; JAR 26,816 bytes, 19 classes,
   **0 `velox` classes**.
 - Acceptance verifier: **23/23 passed**.
 - Production-path load at a 2,500 events/second target plus a 6,000-event burst:

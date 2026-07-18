@@ -43,6 +43,17 @@ public final class ForwardingQueue {
         gapMarkerPending.set(true);
     }
 
+    /** Discard an old-connection backlog and account every abandoned payload. */
+    public int discardForReconnect() {
+        int abandoned = queue.size();
+        queue.clear();
+        if (abandoned > 0) {
+            droppedCount.addAndGet(abandoned);
+            gapMarkerPending.set(true);
+        }
+        return abandoned;
+    }
+
     /** Delivers a rate-limited data_gap marker ahead of queued messages when
      *  drops occurred. The marker is synthesized at take() time, so it can
      *  never be evicted by further overflow and never displaces real data. */
