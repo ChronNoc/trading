@@ -144,3 +144,75 @@ def test_finalized_session_flows_into_research_and_reports(tmp_path: Path) -> No
             process.wait(timeout=40)
         except subprocess.TimeoutExpired:
             process.kill()
+
+
+def test_bookmap_reconnects_produce_fresh_sessions_without_stalling(tmp_path: Path) -> None:
+    """Multi-day reality: the feed disconnects and reconnects.
+
+    Each connection must get its own session, the receiver must keep
+    listening, and both sessions' events must be recorded - no stall, no
+    duplicate backend state, no cross-session mixing.
+    """
+    import websockets
+
+    runtime = tmp_path / "runtime"
+    raw = tmp_path / "raw"
+    process = subprocess.Popen(
+        [sys.executable, "-m", "tools.start_backend",
+         "--runtime-dir", str(runtime), "--port", "0",
+         "--output-root", str(raw), "--max-seconds", "90",
+         "--delayed-data-minutes", "15"],
+        cwd=str(REPO), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        deadline = time.monotonic() + 30
+        port = 0
+        while time.monotonic() < deadline:
+            binding = runtime / "binding.json"
+            if binding.is_file():
+                port = int(json.loads(binding.read_text(encoding="utf-8"))["port"])
+                break
+            time.sleep(0.2)
+        assert port
+
+        async def one_connection(start: int, count: int, *, clean_end: bool) -> None:
+            async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap") as ws:
+                await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1,
+                                          "alias": "MNQU6", "addon_version": "0.1.0"}))
+                base = 1_752_537_751_000_000_000
+                for i in range(start, start + count):
+                    await ws.send(json.dumps({
+                        "type": "depth_update", "timestamp": base + i * 250_000_000,
+                        "symbol": "MNQ", "side": "bid" if i % 2 else "ask",
+                        "price": f"{29500 + (i % 20) * 0.25:.2f}",
+                        "previous_size": "0", "new_size": str(i % 30 + 1)}))
+                if clean_end:
+                    await ws.send(json.dumps({"type": "session_ended",
+                                              "timestamp_ns": base + 10**12,
+                                              "source_mode": "delayed",
+                                              "dropped_messages": 0,
+                                              "reason": "clean shutdown"}))
+                await asyncio.sleep(0.3)
+            # leaving the block closes the socket - an abrupt disconnect when
+            # clean_end is False, exactly like a feed drop.
+
+        asyncio.run(one_connection(0, 200, clean_end=False))   # feed drop
+        time.sleep(1.0)
+        asyncio.run(one_connection(200, 200, clean_end=True))  # clean session
+        time.sleep(2.0)
+
+        manifests = sorted(raw.rglob("session_manifest.json"))
+        assert len(manifests) == 2, "each connection must get its OWN session"
+        documents = [json.loads(m.read_text(encoding="utf-8")) for m in manifests]
+        totals = sorted(d["event_counts"]["depth_updates"] for d in documents)
+        assert totals == [200, 200], f"both sessions must hold their events: {totals}"
+        clean_flags = sorted(d.get("clean_shutdown", False) for d in documents)
+        assert clean_flags == [False, True], (
+            "the dropped connection finalizes unclean; the marked one clean"
+        )
+    finally:
+        StopRequest(runtime).request("test cleanup")
+        try:
+            process.wait(timeout=40)
+        except subprocess.TimeoutExpired:
+            process.kill()

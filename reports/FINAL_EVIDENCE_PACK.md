@@ -5,6 +5,39 @@ reproducible. Where something is unproven or unavailable, it says so.
 
 Base: `06f32fd` → head `38e68d4`, branch `feature/automatic-runtime`.
 
+## Production-readiness phase (final)
+
+**Strategy verified on REAL recordings** (read-only diagnostic replays):
+a 26.8M-event overnight session and RTH sessions through the production
+engine. The time-based window works on real data (absorption 60.6%, reload
+53.3%, CVD 45.4% pass rates overnight - all were 0% before). Overnight
+sessions reject honestly (RTH-only plan, message now says so). MEASURED: the
+real delayed book runs ~20 levels/side, top sizes 13-63 in thin RTH stretches -
+the fixture-calibrated 90/400 block thresholds are unreachable there. The
+canonical strategy is UNCHANGED; two experimental candidates (60/250, 40/150)
+joined the research grid so finalized-session learning can calibrate the
+threshold/quality relationship with evidence. Diagnostic replay at 40/150:
+stop location 68x, absorption 33x (vs 0 at canonical); full confluence stayed
+rare - the strategy being selective.
+
+**The complete product loop, proven in the real backend process**
+(`tests/test_learning_chain.py`): clean session over a real socket -> finalized
+`data_quality.ok: true` -> automatic episode build -> research ran all 5
+candidates exactly once -> daily learning + paper reports generated. Bookmap
+reconnects produce fresh sessions with correct clean/unclean flags, no stall.
+
+**20-minute production soak** (`tools/soak.py`): 1.2M+ events, lag p50 0.27 ms
+/ p95 0.73 ms, zero skips, zero causality breaks, evaluations continuously
+advancing, no drift across thirds of the run (no leak signature), under
+concurrent full-test-suite CPU load.
+
+**Defects found and fixed in this phase**: evaluate/derive block-selector
+incoherence (impossible tallies); silent provenance ineligibility (no reason
+emitted); harness sandbox hole (temp backends pointed processed/labels/
+research-state at the REAL data tree); PipelineStateHolder dropping the
+rotating wrapper (lost recorder metrics AND the capture-priority pressure
+signal - found by live soak metrics, not tests).
+
 ## Production-failure fix (this continuation)
 
 The running application failed on the REAL Bookmap stream: session drops
