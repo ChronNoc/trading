@@ -63,6 +63,7 @@ class SnapshotSource:
         receiver_status: Callable[[], object] | None = None,
         market_state: Callable[[], object] | None = None,
         paper_engine: object | None = None,
+        analysis_feed: object | None = None,
     ) -> None:
         """Bind the live components; all are optional for headless/GUI-only use."""
         self._controller = controller
@@ -71,6 +72,7 @@ class SnapshotSource:
         self._receiver_status = receiver_status
         self._market_state = market_state
         self._paper_engine = paper_engine
+        self._analysis_feed = analysis_feed
         from app.risk.account_profile import load_selected_profile
 
         self._profile = load_selected_profile()
@@ -193,7 +195,17 @@ class SnapshotSource:
         metrics = self._metrics()
         intake = getattr(metrics, "intake", {}) or {} if metrics else {}
         recorder = getattr(metrics, "recorder", {}) or {} if metrics else {}
+        feed_metrics = None
+        if self._analysis_feed is not None:
+            try:
+                feed_metrics = self._analysis_feed.metrics()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001
+                feed_metrics = None
         return CaptureSnapshot(
+            analysis_offered=getattr(feed_metrics, "offered", 0),
+            analysis_processed=getattr(feed_metrics, "processed", 0),
+            analysis_skipped=getattr(feed_metrics, "skipped", 0),
+            analysis_lag_ms=getattr(feed_metrics, "lag_ms", None),
             receiver_listening=bool(binding and getattr(binding, "listening", False)),
             bookmap_connected=bool(runtime and runtime.bookmap_status == "connected"),
             recording=bool(runtime and runtime.recording),

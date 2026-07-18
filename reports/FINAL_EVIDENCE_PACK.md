@@ -5,6 +5,49 @@ reproducible. Where something is unproven or unavailable, it says so.
 
 Base: `06f32fd` → head `38e68d4`, branch `feature/automatic-runtime`.
 
+## Production-failure fix (this continuation)
+
+The running application failed on the REAL Bookmap stream: session drops
+17,030 → 43,296 at ~1,331 ev/s, persisted ~1,285/s, processing age ~5,000 ms,
+session permanently invalidated, 18,614 evaluations with zero candidates.
+
+**Root cause 1 (drops):** ALL analysis ran inline on the receiver's asyncio
+loop. Strategy evaluation blocked `recv()`; TCP backpressure filled the Java
+ForwardingQueue; the JAVA side dropped (that is what "Session drops" counts).
+Three full MarketState.update calls per event tripled the per-event book-copy
+cost. **Fix:** `AnalysisFeed` — the capture loop only parses, guards, updates
+state once, records, and O(1)-offers; analysis runs on its own thread with
+capture-priority backpressure; overflow skips are paper-only, counted, and
+reported as causality gaps (position closed as DATA_GAP, re-warm before entry).
+
+**Root cause 2 (zero candidates):** the strategy window was 200 EVENTS ≈ 0.12
+SECONDS at the real rate — every time-scale order-flow condition was
+structurally unsatisfiable, in streaming and in replay alike. **Fix:**
+`CausalWindow` — 180 s market-time window, 250 ms sampling, 1/s evaluation
+cadence, shared by streaming and replay. Sampling provably preserves the
+canonical semantics (all volume/CVD measures are first-vs-last cumulative
+deltas; trades are never coalesced away). No threshold was changed.
+
+**Also found and fixed:** `session_ended` finalized the recorder while the
+pipeline queue still held the session's tail (silent tail loss every session);
+writer-thread re-validation (JSON round-trip per event) removed via
+`record_normalized`; manifest fsync throttled from ~2.7/s to 1 per 5 s;
+invalidated sessions now rotate to a fresh clean session after a 30 s healthy
+window (damage accounting untouched); FAIL messages now carry observed vs
+required values and the GUI shows per-condition pass/fail evidence.
+
+**Measured on the production path** (`tools/pipeline_loadtest.py`, real
+WebSocket, ~150-level books, real depth:trade mix, temp dirs):
+
+| Scenario | Result |
+|---|---|
+| 2,500 ev/s × 75 s, evaluations live | 187,500 sent = persisted = analysed; queues ~50; lag 0.18 ms |
+| 4,000 ev/s + 10,000 burst | 70,000 = 70,000 = 70,000; zero unintended loss; lag 3.5 ms |
+| Real-world before (screenshots) | −46 ev/s deficit at 1,331; 5,000 ms age; 43k drops |
+
+`tools/soak.py --minutes N --rate R` is the long-soak command (JSONL metrics,
+nonzero exit on conservation/lag/queue/stall breaches).
+
 ## Commits this continuation
 
 | Hash | Phase |

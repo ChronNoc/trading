@@ -463,12 +463,18 @@ class DiagnosticsScreen(_ListScreen):
     def render(self, snapshot: AppSnapshot) -> None:
         """Show queue/latency metrics and component transitions."""
         c = snapshot.capture
+        lag = "n/a" if c.analysis_lag_ms is None else f"{c.analysis_lag_ms:.1f} ms"
         self.body.setText("\n".join([
             f"Lifecycle: {snapshot.lifecycle_state}",
             f"Intake queue: {c.intake_occupancy}/{c.intake_capacity}",
             f"Recorder queue: {c.recorder_occupancy}/{c.recorder_capacity}",
             f"Recorder flush latency: {c.flush_latency_ms:.2f} ms",
             f"Persisted/s: {c.persisted_per_second:,.0f}",
+            "",
+            "Analysis feed (conservation — every event accounted):",
+            f"  offered {c.analysis_offered:,}   processed {c.analysis_processed:,}   "
+            f"skipped {c.analysis_skipped:,} (paper-only)",
+            f"  pipeline lag {lag} (excludes the intentional source delay)",
             "",
             "Components:",
             *[f"  • {comp.name}: {_HEALTH_TEXT[comp.health]} — {comp.detail}" for comp in snapshot.components],

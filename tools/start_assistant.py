@@ -407,19 +407,28 @@ def run_assistant(config: AssistantConfig) -> int:
             return 0
         return 0
 
+    from app.market.analysis_feed import AnalysisFeed
     from app.runtime.shutdown import ShutdownSignal
 
     shutdown = ShutdownSignal()
+    # The feed is created HERE so the GUI can display its conservation counters
+    # (offered/processed/skipped, lag) alongside intake/recorder metrics.
+    analysis_feed = AnalysisFeed(
+        pressure_check=lambda: (
+            pipeline_holder.worst_queue_occupancy_fraction() > 0.25
+        ),
+    )
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
         args=(config, controller, status_holder, research_service, pipeline_holder,
-              paper_engine, shutdown),
+              paper_engine, shutdown, analysis_feed),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
     try:
-        return _run_gui(controller, status_holder, research_service, pipeline_holder, paper_engine)
+        return _run_gui(controller, status_holder, research_service, pipeline_holder,
+                        paper_engine, analysis_feed)
     finally:
         # The window is gone; drain capture instead of letting process exit kill
         # the daemon thread mid-write.
@@ -520,6 +529,7 @@ def _run_gui(
     research_service: object | None = None,
     pipeline_holder: object | None = None,
     paper_engine: object | None = None,
+    analysis_feed: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -543,6 +553,7 @@ def _run_gui(
             receiver_status=status_holder.snapshot if status_holder is not None else None,
             market_state=get_current_market_state,
             paper_engine=paper_engine,
+            analysis_feed=analysis_feed,
         ),
     )
     window.show()

@@ -91,6 +91,12 @@ class CaptureSnapshot:
     recorder_capacity: int = 0
     flush_latency_ms: float = 0.0
     persisted_per_second: float = 0.0
+    # Analysis-feed conservation (events offered/processed/skipped off-loop
+    # and the pipeline lag, excluding the intentional source delay).
+    analysis_offered: int = 0
+    analysis_processed: int = 0
+    analysis_skipped: int = 0
+    analysis_lag_ms: float | None = None
 
     @property
     def queue_pressure(self) -> float:
