@@ -229,6 +229,16 @@ class AutomaticRuntimeController:
         )
         return self.snapshot(current_timestamp_ns=current_timestamp_ns)
 
+    def handle_prebuilt_state(self, event: Mapping[str, object], state: MarketState) -> None:
+        """Consume a receiver-built state without recomputing it.
+
+        The receiver already applied ``event`` to produce ``state``; rebuilding
+        it here duplicated an O(book) copy per event on the capture path. Runs
+        on the analysis thread, never on the receiver loop.
+        """
+        self.market_state = state
+        self.handle_market_state_snapshot(state, alias=_event_symbol(event))
+
     def handle_market_state_snapshot(
         self,
         state: MarketState,

@@ -17,10 +17,10 @@ def _finalized_delayed_session(raw_root: Path) -> None:
     price = Decimal("29500.00")
     for i in range(200):
         price += Decimal("0.25") if i % 2 == 0 else Decimal("-0.25")
-        rec.record({"type": "depth_update", "timestamp": base + i * 1_000_000, "symbol": "MNQ",
+        rec.record({"type": "depth_update", "timestamp": base + i * 500_000_000, "symbol": "MNQ",
                     "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
                     "previous_size": "0", "new_size": str(i % 40 + 1)})
-        rec.record({"timestamp_ns": base + i * 1_000_000 + 1, "price": f"{price:.2f}", "size": "1",
+        rec.record({"timestamp_ns": base + i * 500_000_000 + 1, "price": f"{price:.2f}", "size": "1",
                     "aggressor_side": "buy" if i % 2 else "sell", "instrument": "MNQ", "sequence_id": i + 1})
     rec.finalize(clean_shutdown=True)
 

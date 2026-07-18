@@ -139,6 +139,7 @@ async def run_headless_assistant(
     pipeline_holder: object | None = None,
     paper_engine_holder: object | None = None,
     shutdown: object | None = None,
+    analysis_feed: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -166,6 +167,44 @@ async def run_headless_assistant(
     if paper_engine is not None:
         paper_engine.bind_session("pending", "MNQ")
 
+    # ALL analysis (controller context + paper evaluation) runs on the feed's
+    # dedicated thread. Running it inline on this loop starved recv(), which
+    # backpressured TCP into the Java bridge queue and dropped real events -
+    # the measured 17k->43k session-drop failure. The loop now only parses,
+    # guards, records, and offers.
+    from app.market.analysis_feed import AnalysisFeed
+
+    def _capture_pressure() -> bool:
+        # Recording always outranks analysis: pause paper work while the
+        # recorder/intake queues are filling so the writer wins the GIL.
+        if pipeline_holder is None:
+            return False
+        try:
+            return pipeline_holder.worst_queue_occupancy_fraction() > 0.25  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001 - a broken gauge must not stall analysis
+            return False
+
+    feed = analysis_feed if analysis_feed is not None else AnalysisFeed(
+        pressure_check=_capture_pressure,
+    )
+    # The controller feeds GUI context and lifecycle - consumers read 1-2 Hz
+    # snapshots, so driving it per event (session resolve + zoneinfo each
+    # time) was pure waste that slowed the whole analysis thread. Coalesce
+    # to 10 Hz of market time; control events still reach it directly.
+    last_controller_ns = [0]
+
+    def _controller_sink(event: dict[str, object], state: object) -> None:
+        ts = getattr(state, "timestamp_ns", 0)
+        if ts - last_controller_ns[0] >= 100_000_000:  # 100 ms market time
+            last_controller_ns[0] = ts
+            controller.handle_prebuilt_state(event, state)
+
+    feed.add_sink(_controller_sink)
+    if paper_engine is not None:
+        feed.add_sink(lambda event, state: paper_engine.ingest(event, state))
+        feed.add_gap_sink(paper_engine.notify_causality_gap)
+    feed.start()
+
     def _pipelined_recorder() -> MarketSessionRecorder:
         # Bounded recorder stage: a dedicated writer thread persists batches so
         # a slow GUI or research burst can never stall capture. Metrics are real.
@@ -174,14 +213,14 @@ async def run_headless_assistant(
         # paper engine, the ledger, and the logs never show "unknown".
         if paper_engine is not None:
             paper_engine.bind_session(recorder.session_id, recorder.symbol or "MNQ")
-        return RecorderPipeline(recorder)  # type: ignore[return-value]
+        # events_prevalidated: everything reaching this pipeline came out of
+        # parse_stream_message; re-validating per event in the writer thread
+        # (a JSON round-trip each) made the writer the throughput ceiling.
+        return RecorderPipeline(recorder, events_prevalidated=True)  # type: ignore[return-value]
 
     server = await start_receiver_websocket_server(
         config.receiver_config,
-        on_market_event=resilient_handler(
-            lambda event: _dispatch_market_event(controller, paper_engine, event),
-            "market-event",
-        ),
+        on_event_state=feed.offer,
         on_control_event=resilient_handler(
             lambda event: controller.handle_control_event(event),
             "control-event",
@@ -233,9 +272,10 @@ async def run_headless_assistant(
                 status_holder.mark_unbound()
             if research_service is not None and hasattr(research_service, "stop"):
                 research_service.stop()
-            # Close any open simulated position before the engine stops receiving
-            # events, so the ledger reflects what the simulation actually knows
-            # instead of abandoning the position mid-flight.
+            # Drain queued analysis first so the paper engine has seen every
+            # event it is going to see, THEN close any open simulated position -
+            # the ledger reflects what the simulation actually knows.
+            feed.stop()
             if paper_engine is not None and hasattr(paper_engine, "flatten"):
                 paper_engine.flatten()  # type: ignore[attr-defined]
             controller.stop()
@@ -246,22 +286,6 @@ async def run_headless_assistant(
         finally:
             if shutdown is not None:
                 shutdown.mark_drained(drain_error)  # type: ignore[attr-defined]
-
-
-def _dispatch_market_event(
-    controller: AutomaticRuntimeController,
-    paper_engine: object | None,
-    event: dict[str, object],
-) -> None:
-    """Feed one market event to the runtime AND the delayed-paper engine.
-
-    Both consume the same validated event. The controller keeps broker/shadow
-    decisions disabled for delayed data; the paper engine evaluates it anyway,
-    because paper simulation is not broker execution.
-    """
-    controller.handle_market_event(event)
-    if paper_engine is not None:
-        paper_engine.on_market_event(event)  # type: ignore[attr-defined]
 
 
 def make_receiver_health_provider(
@@ -456,12 +480,14 @@ def _run_receiver_thread(
     pipeline_holder: object | None = None,
     paper_engine: object | None = None,
     shutdown: object | None = None,
+    analysis_feed: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
             config, controller, status_holder=status_holder,
             research_service=research_service, pipeline_holder=pipeline_holder,
             paper_engine_holder=paper_engine, shutdown=shutdown,
+            analysis_feed=analysis_feed,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))

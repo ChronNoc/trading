@@ -106,16 +106,26 @@ def main() -> int:
     for i in range(320):
         price += 0.25 if i % 2 == 0 else -0.25
         probe.on_market_event({
-            "type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 1_000_000,
+            "type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 500_000_000,
             "symbol": "MNQ", "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
             "previous_size": "0", "new_size": str(i % 40 + 1),
         })
     evaluations = probe.status().evaluations
     check("delayed_paper_evaluates_live_stream",
           evaluations > 0
-          and "_dispatch_market_event(controller, paper_engine, event)" in launcher_source
-          and "paper_engine.on_market_event(event)" in launcher_source,
-          f"streaming events produced {evaluations} evaluations; launcher feeds every event")
+          and "on_event_state=feed.offer" in launcher_source
+          and "paper_engine.ingest(event, state)" in launcher_source,
+          f"streaming events produced {evaluations} evaluations; every accepted event "
+          "reaches the paper engine via the analysis feed (off the capture loop)")
+
+    # 7e. Analysis must be OFF the capture loop. Running strategy evaluation
+    # inline starved recv(), backpressured TCP into the Java bridge queue, and
+    # dropped real events (measured 17k->43k session drops at ~1,331 ev/s).
+    check("analysis_off_capture_loop",
+          "feed.add_sink" in launcher_source
+          and "controller.handle_prebuilt_state" in launcher_source
+          and "feed.add_gap_sink(paper_engine.notify_causality_gap)" in launcher_source,
+          "controller + paper run on the analysis thread; gaps reported to paper")
 
     # 7c. Delayed paper actually OPENS, MANAGES and CLOSES simulated positions.
     # The regression this guards: the engine evaluated setups and recorded

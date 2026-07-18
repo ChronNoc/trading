@@ -98,6 +98,7 @@ async def consume_market_stream(
     max_messages: int | None = None,
     event_filter: Callable[[Mapping[str, object]], bool] | None = None,
     on_schema_error: Callable[[str], None] | None = None,
+    on_event_state: Callable[[Mapping[str, object], MarketState], None] | None = None,
 ) -> MarketReceiverResult:
     """Consume a WebSocket-like stream, update ``MarketState``, and optionally record events.
 
@@ -147,6 +148,12 @@ async def consume_market_stream(
             recorder.record(event)
         if on_market_event is not None:
             on_market_event(event)
+        if on_event_state is not None:
+            # Hands the ALREADY-BUILT state to the analysis feed - an O(1)
+            # enqueue. Analysis (controller context, paper evaluation) must
+            # never run inline here: it starves the socket, backpressures TCP,
+            # and overflows the Java bridge queue (real, measured data loss).
+            on_event_state(event, state)
         if on_state is not None:
             on_state(state)
         events_processed += 1

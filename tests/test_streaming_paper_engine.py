@@ -21,20 +21,21 @@ from app.paper.streaming_engine import (
 
 
 def _depth(i: int, price: Decimal) -> dict:
-    return {"type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 1_000_000,
+    return {"type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 500_000_000,
             "symbol": "MNQ", "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
             "previous_size": "0", "new_size": str(i % 40 + 1)}
 
 
 def _trade(i: int, price: Decimal) -> dict:
-    return {"timestamp_ns": 1_752_537_751_000_000_000 + i * 1_000_000 + 1, "price": f"{price:.2f}",
+    return {"timestamp_ns": 1_752_537_751_000_000_000 + i * 500_000_000 + 1, "price": f"{price:.2f}",
             "size": "1", "aggressor_side": "buy" if i % 2 else "sell", "instrument": "MNQ",
             "sequence_id": i + 1}
 
 
-def _stream(engine: DelayedPaperEngine, count: int) -> None:
+def _stream(engine: DelayedPaperEngine, count: int, *, start: int = 0) -> None:
     price = Decimal("29500.00")
-    for i in range(count):
+    for offset in range(count):
+        i = start + offset  # market time moves FORWARD across repeated calls
         price += Decimal("0.25") if i % 2 == 0 else Decimal("-0.25")
         engine.on_market_event(_depth(i, price))
         engine.on_market_event(_trade(i, price))
@@ -55,13 +56,13 @@ def test_warmup_is_bounded_and_visible_then_transitions_to_evaluating() -> None:
     """Warm-up must be visible and bounded, not an indefinite idle state."""
     engine = DelayedPaperEngine()
     engine.bind_session("s", "MNQ")
-    _stream(engine, 10)  # 20 events, below the warm-up threshold
+    _stream(engine, 10)  # 20 events spanning ~5s, below the 60s warm-up span
     warming = engine.status()
     assert warming.state == STATE_WARMING
     assert 0.0 < warming.warmup_fraction < 1.0
     assert warming.evaluations == 0  # honest: not yet evaluating
 
-    _stream(engine, 300)
+    _stream(engine, 300, start=10)
     ready = engine.status()
     assert ready.state == STATE_EVALUATING
     assert ready.warmup_fraction == 1.0
@@ -74,7 +75,7 @@ def test_evaluation_count_increases_as_the_stream_continues() -> None:
     engine.bind_session("s", "MNQ")
     _stream(engine, 300)
     first = engine.status().evaluations
-    _stream(engine, 300)
+    _stream(engine, 300, start=300)
     assert engine.status().evaluations > first
 
 
@@ -178,13 +179,27 @@ def test_paper_engine_cannot_reach_any_broker_module() -> None:
 
 
 def test_launcher_feeds_every_market_event_to_the_paper_engine() -> None:
-    """The wiring that makes evaluation automatic must stay in place."""
+    """The wiring that makes evaluation automatic must stay in place.
+
+    It is now the ANALYSIS FEED wiring: every accepted event is offered from
+    the capture loop (O(1)) and consumed by the paper engine on the feed's own
+    thread. Inline evaluation on the capture loop is the measured cause of the
+    real Bookmap drops and must never come back.
+    """
     source = Path("tools/start_assistant.py").read_text(encoding="utf-8")
     assert "DelayedPaperEngine()" in source, "the launcher must create the engine at startup"
-    assert "_dispatch_market_event(controller, paper_engine, event)" in source, (
-        "every market event must reach the paper engine"
+    assert "on_event_state=feed.offer" in source, (
+        "every accepted market event must be offered to the analysis feed"
     )
-    assert "paper_engine.on_market_event(event)" in source
+    assert "paper_engine.ingest(event, state)" in source, (
+        "the paper engine must consume events from the analysis thread"
+    )
+    assert "feed.add_gap_sink(paper_engine.notify_causality_gap)" in source, (
+        "an analysis overflow must be reported to the paper engine as a gap"
+    )
+    assert "paper_engine.on_market_event(event)" not in source, (
+        "inline paper evaluation on the capture loop is the drop root cause"
+    )
     # And the real session id must be bound when the recorder is created.
     assert "paper_engine.bind_session(recorder.session_id" in source
 

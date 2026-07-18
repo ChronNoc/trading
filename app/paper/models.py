@@ -57,6 +57,10 @@ class CloseReason(str, Enum):
     SESSION_CLOSE = "session_close"
     AMBIGUOUS = "ambiguous_same_event"
     KILL_SWITCH = "kill_switch"
+    # The analysis stream skipped events, so stop/target resolution between the
+    # last seen tick and now is unknowable. The position is closed rather than
+    # managed on a tape with holes. Recording is unaffected - this is paper-only.
+    DATA_GAP = "data_gap"
     OPEN = "open"
 
 

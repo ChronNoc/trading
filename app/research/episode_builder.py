@@ -61,6 +61,20 @@ class EpisodeConfig:
     window_size: int = 200
     warmup_events: int = 100
     decision_stride: int = 25
+    # --- time-based windowing (the real fix) ---------------------------------
+    # The event-count window above spans ~0.12 SECONDS at the real ~1,331 ev/s
+    # feed rate, which made every time-scale order-flow condition structurally
+    # unsatisfiable (18,614 evaluations, zero passes). The strategy window is
+    # now sized in market time and sampled; see app/strategy/causal_window.py
+    # for the proof that sampling preserves the canonical strategy semantics.
+    window_span_seconds: float = 180.0
+    depth_sample_interval_ms: float = 250.0
+    # Evaluate at most once per this much market time (was: every 25 events =
+    # ~53 evaluations/sec at the real rate, whose Decimal-heavy window scans
+    # starved the GIL and throttled the recorder writer).
+    evaluation_interval_ms: float = 1000.0
+    # Evaluation begins once the window covers this much market time.
+    warmup_span_seconds: float = 60.0
     timeout_seconds: int = 900
     dedupe_price_ticks: Decimal = Decimal("4")
     dedupe_seconds: int = 300
@@ -388,8 +402,16 @@ def build_episodes(
 
     events_iter, replay_stats = stream_session_events_with_stats(session_dir)
     result.ordering_mode = replay_stats.ordering_mode
+    from app.strategy.causal_window import CausalWindow
+
     state = MarketState()
-    window: deque[MarketState] = deque(maxlen=cfg.window_size)
+    # The SAME time-spanned sampled window the streaming engine uses, so
+    # replay and streaming cannot drift into two different strategies.
+    window = CausalWindow(
+        span_seconds=cfg.window_span_seconds,
+        sample_interval_ms=cfg.depth_sample_interval_ms,
+    )
+    last_evaluation_market_ns = 0
     pending: list[_Pending] = []
     completed: list[BuiltEpisode] = []
     decisions: list[DecisionAudit] = []
@@ -403,7 +425,7 @@ def build_episodes(
         canonical = _canonical_event_bytes(event)
         stream_hasher.update(canonical)
         state = state.update(event.payload)
-        window.append(state)
+        window.observe(state, event_index=event_index)
         reference = _reference_price(state)
         tracker.observe(event.timestamp_ns, reference)
 
@@ -416,25 +438,34 @@ def build_episodes(
             event_index,
             canonical,
             state,
-            tuple(window),
+            window.view(),
             cfg,
         )
 
         if event_index < cfg.warmup_events or not _is_decision_opportunity(event, thr):
             continue
-        decision_opportunities += 1
-        if decision_opportunities % cfg.decision_stride != 0:
+        if window.span_seconds < cfg.warmup_span_seconds or len(window) < 2:
             continue
+        # Market-time evaluation cadence, identical to the streaming engine.
+        interval_ns = int(cfg.evaluation_interval_ms * 1e6)
+        if interval_ns > 0:
+            if event.timestamp_ns - last_evaluation_market_ns < interval_ns:
+                continue
+            last_evaluation_market_ns = event.timestamp_ns
+        else:
+            decision_opportunities += 1
+            if decision_opportunities % cfg.decision_stride != 0:
+                continue
 
         for direction in (TradeDirection.LONG, TradeDirection.SHORT):
             derived = derive_strategy_context(
-                tuple(window),
+                window.view(),
                 direction,
                 tracker,
                 thr,
                 stop_buffer_points=cfg.stop_buffer_points,
             )
-            evaluation = evaluate_day_trading_plan(tuple(window), derived.context, thr)
+            evaluation = evaluate_day_trading_plan(window.view(), derived.context, thr)
             result.evaluations += 1
             setup_id = f"{session_id}:{direction.value}:{event_index}"
             strategy_accepted = evaluation.accepted
@@ -481,7 +512,7 @@ def build_episodes(
                 reasons=reasons,
                 context=derived.evidence(),
                 prefix_hash=stream_hasher.copy().hexdigest(),
-                source_event_range=(max(1, event_index - len(window) + 1), event_index),
+                source_event_range=(max(1, window.info().first_event_index), event_index),
                 ordering_mode=replay_stats.ordering_mode,
             )
             decisions.append(audit)

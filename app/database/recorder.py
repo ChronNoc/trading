@@ -37,6 +37,9 @@ _LOCK_REGISTRY_GUARD = threading.Lock()
 # the destination, so a rename must be retried to be reliable.
 REPLACE_ATTEMPTS = 8
 REPLACE_INITIAL_DELAY = 0.01
+# Mid-session manifest rewrites are informational; cap their frequency so the
+# fsync+rename cost cannot stall the writer thread every 500 events.
+MANIFEST_MIN_INTERVAL_SECONDS = 5.0
 
 DEPTH_SCHEMA = pa.schema(
     [
@@ -154,6 +157,7 @@ class MarketSessionRecorder:
     _receive_sequence: int = field(init=False, default=0)
     _depth_part_index: int = field(init=False, default=0)
     _trade_part_index: int = field(init=False, default=0)
+    _last_manifest_monotonic: float = field(init=False, default=0.0)
     utc_end: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
@@ -212,7 +216,23 @@ class MarketSessionRecorder:
         """
         if self.finalized:
             raise RuntimeError("cannot record market events after session finalization")
-        normalized_event = normalize_market_event(event)
+        return self._record_validated(normalize_market_event(event))
+
+    def record_normalized(self, event: Mapping[str, object]) -> Path:
+        """Persist an event that ``parse_stream_message`` already validated.
+
+        The streaming path parses and schema-validates every event once at the
+        socket. ``record`` then re-ran ``normalize_market_event`` - a full JSON
+        serialize -> parse -> validate round-trip PER EVENT in the writer
+        thread, purely redundant work that made the writer the throughput
+        ceiling under load. Call this ONLY with events produced by the stream
+        parser; raw external dicts must keep going through ``record``.
+        """
+        if self.finalized:
+            raise RuntimeError("cannot record market events after session finalization")
+        return self._record_validated(event)
+
+    def _record_validated(self, normalized_event: Mapping[str, object]) -> Path:
         event_kind = market_event_kind(normalized_event)
         self._receive_sequence += 1
         if event_kind == "depth":
@@ -222,7 +242,7 @@ class MarketSessionRecorder:
             output_path = self.depth_path
             if len(self._depth_buffer) >= PARQUET_FLUSH_THRESHOLD:
                 self._flush_depth()
-                self._write_manifest()
+                self._maybe_write_manifest()
         else:
             self._trade_buffer.append(_trade_row(normalized_event, self._receive_sequence))
             self.trades += 1
@@ -230,8 +250,22 @@ class MarketSessionRecorder:
             output_path = self.trades_path
             if len(self._trade_buffer) >= PARQUET_FLUSH_THRESHOLD:
                 self._flush_trades()
-                self._write_manifest()
+                self._maybe_write_manifest()
         return output_path
+
+    def _maybe_write_manifest(self) -> None:
+        """Rewrite the manifest at most every few seconds during recording.
+
+        The manifest was rewritten (fsync + locked rename) after EVERY 500-row
+        flush - ~2.7 stalls/second at the real event rate, each an fsync the
+        writer thread waited on, and each a fresh invitation for the antivirus
+        scanner to hold the file. Mid-session manifests are informational;
+        ``finalize``/``flush`` still write the authoritative one unconditionally.
+        """
+        now = time.monotonic()
+        if now - self._last_manifest_monotonic >= MANIFEST_MIN_INTERVAL_SECONDS:
+            self._last_manifest_monotonic = now
+            self._write_manifest()
 
     def flush(self) -> None:
         """Write buffered rows as atomically closed, immediately readable parts."""

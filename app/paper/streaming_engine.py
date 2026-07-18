@@ -113,6 +113,17 @@ class PaperEngineStatus:
     # corrupt every downstream number while the GUI still looked healthy, so the
     # count is surfaced rather than hidden behind a stale error string.
     malformed_events: int = 0
+    # --- analysis-stream integrity -------------------------------------------
+    # Events the bounded analysis feed skipped (recording was unaffected), how
+    # many distinct gaps occurred, and how many events of re-warm-up remain
+    # before entries are allowed again. Entries are refused while a gap is
+    # unresolved or re-warm-up is outstanding: no trading on a tape with holes.
+    analysis_events_skipped: int = 0
+    causality_breaks: int = 0
+    rewarm_remaining: int = 0
+    # Market time the analysis window currently covers (the quantity that
+    # gates evaluation; warmup fields above are also expressed in seconds).
+    window_span_seconds: float = 0.0
     # --- simulated execution -------------------------------------------------
     candidates: int = 0
     risk_rejected: int = 0
@@ -173,11 +184,19 @@ class DelayedPaperEngine:
         self._config = config or EpisodeConfig()
         self._thresholds = thresholds or OrderFlowThresholds(tick_size=self._config.tick_size)
         self._tracker = CausalLevelTracker()
-        self._window: deque[MarketState] = deque(maxlen=self._config.window_size)
+        from app.strategy.causal_window import CausalWindow
+
+        # Time-spanned, sampled window (the fix for both the 0.12s-window
+        # zero-candidates defect AND the evaluation-cost GIL starvation).
+        self._window = CausalWindow(
+            span_seconds=self._config.window_span_seconds,
+            sample_interval_ms=self._config.depth_sample_interval_ms,
+        )
+        self._last_evaluation_market_ns = 0
         self._state = MarketState()
         self._lock = threading.Lock()
         self._status = PaperEngineStatus(
-            warmup_events_required=self._config.warmup_events,
+            warmup_events_required=int(self._config.warmup_span_seconds),
             state=STATE_WAITING,
         )
         self._rejections: Counter[str] = Counter()
@@ -185,6 +204,8 @@ class DelayedPaperEngine:
         self._decision_opportunities = 0
         self._evaluations: deque[EvaluationRecord] = deque(maxlen=500)
         self._exec_config = ExecutionConfig()
+        self._gap_pending = False
+        self._rewarm_remaining = 0
         self._peak_balance = self._profile.account_size  # type: ignore[union-attr]
         self._risk_rejections: Counter[str] = Counter()
         self._closed_trades: deque[PaperTrade] = deque(maxlen=500)
@@ -224,17 +245,35 @@ class DelayedPaperEngine:
         Causal by construction: only events already seen are in the window, and a
         decision is taken from that window alone.
         """
-        try:
-            self._state = self._state.update(event)
-        except Exception as error:  # noqa: BLE001 - a bad event must not kill capture
-            with self._lock:
-                self._status.state = STATE_ERROR
-                self._status.error = f"{type(error).__name__}: {error}"
-                self._status.malformed_events += 1
-            return
+        self.ingest(event, None)
 
-        self._window.append(self._state)
+    def ingest(self, event: Mapping[str, object], state: object | None) -> None:
+        """Advance with one event, reusing a receiver-built state when given.
+
+        The receiver already computed the post-event ``MarketState`` on the
+        capture path; recomputing it here duplicated an O(book) copy per event
+        (a real MNQ book holds hundreds of levels). ``MarketState`` is
+        immutable, so sharing the instance is safe.
+        """
+        if state is not None:
+            self._state = state  # type: ignore[assignment]
+        else:
+            try:
+                self._state = self._state.update(event)
+            except Exception as error:  # noqa: BLE001 - a bad event must not kill capture
+                with self._lock:
+                    self._status.state = STATE_ERROR
+                    self._status.error = f"{type(error).__name__}: {error}"
+                    self._status.malformed_events += 1
+                return
+
         self._event_index += 1
+        self._window.observe(self._state, event_index=self._event_index)
+        # A causality gap (the analysis feed skipped events) is resolved before
+        # anything else: the open position cannot be honestly managed across a
+        # hole in the tape, and the window must rebuild from gap-free data.
+        if self._gap_pending:
+            self._resolve_causality_gap()
         # Capabilities are OBSERVED from the real stream, never declared: a
         # depth-only feed must report trades as degraded, not available.
         self._capabilities = self._capabilities.observe_event(event)
@@ -247,20 +286,77 @@ class DelayedPaperEngine:
         if tick is not None:
             self._advance_execution(tick)
 
+        span = self._window.span_seconds
+        warmup_span = self._config.warmup_span_seconds
         with self._lock:
             self._status.events_seen = self._event_index
-            self._status.warmup_events_seen = min(self._event_index, self._config.warmup_events)
-            if self._event_index < self._config.warmup_events:
+            self._status.window_span_seconds = span
+            self._status.warmup_events_seen = int(min(span, warmup_span))
+            self._status.warmup_events_required = int(warmup_span)
+            if span < warmup_span or len(self._window) < 2:
                 self._status.state = STATE_WARMING
+                self._status.rewarm_remaining = int(max(0.0, warmup_span - span))
                 return
             self._status.state = STATE_EVALUATING
+            self._status.rewarm_remaining = 0
 
-        # Only depth/trade events are decision opportunities; stride keeps the
-        # cost bounded without ever looking ahead.
-        self._decision_opportunities += 1
-        if self._decision_opportunities % self._config.decision_stride != 0:
-            return
+        # Evaluation cadence is MARKET TIME, not an event count: at the real
+        # ~1,331 ev/s an every-25-events stride ran ~53 Decimal-heavy window
+        # scans per second and starved the recorder writer of the GIL.
+        interval_ns = int(self._config.evaluation_interval_ms * 1e6)
+        now_ns = self._state.timestamp_ns
+        if interval_ns > 0:
+            if now_ns - self._last_evaluation_market_ns < interval_ns:
+                return
+            self._last_evaluation_market_ns = now_ns
+        else:
+            self._decision_opportunities += 1
+            if self._decision_opportunities % self._config.decision_stride != 0:
+                return
         self._evaluate_now(tick)
+
+    def notify_causality_gap(self, skipped: int) -> None:
+        """Record that ``skipped`` events never reached analysis.
+
+        Called by the analysis feed (from its own thread) when its bounded
+        queue overflowed. Recording upstream is unaffected; PAPER must now stop
+        trusting its window. Resolution happens on the next ingested event.
+        """
+        with self._lock:
+            self._status.analysis_events_skipped += skipped
+            self._status.causality_breaks += 1
+        self._gap_pending = True
+
+    def _resolve_causality_gap(self) -> None:
+        """Close exposure, drop the holed window, and require a re-warm-up.
+
+        A stop or target may have been touched inside the gap; managing the
+        position onward would assign it an unknowable outcome, so it is closed
+        at the first post-gap price and labelled DATA_GAP. A pending order is
+        cancelled - its causal fill window contained the hole.
+        """
+        tick = self._tick()
+        if self._executor.position is not None and tick is None:
+            return  # no post-gap price yet; retry on the next event
+        self._gap_pending = False
+        if tick is not None and self._executor.position is not None:
+            trade = self._executor.liquidate(tick, CloseReason.DATA_GAP)
+            if trade is not None:
+                self._closed_trades.append(trade)
+                for callback in self._on_trade_closed:
+                    try:
+                        callback(trade)  # type: ignore[operator]
+                    except Exception:  # noqa: BLE001,S110
+                        pass
+        self._executor.pending = None
+        # The window contained the hole: rebuild from post-gap events only.
+        # Clearing it re-engages the span-based warm-up gate, so no evaluation
+        # (and no entry) can happen until a full gap-free span exists again.
+        self._window.clear()
+        self._window.observe(self._state, event_index=self._event_index)
+        with self._lock:
+            self._status.rewarm_remaining = int(self._config.warmup_span_seconds)
+        self._sync_execution_status(tick)
 
     def _tick(self) -> MarketTick | None:
         """Build the executor's causal view of the current event, if priced."""
@@ -294,7 +390,7 @@ class DelayedPaperEngine:
         self._sync_execution_status(tick)
 
     def _evaluate_now(self, tick: MarketTick | None) -> None:
-        window = tuple(self._window)
+        window = self._window.view()
         if not window:
             return
         for direction in (TradeDirection.LONG, TradeDirection.SHORT):

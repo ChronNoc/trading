@@ -83,7 +83,7 @@ def _absorption_long_events(*, follow_through_to_target: bool = False) -> list[d
 def _engine() -> DelayedPaperEngine:
     """An engine that evaluates every event (fixture-scale warm-up and stride)."""
     return DelayedPaperEngine(
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
         is_synthetic_fixture=True,
     )
 
@@ -212,12 +212,12 @@ def test_positions_are_managed_on_every_event_not_only_on_decision_events() -> N
     """A stop may not wait for the next evaluation: exposure resolves per event."""
     engine = DelayedPaperEngine(
         # A wide stride means evaluations are rare; management must not be.
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
         is_synthetic_fixture=True,
     )
     _run(_absorption_long_events(), engine)
     assert engine.status().open_position.startswith("long")
-    engine._config = EpisodeConfig(warmup_events=1, decision_stride=1_000_000)  # noqa: SLF001
+    engine._config = EpisodeConfig(warmup_events=1, decision_stride=1_000_000, warmup_span_seconds=0, evaluation_interval_ms=1e12, depth_sample_interval_ms=0)  # noqa: SLF001
     # Drive price down through the stop on a non-decision event.
     engine.on_market_event(_depth(BASE_NS + 20 * SEC, "bid", _price("80.00"), "0", "50"))
     engine.on_market_event(_depth(BASE_NS + 21 * SEC, "ask", _price("80.25"), "0", "50"))

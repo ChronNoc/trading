@@ -209,11 +209,23 @@ class RecorderPipeline:
         capacity: int = 50_000,
         batch_size: int = 500,
         clock: Callable[[], float] = time.perf_counter,
+        events_prevalidated: bool = False,
     ) -> None:
-        """Wrap ``recorder`` (delegating everything else to it)."""
+        """Wrap ``recorder`` (delegating everything else to it).
+
+        ``events_prevalidated=True`` routes writes through the recorder's
+        ``record_normalized`` fast path. Only the streaming wiring may set it:
+        events there come out of ``parse_stream_message`` already validated,
+        and re-validating each one in the writer thread (a JSON round-trip per
+        event) made the writer the throughput ceiling under real load.
+        """
         if capacity <= 0 or batch_size <= 0:
             raise ValueError("capacity and batch_size must be positive")
         self._recorder = recorder
+        self._write = (
+            getattr(recorder, "record_normalized", None)
+            if events_prevalidated else None
+        ) or recorder.record
         self._clock = clock
         self._batch_size = batch_size
         self._queue: deque[tuple[Mapping[str, object], float]] = deque()
@@ -252,7 +264,18 @@ class RecorderPipeline:
         self._wake.set()
 
     def record_control_event(self, event: Mapping[str, object]) -> object:
-        """Control events are rare; delegate synchronously."""
+        """Control events are rare; delegate synchronously - after draining when
+        the control event can FINALIZE the session.
+
+        ``session_ended`` finalized the underlying recorder while this queue
+        still held the session's tail; the writer then failed every remaining
+        event with "cannot record after finalization". At the real event rate
+        that silently cost the last seconds of EVERY session. Market events
+        precede their session_ended on the wire, so draining first preserves
+        exact ordering.
+        """
+        if str(event.get("type", "")) in ("session_ended", "disconnected"):
+            self.drain()
         return self._recorder.record_control_event(event)
 
     def finalize(self, *, clean_shutdown: bool, reason: str | None = None) -> None:
@@ -350,7 +373,7 @@ class RecorderPipeline:
         for event, _enqueued in batch:
             for attempt in range(self._max_write_attempts):
                 try:
-                    self._recorder.record(event)
+                    self._write(event)
                     written += 1
                     break
                 except Exception as error:  # noqa: BLE001 - retry, then fail closed

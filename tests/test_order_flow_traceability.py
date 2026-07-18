@@ -32,10 +32,10 @@ def _fixture(tmp_path: Path) -> Path:
     price = Decimal("29500.00")
     for i in range(300):
         price += Decimal("0.25") if i % 2 == 0 else Decimal("-0.25")
-        rec.record({"type": "depth_update", "timestamp": base + i * 1_000_000, "symbol": "MNQ",
+        rec.record({"type": "depth_update", "timestamp": base + i * 500_000_000, "symbol": "MNQ",
                     "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
                     "previous_size": "0", "new_size": str(i % 50 + 1)})
-        rec.record({"timestamp_ns": base + i * 1_000_000 + 1, "price": f"{price:.2f}", "size": "2",
+        rec.record({"timestamp_ns": base + i * 500_000_000 + 1, "price": f"{price:.2f}", "size": "2",
                     "aggressor_side": "buy" if i % 2 else "sell", "instrument": "MNQ", "sequence_id": i + 1})
     rec.finalize(clean_shutdown=True)
     return rec.session_dir

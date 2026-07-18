@@ -265,3 +265,30 @@ def test_write_failure_propagates_to_manifest_and_fails_closed(tmp_path: Path) -
     assert flaky.clean_shutdown is False, "a segment that lost events can never be clean"
     assert "lost" in (flaky.finalize_reason or "")
     assert any("write failed" in r for r in flaky.rejected), "loss must reach the manifest"
+
+
+def test_session_ended_drains_the_pipeline_before_finalizing(tmp_path) -> None:
+    """The session tail must not die when session_ended arrives.
+
+    Real bug: session_ended finalized the underlying recorder while the
+    pipeline queue still held the session's last events; the writer then
+    failed every one with "cannot record after finalization". At the real
+    ~1,331 ev/s this silently cost the final seconds of every session.
+    """
+    from app.database.recorder import MarketSessionRecorder
+    from app.market.bounded_pipeline import RecorderPipeline
+
+    recorder = MarketSessionRecorder(root_dir=tmp_path)
+    pipeline = RecorderPipeline(recorder, capacity=10_000, batch_size=50)
+    base = 1_752_537_751_000_000_000
+    for i in range(1_200):  # enough to guarantee a queued backlog
+        pipeline.record({"type": "depth_update", "timestamp": base + i * 1_000_000,
+                         "symbol": "MNQ", "side": "bid", "price": "29500.00",
+                         "previous_size": "0", "new_size": "1"})
+    # The finalizing control event arrives while the queue is still busy.
+    pipeline.record_control_event({"type": "session_ended", "timestamp_ns": base + 2_000_000_000,
+                                   "source_mode": "delayed", "reason": "clean shutdown"})
+    assert recorder.depth_updates == 1_200, "every queued event must persist BEFORE finalization"
+    assert recorder.finalized is True
+    assert pipeline.metrics.overflow == 0
+    assert pipeline.lost_events == 0

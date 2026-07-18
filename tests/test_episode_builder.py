@@ -110,7 +110,7 @@ def test_streaming_state_machine_outcomes(
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1, timeout_seconds=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0, timeout_seconds=1),
     )
     matching = [episode for episode in result.episodes if episode.outcome == expected]
     assert matching, result.rejected_condition_tally
@@ -134,7 +134,7 @@ def test_receive_sequence_resolves_same_timestamp_first_touch(
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     assert result.ordering_mode == "receive_sequence"
     assert result.episodes[0].outcome == "target_first"
@@ -147,7 +147,7 @@ def test_setup_deduplication_logs_duplicate_decisions(tmp_path: Path, monkeypatc
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     assert result.accepted_candidates == 1
     assert result.duplicate_candidates > 0
@@ -160,7 +160,7 @@ def test_future_outcome_does_not_change_decision_prefix(tmp_path: Path, monkeypa
     _force_direction(monkeypatch, "long")
     target_dir = _simple_session(tmp_path / "target", direction="long", outcome="target")
     stop_dir = _simple_session(tmp_path / "stop", direction="long", outcome="stop")
-    config = EpisodeConfig(warmup_events=1, decision_stride=1)
+    config = EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0)
     target_result = build_episodes(target_dir, session_id="same", provenance="REAL_DELAYED", config=config)
     stop_result = build_episodes(stop_dir, session_id="same", provenance="REAL_DELAYED", config=config)
     first_target = next(decision for decision in target_result.decisions if decision.accepted)
@@ -180,7 +180,7 @@ def test_old_timestamp_only_collision_excludes_completed_episode(
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     assert result.ordering_mode == "timestamp_fallback"
     assert result.ordering_ambiguous is True
@@ -198,7 +198,7 @@ def test_artifacts_are_traceable_and_synthetic_is_structurally_rejected(
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     processed = tmp_path / "processed"
     labels = tmp_path / "labels"
@@ -225,7 +225,7 @@ def test_zero_acceptance_still_writes_honest_decisions_and_empty_labels(
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     episodes_path, labels_path = write_episode_artifacts(
         result,
@@ -250,7 +250,7 @@ def test_builder_does_not_modify_raw_files(tmp_path: Path, monkeypatch: pytest.M
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     after = {
         path.relative_to(session_dir).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -266,7 +266,7 @@ def test_existing_strategy_accepts_clean_long_sequence(tmp_path: Path) -> None:
         session_dir,
         session_id=session_dir.name,
         provenance="REAL_DELAYED",
-        config=EpisodeConfig(warmup_events=1, decision_stride=1),
+        config=EpisodeConfig(warmup_events=1, decision_stride=1, warmup_span_seconds=0, evaluation_interval_ms=0, depth_sample_interval_ms=0),
     )
     accepted_long = [decision for decision in result.decisions if decision.accepted and decision.direction == "long"]
     assert accepted_long, result.rejected_condition_tally
