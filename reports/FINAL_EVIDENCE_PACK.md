@@ -1,5 +1,45 @@
 # Evidence Pack — paper execution, durability, diagnostics
 
+## 2026-07-19 continuation update
+
+This section supersedes older test totals and current-state claims below while
+preserving the historical evidence. Starting HEAD:
+`dfc3759c8806256adcf006431f24544dc987b11a`.
+
+- Persistent detached supervisor/backend implemented with an OS-held singleton
+  lease, versioned process identity, PID-reuse protection, configuration
+  fingerprint, startup handshake, health timeout, bounded restart/backoff, and
+  verified clean stop. Killing a healthy test backend caused the supervisor to
+  replace it and recover to healthy without starting a duplicate.
+- The GUI is now an attachable client. Snapshot providers run outside Qt and
+  emit immutable, strictly decoded snapshots. Closing/reopening the GUI cannot
+  own or stop capture.
+- Bridge protocol 1.1 adds a global stream sequence and strict production
+  handshake. Stream gaps, missed events, duplicates, out-of-order events,
+  malformed/rejected messages, bridge drops, and persistence loss are named and
+  included in eligibility. A transport payload removed but not confirmed sent
+  is counted as a real loss.
+- The Java bridge's process-lifetime drop counter is baselined at each new
+  session. Old loss no longer invalidates a fresh session; new loss still does.
+- Strategy checks now expose observed and required values. MBO-only behavior is
+  `UNAVAILABLE` on the aggregated bridge rather than a generic failed condition.
+- Complete Python suite: **804 passed, 4 third-party deprecation warnings**.
+- Java: **24 bridge tests**, clean `shadowJar`; JAR 26,226 bytes, 19 classes,
+  **0 `velox` classes**.
+- Acceptance verifier: **23/23 passed**.
+- Production-path load at a 2,500 events/second target plus a 6,000-event burst:
+  **31,000 accepted = 31,000 persisted = 31,000 analysed**, zero unexplained
+  loss, zero overflow, final lag 1.8601 ms.
+- Production-process soak at 1,650 events/second for 72 seconds:
+  **122,924 accepted = 122,924 persisted**, zero analysis skips, 30 causal paper
+  evaluations, analysis queue high-water 31, PASS.
+
+This update is automated integration evidence, not a real Bookmap-market claim.
+No new live/delayed Bookmap session or real Tradovate DEMO session was available.
+The 30-minute command exists but was not run in this continuation. Historical
+recordings remain untouched, LIVE remains locked, and profitability is not
+claimed.
+
 Every number below was produced by a command in this repository and is
 reproducible. Where something is unproven or unavailable, it says so.
 

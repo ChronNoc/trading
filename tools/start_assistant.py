@@ -1,4 +1,4 @@
-"""One-click automatic SHADOW runtime launcher for the MNQ assistant."""
+"""One-click delayed-paper runtime launcher for the MNQ assistant."""
 
 from __future__ import annotations
 
@@ -277,6 +277,7 @@ async def run_headless_assistant(
         ),
         feed_guard=feed_guard,
         on_connection_started=(pipeline_holder.attach if pipeline_holder is not None else None),  # type: ignore[union-attr]
+        require_protocol_handshake=True,
     )
     actual_config = ReceiverServerConfig(
         host=config.host,
@@ -286,11 +287,11 @@ async def run_headless_assistant(
     )
     if status_holder is not None:
         status_holder.mark_bound(config.host, server.port)
-    print("MNQ Assistant running in SHADOW mode.", flush=True)
+    print("MNQ Assistant running in DELAYED PAPER mode.", flush=True)
     if config.delayed_data_minutes > 0:
         print(
             f"Bookmap delayed data mode: {config.delayed_data_minutes} minutes. "
-            "Recording only; shadow decisions disabled.",
+            "Recording and causal paper simulation enabled; broker routing disabled.",
             flush=True,
         )
     print(startup_message(actual_config), flush=True)
@@ -410,11 +411,28 @@ def run_assistant(config: AssistantConfig) -> int:
         # runtime/status.json heartbeat. Closing or restarting this GUI process
         # cannot interrupt capture, recording, paper, or research: the GUI holds
         # no socket, thread, or object of the backend's.
-        from tools.backend_supervisor import ensure_backend
+        from tools.backend_supervisor import BackendSpec, ensure_supervisor
 
-        if not ensure_backend(config.runtime_dir, port=config.port,
-                              delayed_data_minutes=config.delayed_data_minutes):
-            print("Backend did not start; see runtime/backend.out", file=sys.stderr, flush=True)
+        backend_spec = BackendSpec(
+            host=config.host,
+            port=config.port,
+            delayed_data_minutes=config.delayed_data_minutes,
+            output_root=str(config.output_root),
+            report_root=str(config.report_root),
+            session_config=str(config.session_config),
+            paper_ledger_path=str(config.paper_ledger_path),
+            log_dir=str(config.log_dir),
+            processed_root=str(config.processed_root),
+            labels_root=str(config.labels_root),
+            research_state_root=str(config.research_state_root),
+        )
+        if not ensure_supervisor(config.runtime_dir, spec=backend_spec):
+            print(
+                "Backend supervisor did not become ready; see runtime/supervisor.out "
+                "and runtime/backend.out",
+                file=sys.stderr,
+                flush=True,
+            )
             return 2
         from app.gui.file_snapshot import FileSnapshotProvider
 
@@ -513,7 +531,7 @@ def _shutdown_receiver(shutdown: object, thread: threading.Thread,
 
 def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
     """Parse command-line arguments into an assistant config."""
-    parser = argparse.ArgumentParser(description="Start the MNQ assistant in automatic SHADOW mode.")
+    parser = argparse.ArgumentParser(description="Start the MNQ assistant in automatic delayed-paper mode.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--path", default="/bookmap")
@@ -529,7 +547,7 @@ def parse_args(argv: Sequence[str] | None = None) -> AssistantConfig:
         "--delayed-data-minutes",
         type=int,
         default=0,
-        help="Mark incoming Bookmap data as delayed and force recording-only mode.",
+        help="Record the source delay while keeping causal delayed-paper simulation enabled.",
     )
     args = parser.parse_args(argv)
     if args.port <= 0:

@@ -42,6 +42,10 @@ SCREEN_ORDER = (
 _HEALTH_TEXT = {
     Health.OK: "OK", Health.WARN: "WARNING", Health.FAIL: "FAILED",
     Health.IDLE: "idle", Health.LOCKED: "LOCKED",
+    Health.WARMING_UP: "WARMING UP", Health.DEGRADED: "DEGRADED",
+    Health.THROTTLED: "THROTTLED", Health.INVALIDATED: "INVALIDATED",
+    Health.PAUSED: "PAUSED", Health.STOPPING: "STOPPING",
+    Health.UNAVAILABLE: "UNAVAILABLE",
 }
 
 

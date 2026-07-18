@@ -12,14 +12,23 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from app.gui.snapshot_codec import decode_snapshot, encode_snapshot
-from app.runtime.process_files import SingletonLock, StatusFile, StopRequest, pid_alive
+from app.runtime.process_files import (
+    ProcessIdentity,
+    SingletonLock,
+    StatusFile,
+    StopRequest,
+    configuration_fingerprint,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -61,6 +70,28 @@ def test_codec_rejects_a_different_schema_version() -> None:
         raise AssertionError("an unknown schema must be refused, not misparsed")
 
 
+def test_codec_rejects_missing_and_unknown_snapshot_fields() -> None:
+    payload = json.loads(encode_snapshot(_rich_snapshot()))
+    del payload["snapshot"]["market"]["contract"]
+    payload["snapshot"]["market"]["invented"] = "not real"
+    with pytest.raises(ValueError, match="fields mismatch"):
+        decode_snapshot(json.dumps(payload))
+
+
+def test_codec_rejects_float_money_values() -> None:
+    payload = json.loads(encode_snapshot(_rich_snapshot()))
+    payload["snapshot"]["paper"]["balance"] = 25000.0
+    with pytest.raises(ValueError, match="Decimal fields"):
+        decode_snapshot(json.dumps(payload))
+
+
+def test_codec_rejects_truncated_fixed_tuples() -> None:
+    payload = json.loads(encode_snapshot(_rich_snapshot()))
+    payload["snapshot"]["capabilities"][0] = ["Aggregated depth"]
+    with pytest.raises(ValueError, match="fixed tuple length"):
+        decode_snapshot(json.dumps(payload))
+
+
 # --- runtime files ----------------------------------------------------------------
 
 
@@ -68,21 +99,10 @@ def test_singleton_lock_refuses_a_second_live_backend(tmp_path: Path) -> None:
     first = SingletonLock(tmp_path)
     assert first.acquire().acquired is True
     second = SingletonLock(tmp_path)
-    result = second.acquire()  # same live PID counts as "already running"? No -
-    # same pid is allowed (re-entrant); simulate ANOTHER live process instead:
-    assert result.acquired is True  # same-pid re-acquire is not a duplicate
+    result = second.acquire()
+    assert result.acquired is False, "a separate lock object must never bypass the OS lease"
+    assert result.holder_pid == os.getpid()
     first.release()
-
-    # A DIFFERENT live pid must be refused. Use our parent process when alive.
-    other = os.getppid()
-    if other and pid_alive(other):
-        tmp2 = tmp_path / "b"
-        lock = SingletonLock(tmp2)
-        lock.path.parent.mkdir(parents=True, exist_ok=True)
-        lock.path.write_text(str(other), encoding="utf-8")
-        refused = SingletonLock(tmp2).acquire()
-        assert refused.acquired is False
-        assert f"pid {other}" in refused.reason
 
 
 def test_singleton_lock_cleans_a_stale_dead_pid(tmp_path: Path) -> None:
@@ -111,10 +131,26 @@ def test_status_file_heartbeat_and_staleness(tmp_path: Path) -> None:
 def test_stop_request_round_trip(tmp_path: Path) -> None:
     stop = StopRequest(tmp_path)
     assert stop.pending() is False
-    stop.request("test")
+    request_id = stop.request("test", requester="pytest")
     assert stop.pending() is True
+    payload = stop.read()
+    assert payload is not None
+    assert payload["request_id"] == request_id
+    assert payload["requester"] == "pytest"
+    assert payload["reason"] == "test"
+    assert float(payload["requested_at_unix"]) > 0
     stop.clear()
     assert stop.pending() is False
+
+
+def test_status_rejects_an_incompatible_backend_configuration(tmp_path: Path) -> None:
+    status = StatusFile(tmp_path)
+    expected = configuration_fingerprint({"port": 8765, "mode": "paper"})
+    other = configuration_fingerprint({"port": 9999, "mode": "paper"})
+    identity = ProcessIdentity.current(config_fingerprint=expected)
+    status.write(encode_snapshot(_rich_snapshot()), identity=identity)
+    assert status.backend_alive(expected_fingerprint=expected) is True
+    assert status.backend_alive(expected_fingerprint=other) is False
 
 
 # --- the GUI-side provider is honest about a dead backend -------------------------
@@ -196,15 +232,24 @@ def test_gui_restart_cannot_interrupt_the_real_backend(tmp_path: Path) -> None:
         async def send(count: int, start: int) -> None:
             uri = f"ws://127.0.0.1:{port}/bookmap"
             async with websockets.connect(uri) as ws:
-                await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1,
-                                          "alias": "MNQU6", "addon_version": "0.1.0"}))
+                await ws.send(json.dumps({
+                    "type": "connected", "timestamp_ns": 1,
+                    "alias": "MNQU6", "symbol": "MNQ", "addon_version": "0.1.0",
+                    "protocol_version": "1.1", "stream_id": "pytest-stream",
+                    "connection_id": f"pytest-connection-{start}",
+                    "session_id": f"pytest-session-{start}",
+                    "provider": "pytest", "capabilities": "aggregated_depth",
+                    "stream_sequence": 1,
+                }))
                 base = 1_752_537_751_000_000_000
                 for i in range(start, start + count):
                     await ws.send(json.dumps({
                         "type": "depth_update", "timestamp": base + i * 500_000_000,
                         "symbol": "MNQ", "side": "bid" if i % 2 else "ask",
                         "price": f"{29500 + (i % 40) * 0.25:.2f}",
-                        "previous_size": "0", "new_size": str(i % 30 + 1)}))
+                        "previous_size": "0", "new_size": str(i % 30 + 1),
+                        "stream_sequence": i - start + 2,
+                    }))
                 await asyncio.sleep(0.3)
 
         # 1. GUI attaches and sees events flowing.
@@ -258,3 +303,65 @@ def test_gui_restart_cannot_interrupt_the_real_backend(tmp_path: Path) -> None:
     finally:
         if process.poll() is None:
             process.kill()
+
+
+def test_supervisor_restarts_a_crashed_backend_and_then_stops_cleanly(tmp_path: Path) -> None:
+    """A healthy backend crash must never hide inside a startup grace window."""
+    runtime = tmp_path / "runtime"
+    command = [
+        sys.executable, "-m", "tools.backend_supervisor",
+        "--runtime-dir", str(runtime),
+        "--port", "0",
+        "--output-root", str(tmp_path / "raw"),
+        "--report-root", str(tmp_path / "reports"),
+        "--paper-ledger-path", str(tmp_path / "paper" / "ledger.jsonl"),
+        "--log-dir", str(tmp_path / "logs"),
+        "--processed-root", str(tmp_path / "processed"),
+        "--labels-root", str(tmp_path / "labels"),
+        "--research-state-root", str(tmp_path / "research"),
+    ]
+    supervisor = subprocess.Popen(
+        command,
+        cwd=str(REPO),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    backend_lock = SingletonLock(runtime)
+    status = StatusFile(runtime)
+    try:
+        deadline = time.monotonic() + 35
+        first = None
+        while time.monotonic() < deadline:
+            candidate = backend_lock.read_identity()
+            if candidate is not None and status.backend_alive():
+                first = candidate
+                break
+            time.sleep(0.2)
+        assert first is not None, "supervisor must establish a healthy backend"
+
+        os.kill(first.pid, signal.SIGTERM)
+        deadline = time.monotonic() + 35
+        replacement = None
+        while time.monotonic() < deadline:
+            candidate = backend_lock.read_identity()
+            if candidate is not None and candidate.pid != first.pid and status.backend_alive():
+                replacement = candidate
+                break
+            time.sleep(0.25)
+        assert replacement is not None, "supervisor must replace the crashed backend"
+
+        StopRequest(runtime).request("supervisor regression complete", requester="pytest")
+        supervisor.wait(timeout=40)
+        assert supervisor.returncode == 0
+        final = status.read()
+        assert final is not None
+        assert str(final["state"]).startswith("STOPPED")
+        assert backend_lock.read_identity() is None
+    finally:
+        if supervisor.poll() is None:
+            StopRequest(runtime).request("pytest cleanup", requester="pytest")
+            try:
+                supervisor.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                supervisor.kill()

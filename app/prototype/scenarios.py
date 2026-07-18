@@ -431,6 +431,12 @@ def _control(
         "synthetic": True,
         "seed": seed,
         "scenario_version": SCENARIO_VERSION,
+        "protocol_version": "1.1",
+        "stream_id": f"prototype-stream-{seed}",
+        "connection_id": f"prototype-connection-{seed}",
+        "session_id": f"prototype-session-{seed}",
+        "provider": "prototype",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
         "valid_for_real_training": False,
         "valid_for_analysis": "prototype_only",
     }
@@ -453,7 +459,17 @@ def scenario_with_controls(scenario: PrototypeScenario, *, playback_speed: int) 
         if not _is_market_event(event_dict):
             event_dict["playback_speed"] = str(playback_speed)
         result.append(PrototypeScheduledEvent(event=event_dict, scenario=event.scenario, description=event.description))
-    return tuple(sorted(result, key=lambda item: item.timestamp_ns))
+    ordered = sorted(result, key=lambda item: item.timestamp_ns)
+    sequenced: list[PrototypeScheduledEvent] = []
+    for stream_sequence, item in enumerate(ordered, start=1):
+        payload = dict(item.event)
+        payload["stream_sequence"] = stream_sequence
+        sequenced.append(PrototypeScheduledEvent(
+            event=payload,
+            scenario=item.scenario,
+            description=item.description,
+        ))
+    return tuple(sequenced)
 
 
 def _is_market_event(event: dict[str, object]) -> bool:

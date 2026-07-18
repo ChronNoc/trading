@@ -19,9 +19,9 @@ if not exist "%PYTHON%" (
   exit /b 2
 )
 
-echo Starting MNQ Assistant in SHADOW mode only.
+echo Starting MNQ Assistant in DELAYED PAPER mode.
 echo No live or demo order execution is started by this launcher.
-echo Bookmap free delayed-data test mode: 15 minutes delayed, recording only.
+echo Bookmap free delayed-data mode: records and causally simulates paper trades only.
 "%PYTHON%" -m tools.start_assistant --delayed-data-minutes 15 %*
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (

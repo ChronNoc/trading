@@ -162,6 +162,50 @@ def test_guard_counts_trade_sequence_gaps_without_rejecting() -> None:
     assert status.missed_events == 2
 
 
+def test_global_stream_sequence_covers_depth_trade_and_control() -> None:
+    """Protocol 1.1 continuity is across the whole wire, not trades alone."""
+    clock = FakeClock()
+    guard = FeedGuard(FeedGuardConfig(source_mode="replay"), now_ns=clock)
+    guard.handle_control_event({"type": "connected", "stream_sequence": 1})
+    depth = {**_depth(clock.now_ns), "stream_sequence": 2}
+    trade = {**_trade(clock.now_ns, sequence_id=1), "stream_sequence": 4}
+    assert guard.ingest_market_event(depth) == (True, None)
+    assert guard.ingest_market_event(trade) == (True, None)
+    status = guard.status()
+    assert status.sequence_gaps == 1
+    assert status.missed_events == 1
+    assert status.data_quality_ok is False
+    assert "continuity failed" in " ".join(status.reasons)
+
+
+def test_duplicate_global_sequence_is_rejected_and_counted() -> None:
+    clock = FakeClock()
+    guard = FeedGuard(FeedGuardConfig(source_mode="replay"), now_ns=clock)
+    guard.handle_control_event({"type": "connected", "stream_sequence": 1})
+    assert guard.ingest_market_event({**_depth(clock.now_ns), "stream_sequence": 2}) == (True, None)
+    accepted, reason = guard.ingest_market_event({
+        **_trade(clock.now_ns, sequence_id=1),
+        "stream_sequence": 2,
+    })
+    assert accepted is False
+    assert reason == "duplicate stream sequence 2"
+    status = guard.status()
+    assert status.duplicate_events == 1
+    assert status.data_quality_ok is False
+
+
+def test_new_connected_boundary_resets_connection_continuity() -> None:
+    """A damaged connection stays damaged, while an explicit new one starts clean."""
+    clock = FakeClock()
+    guard = FeedGuard(FeedGuardConfig(source_mode="replay"), now_ns=clock)
+    guard.handle_control_event({"type": "connected", "stream_sequence": 1})
+    guard.ingest_market_event({**_depth(clock.now_ns), "stream_sequence": 3})
+    assert guard.status().missed_events == 1
+    guard.handle_control_event({"type": "connected", "stream_sequence": 10})
+    guard.ingest_market_event({**_depth(clock.now_ns), "stream_sequence": 11})
+    assert guard.status().missed_events == 0
+
+
 def test_guard_clock_drift_flags_live_but_not_replay() -> None:
     """Clock drift trips only in live mode; replay timestamps are exempt."""
     clock = FakeClock()

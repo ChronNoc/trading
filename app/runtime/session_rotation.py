@@ -80,6 +80,8 @@ class RotatingRecorder:
         self._inner = make_recorder()
         self._session_started = clock()
         self._known_damage = 0
+        self._bridge_drop_baseline = 0
+        self._baseline_initialized = False
         self._first_damage_at: float | None = None
         self._last_damage_at: float | None = None
         self.rotations = 0
@@ -96,6 +98,15 @@ class RotatingRecorder:
 
     def record_control_event(self, event: Mapping[str, object]) -> object:
         """Delegate control events to the current session's recorder."""
+        if (
+            str(event.get("type", "")) == "connected"
+            and "dropped_message_count" in event
+            and not self._baseline_initialized
+        ):
+            # Java reports a process-lifetime high-water mark. Drops from an old
+            # connection must not instantly invalidate a new session.
+            self._bridge_drop_baseline = int(event["dropped_message_count"])
+            self._baseline_initialized = True
         result = self._inner.record_control_event(event)
         self._observe_damage()  # heartbeats carry the bridge drop counter
         return result
@@ -107,7 +118,12 @@ class RotatingRecorder:
     # -- damage tracking --------------------------------------------------------
 
     def _observe_damage(self) -> None:
-        damage = session_damage(self._inner)
+        lifetime_drops = int(getattr(self._inner, "dropped_message_count", 0) or 0)
+        current_bridge_drops = max(0, lifetime_drops - self._bridge_drop_baseline)
+        lost = int(getattr(self._inner, "lost_events", 0) or 0)
+        metrics = getattr(self._inner, "metrics", None)
+        overflow = int(getattr(metrics, "overflow", 0) or 0) if metrics is not None else 0
+        damage = current_bridge_drops + lost + overflow
         if damage > self._known_damage:
             now = self._clock()
             if self._first_damage_at is None:
@@ -156,6 +172,8 @@ class RotatingRecorder:
             except Exception:  # noqa: BLE001,S110
                 pass
         self._inner = self._make()
+        self._bridge_drop_baseline = int(getattr(old, "dropped_message_count", 0) or 0)
+        self._baseline_initialized = True
         self._session_started = self._clock()
         self._known_damage = 0
         self._first_damage_at = None

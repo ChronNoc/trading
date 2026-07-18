@@ -68,6 +68,10 @@ def test_server_persists_feed_quality_failures(tmp_path: Path) -> None:
     asyncio.run(_server_persists_quality_failures(tmp_path))
 
 
+def test_production_receiver_rejects_market_data_before_handshake(tmp_path: Path) -> None:
+    asyncio.run(_server_requires_handshake(tmp_path))
+
+
 async def _server_records_messages(tmp_path: Path) -> None:
     timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
     state_store = CurrentMarketState()
@@ -219,6 +223,37 @@ async def _server_persists_quality_failures(tmp_path: Path) -> None:
     assert quality["out_of_order_events"] == 1
     assert quality["trade_sequence_gaps"] == 1
     assert quality["missed_trade_events"] == 2
+    assert manifest["valid_for_order_flow_replay"] is False
+
+
+async def _server_requires_handshake(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+        require_protocol_handshake=True,
+    )
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send(event_to_json(format_depth_update(
+                timestamp=timestamp_ns,
+                symbol="MNQ",
+                side="bid",
+                price="100",
+                previous_size="0",
+                new_size="10",
+                stream_sequence=1,
+            )))
+            await websocket.send(json.dumps({
+                "type": "session_ended",
+                "timestamp_ns": timestamp_ns + 1,
+            }))
+        session_dir = await _wait_for_session_dir(tmp_path)
+        await _wait_for_path(session_dir / "session_manifest.json")
+    finally:
+        await server.close()
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["event_counts"]["depth_updates"] == 0
+    assert manifest["data_quality"]["rejected_events"] == 1
     assert manifest["valid_for_order_flow_replay"] is False
 
 

@@ -15,7 +15,8 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.screens import SCREEN_ORDER, build_screens
+from app.gui.snapshot_worker import SnapshotWorker
 from app.gui.view_models import AppSnapshot, Health
 
 SnapshotProvider = Callable[[], AppSnapshot]
@@ -96,6 +98,7 @@ class AppWindow(QMainWindow):
         self.resize(1280, 720)
         self.setMinimumSize(1100, 640)
         self._snapshot_provider = snapshot_provider
+        self._snapshot_worker: SnapshotWorker | None = None
         self._snapshot = AppSnapshot()
         self._theme = theme
         self._gui_scale = gui_scale
@@ -136,11 +139,13 @@ class AppWindow(QMainWindow):
         self.set_gui_scale(gui_scale)
         self.sidebar.setCurrentRow(0)
 
-        self._timer = QTimer(self)
-        self._timer.setInterval(SNAPSHOT_INTERVAL_MS)
-        self._timer.timeout.connect(self.refresh_from_snapshot)
         if start_timer and snapshot_provider is not None:
-            self._timer.start()
+            self._snapshot_worker = SnapshotWorker(
+                snapshot_provider,
+                interval_seconds=SNAPSHOT_INTERVAL_MS / 1000,
+            )
+            self._snapshot_worker.snapshot_ready.connect(self.submit_snapshot)
+            self._snapshot_worker.start()
         self.refresh_from_snapshot()
 
     # -- navigation ---------------------------------------------------------------
@@ -162,14 +167,33 @@ class AppWindow(QMainWindow):
     # -- rendering ----------------------------------------------------------------
 
     def refresh_from_snapshot(self) -> None:
-        """Pull one immutable snapshot and repaint. Never touches disk or network."""
-        if self._snapshot_provider is not None:
+        """Repaint from the latest immutable snapshot.
+
+        ``start_timer=False`` is an explicit deterministic test/manual mode and
+        permits a synchronous in-memory provider.  Production mode always owns
+        a :class:`SnapshotWorker`, so this Qt path never invokes the provider.
+        """
+        if self._snapshot_worker is None and self._snapshot_provider is not None:
             try:
                 self._snapshot = self._snapshot_provider()
             except Exception:  # noqa: BLE001 - a bad snapshot must never kill the GUI
                 pass
         self._render_current()
         self._render_status_bar()
+
+    def submit_snapshot(self, snapshot: object) -> None:
+        """Accept one typed snapshot delivered through the background-worker signal."""
+        if not isinstance(snapshot, AppSnapshot):
+            return
+        self._snapshot = snapshot
+        self._render_current()
+        self._render_status_bar()
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API
+        """Stop only the GUI snapshot reader; the backend remains independent."""
+        if self._snapshot_worker is not None:
+            self._snapshot_worker.stop()
+        super().closeEvent(event)
 
     def _render_current(self) -> None:
         # Only the visible screen is formatted: hidden screens cost nothing.

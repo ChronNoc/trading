@@ -30,8 +30,8 @@ def _send_clean_session(port: int, *, minutes: float = 1.6) -> int:
     async def run() -> int:
         sent = 0
         async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap") as ws:
-            await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1,
-                                      "alias": "MNQU6", "addon_version": "0.1.0"}))
+            wire_sequence = 1
+            await ws.send(json.dumps(_handshake("learning", wire_sequence)))
             base = 1_752_537_751_000_000_000
             seq = 0
             total = int(minutes * 60 * 4)  # 4 ev/s of market time, replayed fast
@@ -41,18 +41,25 @@ def _send_clean_session(port: int, *, minutes: float = 1.6) -> int:
                     "type": "depth_update", "timestamp": ts, "symbol": "MNQ",
                     "side": "bid" if i % 2 else "ask",
                     "price": f"{29500 + (i % 20) * 0.25:.2f}",
-                    "previous_size": str(i % 40), "new_size": str(i % 40 + 1)}))
+                    "previous_size": str(i % 40), "new_size": str(i % 40 + 1),
+                    "stream_sequence": wire_sequence + 1,
+                }))
+                wire_sequence += 1
                 sent += 1
                 if i % 4 == 0:
                     seq += 1
                     await ws.send(json.dumps({
                         "timestamp_ns": ts + 1, "price": f"{29500 + (i % 20) * 0.25:.2f}",
                         "size": "2", "aggressor_side": "buy" if i % 2 else "sell",
-                        "instrument": "MNQ", "sequence_id": seq}))
+                        "instrument": "MNQ", "sequence_id": seq,
+                        "stream_sequence": wire_sequence + 1,
+                    }))
+                    wire_sequence += 1
                     sent += 1
             await ws.send(json.dumps({"type": "session_ended", "timestamp_ns": base + 10**12,
-                                      "source_mode": "delayed", "dropped_messages": 0,
-                                      "reason": "clean shutdown"}))
+                                      "source_mode": "delayed", "dropped_message_count": 0,
+                                      "reason": "clean shutdown",
+                                      "stream_sequence": wire_sequence + 1}))
             await asyncio.sleep(0.5)
         return sent
 
@@ -177,21 +184,25 @@ def test_bookmap_reconnects_produce_fresh_sessions_without_stalling(tmp_path: Pa
 
         async def one_connection(start: int, count: int, *, clean_end: bool) -> None:
             async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap") as ws:
-                await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1,
-                                          "alias": "MNQU6", "addon_version": "0.1.0"}))
+                wire_sequence = 1
+                await ws.send(json.dumps(_handshake(str(start), wire_sequence)))
                 base = 1_752_537_751_000_000_000
                 for i in range(start, start + count):
                     await ws.send(json.dumps({
                         "type": "depth_update", "timestamp": base + i * 250_000_000,
                         "symbol": "MNQ", "side": "bid" if i % 2 else "ask",
                         "price": f"{29500 + (i % 20) * 0.25:.2f}",
-                        "previous_size": "0", "new_size": str(i % 30 + 1)}))
+                        "previous_size": "0", "new_size": str(i % 30 + 1),
+                        "stream_sequence": wire_sequence + 1,
+                    }))
+                    wire_sequence += 1
                 if clean_end:
                     await ws.send(json.dumps({"type": "session_ended",
                                               "timestamp_ns": base + 10**12,
                                               "source_mode": "delayed",
-                                              "dropped_messages": 0,
-                                              "reason": "clean shutdown"}))
+                                              "dropped_message_count": 0,
+                                              "reason": "clean shutdown",
+                                              "stream_sequence": wire_sequence + 1}))
                 await asyncio.sleep(0.3)
             # leaving the block closes the socket - an abrupt disconnect when
             # clean_end is False, exactly like a feed drop.
@@ -216,3 +227,23 @@ def test_bookmap_reconnects_produce_fresh_sessions_without_stalling(tmp_path: Pa
             process.wait(timeout=40)
         except subprocess.TimeoutExpired:
             process.kill()
+
+
+def _handshake(connection: str, stream_sequence: int) -> dict[str, object]:
+    """Return the production protocol 1.1 handshake used by integration feeds."""
+    return {
+        "type": "connected",
+        "timestamp_ns": 1,
+        "alias": "MNQU6",
+        "symbol": "MNQ",
+        "addon_version": "0.1.0",
+        "protocol_version": "1.1",
+        "stream_id": "pytest-learning-stream",
+        "connection_id": f"pytest-learning-{connection}",
+        "session_id": f"pytest-session-{connection}",
+        "source_mode": "delayed",
+        "provider": "pytest",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        "dropped_message_count": 0,
+        "stream_sequence": stream_sequence,
+    }

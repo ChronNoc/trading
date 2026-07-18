@@ -15,7 +15,7 @@ public final class BridgeConfig {
      * silently misparsing. It is carried on the handshake and every control
      * message; the strict market-event schemas are intentionally unchanged.
      */
-    public static final String PROTOCOL_VERSION = "1.0";
+    public static final String PROTOCOL_VERSION = "1.1";
     /**
      * What this bridge genuinely delivers. It exposes aggregated depth, trades,
      * and the verified aggressor side, but NOT order-by-order (MBO) data, so the

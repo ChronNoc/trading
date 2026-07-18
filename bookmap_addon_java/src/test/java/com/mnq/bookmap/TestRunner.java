@@ -47,6 +47,7 @@ public final class TestRunner {
         testJsonSchemas();
         testProtocolHandshakeFields();
         testQueueDropAndDataGap();
+        testTransportDropIsAccounted();
         testQueueGapMarkersAreRateLimited();
         testReconnectBackoff();
         testLoopbackPolicy();
@@ -107,9 +108,12 @@ public final class TestRunner {
 
         assertContains(depth, "\"type\":\"depth_update\"", "depth type");
         assertContains(depth, "\"previous_size\":\"4\"", "depth previous");
+        assertContains(depth, "\"stream_sequence\":1", "depth stream sequence");
         assertContains(trade, "\"type\":\"trade\"", "trade type");
         assertContains(trade, "\"sequence_id\":42", "trade sequence");
+        assertContains(trade, "\"stream_sequence\":2", "trade stream sequence");
         assertContains(heartbeat, "\"session_id\":\"session_test\"", "heartbeat session");
+        assertContains(heartbeat, "\"stream_sequence\":3", "control stream sequence");
         assertContains(heartbeat, "\"addon_version\":\"" + BridgeConfig.ADDON_VERSION + "\"", "heartbeat version");
         testsRun++;
     }
@@ -154,6 +158,17 @@ public final class TestRunner {
         assertEquals(1L, queue.droppedCount(), "drop count");
         String payload = queue.take(1, TimeUnit.SECONDS);
         assertContains(payload, "\"type\":\"data_gap\"", "data gap message");
+        testsRun++;
+    }
+
+    private void testTransportDropIsAccounted() throws Exception {
+        ForwardingQueue queue = new ForwardingQueue(2, factory());
+        assertTrue(queue.enqueue("{\"type\":\"depth_update\"}"), "payload enqueued");
+        assertTrue(queue.take(1, TimeUnit.SECONDS) != null, "payload removed for send");
+        queue.markTransportDrop();
+        assertEquals(1L, queue.droppedCount(), "unconfirmed transport send is a drop");
+        assertContains(queue.take(1, TimeUnit.SECONDS), "\"type\":\"data_gap\"",
+                "transport loss produces a durable gap marker");
         testsRun++;
     }
 

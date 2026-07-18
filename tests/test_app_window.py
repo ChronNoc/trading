@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 
 os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -231,6 +232,36 @@ def test_gui_thread_does_no_disk_io_on_refresh(window: AppWindow, monkeypatch) -
     assert opened == [], f"GUI refresh performed file I/O: {opened[:3]}"
 
 
+def test_production_snapshot_provider_never_runs_on_the_qt_thread(qtbot: object) -> None:
+    """Status-file/provider polling belongs to the dedicated snapshot reader."""
+    qt_thread = threading.get_ident()
+    provider_threads: list[int] = []
+
+    def provider() -> AppSnapshot:
+        provider_threads.append(threading.get_ident())
+        return _rich_snapshot()
+
+    win = AppWindow(snapshot_provider=provider, start_timer=True)
+    qtbot.addWidget(win)
+    qtbot.waitUntil(lambda: bool(provider_threads), timeout=3000)
+    qtbot.waitUntil(
+        lambda: "MNQU6" in win.findChild(QLabel, "overview_contract").text(),
+        timeout=3000,
+    )
+    assert all(thread_id != qt_thread for thread_id in provider_threads)
+    win.close()
+
+
+def test_gui_close_stops_only_its_snapshot_worker(qtbot: object) -> None:
+    """Closing the window cleans its reader without owning backend lifecycle."""
+    win = AppWindow(snapshot_provider=_rich_snapshot, start_timer=True)
+    qtbot.addWidget(win)
+    assert win._snapshot_worker is not None
+    qtbot.waitUntil(lambda: win._snapshot_worker.running, timeout=3000)
+    win.close()
+    assert win._snapshot_worker.running is False
+
+
 @pytest.mark.parametrize("label,width,height", [
     ("1366x768", 1366, 768),
     ("1920x1080", 1920, 1080),
@@ -328,6 +359,43 @@ def test_snapshot_source_builds_a_snapshot_without_a_backend() -> None:
     assert snapshot.paper.starting_balance == Decimal("25000")  # selected profile, not $100k
     assert snapshot.execution.live_blockers  # LIVE always reports why it is locked
     assert snapshot.next_action  # never a blank panel
+
+
+def test_snapshot_source_samples_runtime_once_and_cannot_contradict_itself() -> None:
+    """One frame cannot mix pre-drop and post-drop component states."""
+    from types import SimpleNamespace
+
+    from app.gui.snapshot_source import SnapshotSource
+
+    calls = 0
+
+    class ChangingController:
+        def snapshot(self) -> object:
+            nonlocal calls
+            calls += 1
+            drops = 7 if calls == 1 else 0
+            return SimpleNamespace(
+                bookmap_status="connected",
+                recording=True,
+                current_session_dropped_message_count=drops,
+                dropped_message_count=drops,
+                data_delay_minutes=15,
+                exact_contract="MNQU6",
+                session_date="2026-07-19",
+            )
+
+    snapshot = SnapshotSource(
+        controller=ChangingController(),
+        receiver_status=lambda: SimpleNamespace(listening=True),
+    )()
+    assert calls == 1, "runtime must be sampled exactly once per published frame"
+    assert snapshot.lifecycle_state == "CAPTURE_INVALIDATED"
+    states = {component.name: component.health for component in snapshot.components}
+    assert states["capture"] == Health.INVALIDATED
+    assert states["recorder"] == Health.INVALIDATED
+    assert states["paper"] == Health.PAUSED
+    assert states["research"] == Health.PAUSED
+    assert "7 events dropped" in snapshot.blocker
 
 
 def test_snapshot_source_declares_unavailable_capabilities_honestly() -> None:

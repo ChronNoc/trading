@@ -34,11 +34,18 @@ BASE_PRICE = 29500.00
 BOOK_LEVELS = 150  # realistic MNQ visible-depth breadth per side
 
 
-def _build_events(count: int, *, start_ns: int, rate: float) -> list[str]:
+def _build_events(
+    count: int,
+    *,
+    start_ns: int,
+    rate: float,
+    stream_sequence_start: int = 2,
+    trade_sequence_start: int = 0,
+) -> list[str]:
     """Pre-serialize a realistic stream: 3:1 depth:trade, book churn across levels."""
     events: list[str] = []
     interval_ns = int(1e9 / rate)
-    seq = 0
+    seq = trade_sequence_start
     price = BASE_PRICE
     for i in range(count):
         ts = start_ns + i * interval_ns
@@ -49,6 +56,7 @@ def _build_events(count: int, *, start_ns: int, rate: float) -> list[str]:
                 "timestamp_ns": ts, "price": f"{price:.2f}", "size": str(i % 9 + 1),
                 "aggressor_side": "buy" if i % 2 else "sell",
                 "instrument": "MNQ", "sequence_id": seq,
+                "stream_sequence": stream_sequence_start + i,
             }))
         else:
             # Churn across the whole book so MarketState carries ~BOOK_LEVELS
@@ -60,6 +68,7 @@ def _build_events(count: int, *, start_ns: int, rate: float) -> list[str]:
                 "type": "depth_update", "timestamp": ts, "symbol": "MNQ", "side": side,
                 "price": f"{level_price:.2f}", "previous_size": str((i // BOOK_LEVELS) % 40),
                 "new_size": str((i // BOOK_LEVELS) % 40 + 1),
+                "stream_sequence": stream_sequence_start + i,
             }))
     return events
 
@@ -70,9 +79,15 @@ async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -
 
     sent = 0
     async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap", max_queue=None) as ws:
-        await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1, "alias": "MNQU6",
-                                  "addon_version": "0.1.0", "protocol_version": "1.0",
-                                  "capabilities": "aggregated_depth,trades,aggressor_side"}))
+        await ws.send(json.dumps({
+            "type": "connected", "timestamp_ns": 1, "alias": "MNQU6", "symbol": "MNQ",
+            "addon_version": "0.1.0", "protocol_version": "1.1",
+            "stream_id": "loadtest-stream", "connection_id": "loadtest-connection",
+            "session_id": "loadtest-session", "provider": "loadtest",
+            "source_mode": "delayed", "dropped_message_count": 0,
+            "stream_sequence": 1,
+            "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        }))
         start = time.perf_counter()
         per_tick = max(1, int(rate / 100))
         index = 0
@@ -90,14 +105,24 @@ async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -
             # A realistic burst moves FORWARD in time (fresh timestamps after
             # the paced stream); replaying old events would be rejected by the
             # guard as out-of-order and pollute the conservation numbers.
-            burst_events = [e for e in _build_events(int(burst * 1.4), start_ns=time.time_ns(), rate=50_000)
-                            if '"depth_update"' in e][:burst]  # depth-only: fresh trades would rewind sequence_id
+            burst_start_ns = time.time_ns()
+            burst_events = [json.dumps({
+                "type": "depth_update",
+                "timestamp": burst_start_ns + i * 20_000,
+                "symbol": "MNQ",
+                "side": "bid" if i % 2 else "ask",
+                "price": f"{BASE_PRICE + (i % 20) * 0.25:.2f}",
+                "previous_size": "0",
+                "new_size": str(i % 40 + 1),
+                "stream_sequence": len(events) + 2 + i,
+            }) for i in range(burst)]
             for payload in burst_events:
                 await ws.send(payload)
             sent += burst
         elapsed = time.perf_counter() - start
-        await ws.send(json.dumps({"type": "session_ended", "timestamp_ns": 2,
-                                  "source_mode": "delayed", "dropped_messages": 0,
+        await ws.send(json.dumps({"type": "session_ended", "timestamp_ns": time.time_ns(),
+                                  "source_mode": "delayed", "dropped_message_count": 0,
+                                  "stream_sequence": len(events) + burst + 2,
                                   "reason": "clean shutdown"}))
         await asyncio.sleep(0.5)
     return {"sent": sent, "seconds": elapsed, "actual_rate": sent / elapsed if elapsed else 0.0}

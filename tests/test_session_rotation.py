@@ -33,6 +33,11 @@ class _FakeRecorder:
 
     def record_control_event(self, event: dict) -> None:
         self.recorded.append(event)
+        if "dropped_message_count" in event:
+            self.dropped_message_count = max(
+                self.dropped_message_count,
+                int(event["dropped_message_count"]),
+            )
 
     def finalize(self, *, clean_shutdown: bool, reason: str | None = None) -> None:
         self.finalized = True
@@ -158,6 +163,41 @@ def test_the_fresh_session_starts_clean_and_can_rotate_again() -> None:
     clock.now += 31.0
     wrapper.record({"i": 4})
     assert wrapper.rotations == 2
+
+
+def test_lifetime_bridge_drop_count_does_not_poison_the_fresh_session() -> None:
+    """The Java lifetime high-water mark is baselined per connection/session."""
+    clock = _Clock()
+    wrapper, _, damage = _rotator(clock)
+    wrapper.record_control_event({
+        "type": "connected",
+        "dropped_message_count": 1_031_435,
+    })
+    wrapper.record({"i": "clean despite historical lifetime count"})
+    assert wrapper.session_damaged is False
+    assert damage == []
+
+    wrapper.record_control_event({
+        "type": "heartbeat",
+        "dropped_message_count": 1_031_437,
+    })
+    assert wrapper.session_damaged is True
+    assert damage == [2]
+
+
+def test_rotated_session_baselines_the_same_lifetime_counter() -> None:
+    clock = _Clock()
+    wrapper, _, damage = _rotator(clock)
+    wrapper.record_control_event({"type": "connected", "dropped_message_count": 100})
+    clock.now += 200.0
+    wrapper.record_control_event({"type": "heartbeat", "dropped_message_count": 101})
+    clock.now += 31.0
+    wrapper.record({"i": "first clean event"})
+    assert wrapper.rotations == 1
+    assert wrapper.session_damaged is False
+    wrapper.record_control_event({"type": "heartbeat", "dropped_message_count": 101})
+    assert wrapper.session_damaged is False
+    assert damage == [1]
 
 
 def test_min_session_seconds_prevents_flapping() -> None:

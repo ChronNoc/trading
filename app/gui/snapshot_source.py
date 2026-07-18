@@ -73,35 +73,57 @@ class SnapshotSource:
         self._market_state = market_state
         self._paper_engine = paper_engine
         self._analysis_feed = analysis_feed
+        self._frame_cache: dict[str, object | None] | None = None
         from app.risk.account_profile import load_selected_profile
 
         self._profile = load_selected_profile()
 
     def __call__(self) -> AppSnapshot:
-        """Return the current immutable snapshot (safe to call from the GUI)."""
-        return AppSnapshot(
-            lifecycle_state=self._lifecycle_state(),
-            market=self._market(),
-            capture=self._capture(),
-            paper=self._paper(),
-            research=self._research_snapshot(),
-            profitability=self._profitability_snapshot(),
-            execution=self._execution(),
-            components=self._components(),
-            capabilities=self._capabilities(),
-            next_action=self._next_action(),
-            blocker=self._blocker(),
-        )
+        """Return one internally consistent immutable snapshot.
+
+        Component holders are sampled once per frame.  Previously the source
+        queried runtime/capture/research repeatedly while assembling one object,
+        allowing the header to say ``FAILED`` while a screen said ``OK``.
+        """
+        self._frame_cache = {}
+        try:
+            return AppSnapshot(
+                lifecycle_state=self._lifecycle_state(),
+                market=self._market(),
+                capture=self._capture(),
+                paper=self._paper(),
+                research=self._research_snapshot(),
+                profitability=self._profitability_snapshot(),
+                execution=self._execution(),
+                components=self._components(),
+                capabilities=self._capabilities(),
+                next_action=self._next_action(),
+                blocker=self._blocker(),
+            )
+        finally:
+            self._frame_cache = None
+
+    def _cached(self, key: str, loader: Callable[[], object | None]) -> object | None:
+        """Return one value per snapshot frame, or load directly outside a frame."""
+        cache = self._frame_cache
+        if cache is None:
+            return loader()
+        if key not in cache:
+            cache[key] = loader()
+        return cache[key]
 
     # -- sections -----------------------------------------------------------------
 
     def _runtime(self) -> object | None:
-        if self._controller is None:
-            return None
-        try:
-            return self._controller.snapshot()  # type: ignore[union-attr]
-        except Exception:  # noqa: BLE001 - never let the GUI die on a bad read
-            return None
+        def load() -> object | None:
+            if self._controller is None:
+                return None
+            try:
+                return self._controller.snapshot()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001 - never let the GUI die on a bad read
+                return None
+
+        return self._cached("runtime", load)
 
     def _lifecycle_state(self) -> str:
         runtime = self._runtime()
@@ -120,12 +142,15 @@ class SnapshotSource:
         return "RECORDING"
 
     def _binding(self) -> object | None:
-        if self._receiver_status is None:
-            return None
-        try:
-            return self._receiver_status()
-        except Exception:  # noqa: BLE001
-            return None
+        def load() -> object | None:
+            if self._receiver_status is None:
+                return None
+            try:
+                return self._receiver_status()
+            except Exception:  # noqa: BLE001
+                return None
+
+        return self._cached("binding", load)
 
     def _market(self) -> MarketSnapshot:
         runtime = self._runtime()
@@ -170,12 +195,15 @@ class SnapshotSource:
         return "resolving"
 
     def _metrics(self) -> object | None:
-        if self._pipeline is None:
-            return None
-        try:
-            return self._pipeline.snapshot()  # type: ignore[union-attr]
-        except Exception:  # noqa: BLE001
-            return None
+        def load() -> object | None:
+            if self._pipeline is None:
+                return None
+            try:
+                return self._pipeline.snapshot()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001
+                return None
+
+        return self._cached("metrics", load)
 
     def _session_id(self) -> str:
         """Return the ACTIVE recorder session id, never 'unknown'."""
@@ -190,6 +218,9 @@ class SnapshotSource:
         return getattr(runtime, "session_date", "") if runtime else ""
 
     def _capture(self) -> CaptureSnapshot:
+        cached = self._frame_cache.get("capture") if self._frame_cache is not None else None
+        if isinstance(cached, CaptureSnapshot):
+            return cached
         runtime = self._runtime()
         binding = self._binding()
         metrics = self._metrics()
@@ -201,7 +232,7 @@ class SnapshotSource:
                 feed_metrics = self._analysis_feed.metrics()  # type: ignore[union-attr]
             except Exception:  # noqa: BLE001
                 feed_metrics = None
-        return CaptureSnapshot(
+        capture = CaptureSnapshot(
             analysis_offered=getattr(feed_metrics, "offered", 0),
             analysis_processed=getattr(feed_metrics, "processed", 0),
             analysis_skipped=getattr(feed_metrics, "skipped", 0),
@@ -220,6 +251,9 @@ class SnapshotSource:
             flush_latency_ms=float(getattr(metrics, "last_flush_duration_ms", 0.0)) if metrics else 0.0,
             persisted_per_second=float(getattr(metrics, "persisted_events_per_second", 0.0)) if metrics else 0.0,
         )
+        if self._frame_cache is not None:
+            self._frame_cache["capture"] = capture
+        return capture
 
     def _paper(self) -> PaperSnapshot:
         profile = self._profile
@@ -254,7 +288,13 @@ class SnapshotSource:
         checks: tuple[SetupCheck, ...] = ()
         if recent:
             checks = tuple(
-                SetupCheck(name=c.name, passed=c.passed, reason=c.message)
+                SetupCheck(
+                    name=c.name,
+                    passed=c.passed,
+                    observed=c.observed,
+                    threshold=c.required,
+                    reason=c.message,
+                )
                 for c in recent[-1].conditions
             )
         rows = tuple(
@@ -337,7 +377,7 @@ class SnapshotSource:
         if progress is None:
             return ProfitabilitySnapshot(error=error)
         return ProfitabilitySnapshot(
-            fraction=progress.fraction,
+            fraction=float(progress.fraction),
             headline=progress.headline,
             claim_supported=progress.profitable_claim_supported,
             computed=True,
@@ -350,15 +390,24 @@ class SnapshotSource:
         )
 
     def _research_snapshot(self) -> ResearchSnapshot:
+        cached = self._frame_cache.get("research") if self._frame_cache is not None else None
+        if isinstance(cached, ResearchSnapshot):
+            return cached
         if self._research is None:
-            return ResearchSnapshot()
+            result = ResearchSnapshot()
+            if self._frame_cache is not None:
+                self._frame_cache["research"] = result
+            return result
         try:
             status = self._research.status()  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
-            return ResearchSnapshot()
+            result = ResearchSnapshot()
+            if self._frame_cache is not None:
+                self._frame_cache["research"] = result
+            return result
         from app.research.auto_research import detect_hardware, gpu_workload_note
 
-        return ResearchSnapshot(
+        result = ResearchSnapshot(
             state=status.state, active_workers=status.active_workers,
             requested_workers=status.requested_workers, queued_jobs=status.queued_jobs,
             completed_jobs=status.completed_jobs, failed_jobs=status.failed_jobs,
@@ -368,6 +417,9 @@ class SnapshotSource:
             independent_days=status.independent_days, throttle_reason=status.throttle_reason,
             gpu_note=gpu_workload_note(detect_hardware(), gpu_enabled=False),
         )
+        if self._frame_cache is not None:
+            self._frame_cache["research"] = result
+        return result
 
     def _execution(self) -> ExecutionSnapshot:
         from pathlib import Path
@@ -386,14 +438,37 @@ class SnapshotSource:
     def _components(self) -> tuple[ComponentHealth, ...]:
         capture = self._capture()
         research = self._research_snapshot()
+        if capture.current_session_drops:
+            return (
+                ComponentHealth("capture", Health.INVALIDATED,
+                                f"{capture.current_session_drops:,} source event(s) lost"),
+                ComponentHealth("recorder", Health.INVALIDATED,
+                                "process alive, but this segment is not research-eligible"),
+                ComponentHealth("paper", Health.PAUSED,
+                                "new entries blocked because causal input is incomplete"),
+                ComponentHealth("research", Health.PAUSED,
+                                "invalid active segment cannot enter canonical research"),
+                ComponentHealth("live", Health.LOCKED, "locked by the validation gate"),
+            )
+        recorder_health = Health.OK if capture.recording else Health.IDLE
+        paper_health = Health.IDLE
+        paper_detail = "awaiting a qualifying setup"
+        if capture.recording and capture.bookmap_connected:
+            paper_health = Health.WARMING_UP
+            paper_detail = "causal evaluation active / warming up"
+        if research.throttle_reason:
+            research_health = Health.THROTTLED
+            research_detail = research.throttle_reason
+        else:
+            research_health = Health.OK if research.active_workers else Health.IDLE
+            research_detail = research.state
         return (
             ComponentHealth("capture", capture.health,
                             "recording" if capture.recording else "waiting for Bookmap"),
-            ComponentHealth("recorder", Health.OK if capture.recording else Health.IDLE,
+            ComponentHealth("recorder", recorder_health,
                             f"{capture.persisted_per_second:,.0f} events/s persisted"),
-            ComponentHealth("paper", Health.IDLE, "awaiting a qualifying setup"),
-            ComponentHealth("research", Health.OK if research.active_workers else Health.IDLE,
-                            research.state),
+            ComponentHealth("paper", paper_health, paper_detail),
+            ComponentHealth("research", research_health, research_detail),
             ComponentHealth("live", Health.LOCKED, "locked by the validation gate"),
         )
 

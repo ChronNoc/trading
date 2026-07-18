@@ -101,6 +101,7 @@ async def start_receiver_websocket_server(
     feed_guard: FeedGuard | None = None,
     intake_capacity: int = 10_000,
     on_connection_started: Callable[[object, object], None] | None = None,
+    require_protocol_handshake: bool = False,
 ) -> RunningReceiverServer:
     """Start the local WebSocket server that records Bookmap market events.
 
@@ -113,11 +114,9 @@ async def start_receiver_websocket_server(
 
     _install_port_probe_noise_filter()
 
-    def _guarded_control_event(event: dict[str, object]) -> None:
-        if feed_guard is not None:
-            feed_guard.handle_control_event(event)
-        if on_control_event is not None:
-            on_control_event(event)
+    from app.market.protocol import ConnectionTracker, parse_handshake
+
+    connection_tracker = ConnectionTracker()
 
     async def handler(connection: ServerConnection) -> None:
         request_path = getattr(getattr(connection, "request", None), "path", "")
@@ -126,8 +125,28 @@ async def start_receiver_websocket_server(
             return
         recorder = recorder_factory() if recorder_factory is not None else MarketSessionRecorder(root_dir=config.output_root)
         quality_baseline = feed_guard.status() if feed_guard is not None else None
+        handshake_accepted = False
+
+        def _guarded_control_event(event: dict[str, object]) -> None:
+            nonlocal handshake_accepted
+            if str(event.get("type", "")) == "connected":
+                handshake = parse_handshake(event)
+                if require_protocol_handshake and not handshake.compatible:
+                    recorder.note_rejected_event(handshake.reason)
+                    raise ValueError(f"incompatible Bookmap bridge: {handshake.reason}")
+                if handshake.compatible:
+                    boundary = connection_tracker.observe(handshake)
+                    event["connection_boundary"] = boundary
+                    handshake_accepted = True
+            if feed_guard is not None:
+                feed_guard.handle_control_event(event)
+            if on_control_event is not None:
+                on_control_event(event)
 
         def _filter_market_event(event: Mapping[str, object]) -> bool:
+            if require_protocol_handshake and not handshake_accepted:
+                recorder.note_rejected_event("market event arrived before a compatible handshake")
+                return False
             if feed_guard is None:
                 return True
             accepted, reason = feed_guard.ingest_market_event(event)
@@ -159,7 +178,8 @@ async def start_receiver_websocket_server(
                 on_market_event=on_market_event,
                 on_event_state=on_event_state,
                 on_control_event=_guarded_control_event,
-                event_filter=_filter_market_event if feed_guard is not None else None,
+                event_filter=_filter_market_event
+                if feed_guard is not None or require_protocol_handshake else None,
                 on_schema_error=_record_schema_error,
             )
         except Exception as error:
@@ -182,6 +202,10 @@ async def start_receiver_websocket_server(
                     out_of_order_events=max(
                         0,
                         quality.out_of_order_events - quality_baseline.out_of_order_events,
+                    ),
+                    duplicate_events=max(
+                        0,
+                        quality.duplicate_events - quality_baseline.duplicate_events,
                     ),
                     clock_drift_alerts=max(
                         0,

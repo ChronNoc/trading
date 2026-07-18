@@ -134,6 +134,7 @@ class MarketSessionRecorder:
     out_of_order_event_count: int = field(init=False, default=0)
     trade_sequence_gap_count: int = field(init=False, default=0)
     missed_trade_event_count: int = field(init=False, default=0)
+    duplicate_stream_event_count: int = field(init=False, default=0)
     clock_drift_alert_count: int = field(init=False, default=0)
     alias: str | None = field(init=False, default=None)
     symbol: str | None = field(init=False, default=None)
@@ -316,12 +317,16 @@ class MarketSessionRecorder:
         malformed_events: int,
         out_of_order_events: int,
         clock_drift_alerts: int,
+        duplicate_events: int = 0,
     ) -> None:
         """Merge per-connection feed-guard counters into the session manifest."""
         self.trade_sequence_gap_count = max(self.trade_sequence_gap_count, sequence_gaps)
         self.missed_trade_event_count = max(self.missed_trade_event_count, missed_events)
         self.malformed_event_count = max(self.malformed_event_count, malformed_events)
         self.out_of_order_event_count = max(self.out_of_order_event_count, out_of_order_events)
+        self.duplicate_stream_event_count = max(
+            self.duplicate_stream_event_count, duplicate_events
+        )
         self.clock_drift_alert_count = max(self.clock_drift_alert_count, clock_drift_alerts)
         if self.finalized:
             self._write_manifest()
@@ -405,6 +410,9 @@ class MarketSessionRecorder:
             "out_of_order_events": self.out_of_order_event_count,
             "trade_sequence_gaps": self.trade_sequence_gap_count,
             "missed_trade_events": self.missed_trade_event_count,
+            "stream_sequence_gaps": self.trade_sequence_gap_count,
+            "missed_stream_events": self.missed_trade_event_count,
+            "duplicate_stream_events": self.duplicate_stream_event_count,
             "clock_drift_alerts": self.clock_drift_alert_count,
             "bridge_dropped_messages": self.dropped_message_count,
         }

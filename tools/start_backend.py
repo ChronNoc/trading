@@ -39,6 +39,14 @@ def run_backend(
     host: str = "127.0.0.1",
     port: int = 8765,
     output_root: Path | None = None,
+    report_root: Path | None = None,
+    session_config: Path | None = None,
+    paper_ledger_path: Path | None = None,
+    log_dir: Path | None = None,
+    processed_root: Path | None = None,
+    labels_root: Path | None = None,
+    research_state_root: Path | None = None,
+    config_fingerprint: str = "",
     max_seconds: float | None = None,
     delayed_data_minutes: int = 0,
 ) -> int:
@@ -53,7 +61,7 @@ def run_backend(
     from app.paper.streaming_engine import DelayedPaperEngine
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
-    from app.runtime.process_files import SingletonLock, StatusFile, StopRequest
+    from app.runtime.process_files import ProcessIdentity, SingletonLock, StatusFile, StopRequest
     from app.runtime.server_state import ReceiverStatusHolder
     from app.runtime.shutdown import ShutdownSignal
     from tools.start_assistant import (
@@ -63,15 +71,20 @@ def run_backend(
         _shutdown_receiver,
     )
 
+    identity = ProcessIdentity.current(config_fingerprint=config_fingerprint)
     lock = SingletonLock(runtime_dir)
-    result = lock.acquire()
+    result = lock.acquire(identity=identity)
     if not result.acquired:
         print(f"REFUSED: {result.reason}", file=sys.stderr, flush=True)
         return 3
     if result.stale_lock_cleaned:
         print(f"NOTE: {result.reason}", flush=True)
 
-    if output_root is not None:
+    explicit_roots = any(value is not None for value in (
+        report_root, session_config, paper_ledger_path, log_dir,
+        processed_root, labels_root, research_state_root,
+    ))
+    if output_root is not None and not explicit_roots:
         # A non-default output root sandboxes EVERY writable tree beside it,
         # so a test backend can never touch the real data directories.
         config = AssistantConfig.sandboxed(
@@ -79,8 +92,27 @@ def run_backend(
             delayed_data_minutes=delayed_data_minutes,
         )
     else:
-        config = AssistantConfig(host=host, port=port, gui=False,
-                                 delayed_data_minutes=delayed_data_minutes)
+        config = AssistantConfig(
+            host=host,
+            port=port,
+            output_root=Path("data/raw") if output_root is None else output_root,
+            report_root=Path("data/reports") if report_root is None else report_root,
+            session_config=Path("config/session_profiles.yaml") if session_config is None else session_config,
+            paper_ledger_path=(
+                Path("data/paper/paper_trades.jsonl")
+                if paper_ledger_path is None else paper_ledger_path
+            ),
+            log_dir=Path("logs") if log_dir is None else log_dir,
+            processed_root=Path("data/processed") if processed_root is None else processed_root,
+            labels_root=Path("data/labels") if labels_root is None else labels_root,
+            research_state_root=(
+                Path("data/research_state")
+                if research_state_root is None else research_state_root
+            ),
+            gui=False,
+            delayed_data_minutes=delayed_data_minutes,
+            runtime_dir=runtime_dir,
+        )
     logger = install_diagnostics(config.log_dir)
     logger.info("backend starting (pid=%s, runtime=%s)", __import__("os").getpid(), runtime_dir)
 
@@ -105,20 +137,6 @@ def run_backend(
     )
     receiver.start()
 
-    # Publish the ACTUAL bound socket (port 0 resolves at bind time) so an
-    # attaching GUI or harness knows where Bookmap should connect.
-    import json as _json
-
-    bind_deadline = time.monotonic() + 30
-    while time.monotonic() < bind_deadline:
-        binding = status_holder.snapshot()
-        if binding.listening:
-            (runtime_dir / "binding.json").write_text(
-                _json.dumps({"host": host, "port": binding.port}), encoding="utf-8",
-            )
-            break
-        time.sleep(0.1)
-
     source = SnapshotSource(
         controller=controller, pipeline_holder=pipeline_holder,
         research_service=research_service, receiver_status=status_holder.snapshot,
@@ -127,27 +145,86 @@ def run_backend(
     )
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)
+
+    # Publish the ACTUAL bound socket (port 0 resolves at bind time) so an
+    # attaching GUI or harness knows where Bookmap should connect.
+    import json as _json
+
+    bind_deadline = time.monotonic() + 30
+    receiver_bound = False
+    while time.monotonic() < bind_deadline:
+        if not receiver.is_alive():
+            break
+        binding = status_holder.snapshot()
+        if binding.listening:
+            (runtime_dir / "binding.json").write_text(
+                _json.dumps({"host": host, "port": binding.port}), encoding="utf-8",
+            )
+            receiver_bound = True
+            break
+        time.sleep(0.1)
+    if not receiver_bound:
+        reason = "receiver exited before binding" if not receiver.is_alive() else "receiver bind deadline exceeded"
+        logger.error(reason)
+        clean = _shutdown_receiver(shutdown, receiver, timeout=20.0)
+        try:
+            status.write(
+                encode_snapshot(source()),
+                state="FAILED_BIND",
+                identity=identity,
+            )
+        finally:
+            lock.release()
+        return 2 if clean else 1
+
     started = time.monotonic()
     clean = True
+    status_failures = 0
     try:
         while True:
+            if not receiver.is_alive():
+                logger.error("authoritative receiver thread exited unexpectedly")
+                clean = False
+                try:
+                    status.write(
+                        encode_snapshot(source()),
+                        state="FAILED_RECEIVER",
+                        identity=identity,
+                    )
+                except Exception as error:  # noqa: BLE001
+                    logger.error("failed to publish receiver failure: %s", error)
+                break
             try:
-                status.write(encode_snapshot(source()))
+                status.write(encode_snapshot(source()), identity=identity)
+                status_failures = 0
             except Exception as error:  # noqa: BLE001 - a bad heartbeat must not kill capture
+                status_failures += 1
                 logger.error("status write failed: %s", error)
+                if status_failures >= 3:
+                    logger.error("status publication failed three consecutive times; restarting backend")
+                    clean = False
+                    break
             if stop.pending():
                 logger.info("stop requested; draining")
                 break
             if max_seconds is not None and time.monotonic() - started >= max_seconds:
                 break
             time.sleep(STATUS_INTERVAL_SECONDS)
-        clean = _shutdown_receiver(shutdown, receiver, timeout=20.0)
+        drained = _shutdown_receiver(shutdown, receiver, timeout=20.0)
+        clean = clean and drained
     finally:
         try:
-            status.write(encode_snapshot(source()),
-                         state="STOPPED_CLEAN" if clean else "STOPPED_UNCLEAN")
-        except Exception:  # noqa: BLE001,S110
-            pass
+            status.write(
+                encode_snapshot(source()),
+                state="STOPPED_CLEAN" if clean else "STOPPED_UNCLEAN",
+                identity=identity,
+            )
+        except Exception as error:  # noqa: BLE001
+            failure_path = runtime_dir / "final_status_failure.txt"
+            failure_path.write_text(
+                f"{time.time()} {type(error).__name__}: {error}",
+                encoding="utf-8",
+            )
         stop.clear()
         lock.release()
         logger.info("backend stopped (clean=%s)", clean)
@@ -161,13 +238,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--output-root", type=Path, default=None)
+    parser.add_argument("--report-root", type=Path, default=None)
+    parser.add_argument("--session-config", type=Path, default=None)
+    parser.add_argument("--paper-ledger-path", type=Path, default=None)
+    parser.add_argument("--log-dir", type=Path, default=None)
+    parser.add_argument("--processed-root", type=Path, default=None)
+    parser.add_argument("--labels-root", type=Path, default=None)
+    parser.add_argument("--research-state-root", type=Path, default=None)
+    parser.add_argument("--config-fingerprint", default="")
     parser.add_argument("--max-seconds", type=float, default=None,
                         help="exit after this long (integration tests only)")
     parser.add_argument("--delayed-data-minutes", type=int, default=0)
     args = parser.parse_args(argv)
-    return run_backend(args.runtime_dir, host=args.host, port=args.port,
-                       output_root=args.output_root, max_seconds=args.max_seconds,
-                       delayed_data_minutes=args.delayed_data_minutes)
+    return run_backend(
+        args.runtime_dir,
+        host=args.host,
+        port=args.port,
+        output_root=args.output_root,
+        report_root=args.report_root,
+        session_config=args.session_config,
+        paper_ledger_path=args.paper_ledger_path,
+        log_dir=args.log_dir,
+        processed_root=args.processed_root,
+        labels_root=args.labels_root,
+        research_state_root=args.research_state_root,
+        config_fingerprint=args.config_fingerprint,
+        max_seconds=args.max_seconds,
+        delayed_data_minutes=args.delayed_data_minutes,
+    )
 
 
 if __name__ == "__main__":

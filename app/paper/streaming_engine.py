@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import threading
 import time
+import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -64,6 +65,8 @@ class ConditionResult:
     name: str
     passed: bool
     message: str
+    observed: str = ""
+    required: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,7 +424,13 @@ class DelayedPaperEngine:
         tick: MarketTick | None = None,
     ) -> None:
         conditions = tuple(
-            ConditionResult(name=c.key, passed=c.passed, message=c.message)
+            ConditionResult(
+                name=c.key,
+                passed=c.passed,
+                message=c.message,
+                observed=_condition_evidence(c.key, c.passed, c.message)[0],
+                required=_condition_evidence(c.key, c.passed, c.message)[1],
+            )
             for c in evaluation.conditions  # type: ignore[attr-defined]
         )
         reasons = tuple(c.message for c in conditions if not c.passed)
@@ -618,3 +627,40 @@ class DelayedPaperEngine:
     def top_risk_rejections(self, limit: int = 5) -> tuple[tuple[str, int], ...]:
         """Return why candidates did not become orders (the honest zero-trade view)."""
         return tuple(self._risk_rejections.most_common(limit))
+
+
+_REQUIREMENT_BY_CONDITION = {
+    "clear_dol": "a clear direction-of-liquidity target",
+    "clear_take_profit": "a target with sufficient tick room",
+    "valid_stop_location": "an explicit stop beyond the defended block",
+    "controlling_side_known": "a directional controlling side",
+    "durable_defending_block": "a durable defending liquidity block",
+    "defending_block_holds": "the defending block remains present",
+    "reload_confirmed": "the configured minimum reload count",
+    "defending_block_stable": "a stable, non-chasing block sequence",
+    "absorption_confirmed": "opposite aggression absorbed within max price progress",
+    "aggressive_side_failed": "aggression fails to break the defended block",
+    "loading_confirmed": "the configured minimum loading liquidity",
+    "continuation_confirmed": "control, follow-through, loading, and reaction all pass",
+    "market_not_too_fast": "spread, volatility, and velocity within configured maxima",
+    "entry_after_reaction": "minimum reaction snapshots and ticks",
+}
+
+
+def _condition_evidence(name: str, passed: bool, message: str) -> tuple[str, str]:
+    """Split a rule explanation into explicit observed and required evidence."""
+    match = re.match(r"^(.*?),\s*(requires|allows)\s*([<>]=?)?\s*(.+)$", message)
+    if match is not None:
+        observed = match.group(1).strip()
+        operator = (match.group(3) or "").strip()
+        value = match.group(4).strip()
+        return observed, " ".join(part for part in (operator, value) if part)
+    if passed:
+        return message, "rule passed"
+    if message.lower().startswith("no "):
+        observed = "not detected"
+    elif "too early" in message.lower() or "first touch" in message.lower():
+        observed = message
+    else:
+        observed = message
+    return observed, _REQUIREMENT_BY_CONDITION.get(name, "configured rule must pass")

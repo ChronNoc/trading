@@ -172,10 +172,10 @@ def main() -> int:
     # capture. Verified end-to-end (real subprocess) in tests/test_process_isolation.py.
     check("gui_isolated_from_capture",
           "FileSnapshotProvider(config.runtime_dir)" in launcher_source
-          and "ensure_backend(config.runtime_dir" in launcher_source
+          and "ensure_supervisor(config.runtime_dir" in launcher_source
           and Path("tools/start_backend.py").is_file()
           and Path("tools/backend_supervisor.py").is_file()
-          and "backend still capturing" in launcher_source.lower().replace("is still running and recording", "still capturing"),
+          and "closing or restarting this gui process" in launcher_source.lower(),
           "default GUI attaches to the detached backend via runtime/status.json")
 
     # 8. Health provider wired in production research service.

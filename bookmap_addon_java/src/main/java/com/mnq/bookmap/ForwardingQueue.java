@@ -37,6 +37,12 @@ public final class ForwardingQueue {
         return false;
     }
 
+    /** Account a payload removed from the queue but not confirmed by transport. */
+    public void markTransportDrop() {
+        droppedCount.incrementAndGet();
+        gapMarkerPending.set(true);
+    }
+
     /** Delivers a rate-limited data_gap marker ahead of queued messages when
      *  drops occurred. The marker is synthesized at take() time, so it can
      *  never be evicted by further overflow and never displaces real data. */

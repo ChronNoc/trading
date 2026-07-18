@@ -87,17 +87,40 @@ class SequenceGapDetector:
         self._last_sequence_id: int | None = None
         self.gap_count = 0
         self.missed_events = 0
+        self.duplicate_count = 0
+        self.out_of_order_count = 0
+        self.last_classification = "initial"
 
     def observe(self, sequence_id: int) -> int:
         """Record a sequence id; return how many events were missed before it."""
         missed = 0
+        if self._last_sequence_id is not None and sequence_id == self._last_sequence_id:
+            self.duplicate_count += 1
+            self.last_classification = "duplicate"
+            return 0
+        if self._last_sequence_id is not None and sequence_id < self._last_sequence_id:
+            self.out_of_order_count += 1
+            self.last_classification = "out_of_order"
+            return 0
         if self._last_sequence_id is not None and sequence_id > self._last_sequence_id + 1:
             missed = sequence_id - self._last_sequence_id - 1
             self.gap_count += 1
             self.missed_events += missed
+            self.last_classification = "gap"
+        else:
+            self.last_classification = "next" if self._last_sequence_id is not None else "initial"
         if self._last_sequence_id is None or sequence_id > self._last_sequence_id:
             self._last_sequence_id = sequence_id
         return missed
+
+    def reset(self) -> None:
+        """Start continuity accounting for a new explicit connection boundary."""
+        self._last_sequence_id = None
+        self.gap_count = 0
+        self.missed_events = 0
+        self.duplicate_count = 0
+        self.out_of_order_count = 0
+        self.last_classification = "initial"
 
 
 class EventReplayBuffer:
@@ -175,6 +198,8 @@ class FeedGuardStatus:
     malformed_events: int
     out_of_order_events: int
     clock_drift_alerts: int
+    duplicate_events: int = 0
+    stream_out_of_order_events: int = 0
 
 
 class FeedGuard:
@@ -191,6 +216,8 @@ class FeedGuard:
         self._now_ns = now_ns or time.time_ns
         self.backoff = ExponentialBackoff()
         self.sequence_gaps = SequenceGapDetector()
+        self.stream_sequence = SequenceGapDetector()
+        self._stream_sequence_observed = False
         self.replay_buffer = EventReplayBuffer(self.config.replay_buffer_size)
         self.snapshot_ring = BookSnapshotRing(self.config.snapshot_ring_size)
         self._connected = False
@@ -211,6 +238,13 @@ class FeedGuard:
     def handle_control_event(self, event: Mapping[str, object]) -> None:
         """Track connection state from receiver control events."""
         event_type = str(event.get("type", ""))
+        if event_type == "connected":
+            self.sequence_gaps.reset()
+            self.stream_sequence.reset()
+            self._stream_sequence_observed = False
+        stream_sequence = event.get("stream_sequence")
+        if isinstance(stream_sequence, int):
+            self._observe_stream_sequence(stream_sequence)
         if event_type in ("connected", "realtime_started", "prototype_mode", "historical_mode"):
             self._connected = True
             self.backoff.reset()
@@ -221,6 +255,12 @@ class FeedGuard:
         """Validate one market event; returns (accepted, rejection_reason)."""
         arrival_ns = self._now_ns()
         event_ns = _event_timestamp_ns(event)
+        stream_sequence = event.get("stream_sequence")
+        if isinstance(stream_sequence, int):
+            integrity_reason = self._observe_stream_sequence(stream_sequence)
+            if integrity_reason is not None:
+                self._rejection_log.append(integrity_reason)
+                return False, integrity_reason
 
         if self.config.source_mode == "live" and event_ns is not None:
             drift = abs(arrival_ns - event_ns)
@@ -256,6 +296,20 @@ class FeedGuard:
             self._last_trade_arrival_ns = arrival_ns
         return True, None
 
+    def _observe_stream_sequence(self, sequence: int) -> str | None:
+        """Account one global wire sequence and identify duplicates/reordering."""
+        self._stream_sequence_observed = True
+        missed = self.stream_sequence.observe(sequence)
+        if missed:
+            reason = f"stream sequence gap before {sequence}: {missed} event(s) missed"
+            self._rejection_log.append(reason)
+            return None
+        if self.stream_sequence.last_classification == "duplicate":
+            return f"duplicate stream sequence {sequence}"
+        if self.stream_sequence.last_classification == "out_of_order":
+            return f"out-of-order stream sequence {sequence}"
+        return None
+
     def record_malformed(self, reason: str) -> None:
         """Count a malformed message loudly instead of swallowing it."""
         self.malformed_events += 1
@@ -285,7 +339,19 @@ class FeedGuard:
         if self._clock_drift_active:
             reasons.append("feed timestamps drifting from local clock")
 
-        data_quality_ok = mode in (MODE_FULL, MODE_TRADES_ONLY) and not self._clock_drift_active
+        continuity = self.stream_sequence if self._stream_sequence_observed else self.sequence_gaps
+        integrity_ok = (
+            continuity.missed_events == 0
+            and continuity.duplicate_count == 0
+            and continuity.out_of_order_count == 0
+        )
+        if not integrity_ok:
+            reasons.append("stream continuity failed; session must be invalidated")
+        data_quality_ok = (
+            mode in (MODE_FULL, MODE_TRADES_ONLY)
+            and not self._clock_drift_active
+            and integrity_ok
+        )
         connection_healthy = self._connected
         return FeedGuardStatus(
             connection_healthy=connection_healthy,
@@ -295,11 +361,13 @@ class FeedGuard:
             reasons=tuple(reasons),
             depth_age_ns=depth_age,
             trade_age_ns=trade_age,
-            sequence_gaps=self.sequence_gaps.gap_count,
-            missed_events=self.sequence_gaps.missed_events,
+            sequence_gaps=continuity.gap_count,
+            missed_events=continuity.missed_events,
             malformed_events=self.malformed_events,
             out_of_order_events=self.out_of_order_events,
             clock_drift_alerts=self.clock_drift_alerts,
+            duplicate_events=continuity.duplicate_count,
+            stream_out_of_order_events=continuity.out_of_order_count,
         )
 
 

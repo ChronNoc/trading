@@ -4,10 +4,13 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Creates JSON messages sent from Bookmap to the Python receiver. */
 public final class MessageFactory {
     private final InstrumentContext instrument;
+    /** Every ordinary wire event receives one sequence, across depth/trade/control. */
+    private final AtomicLong streamSequence = new AtomicLong(1L);
 
     public MessageFactory(InstrumentContext instrument) {
         this.instrument = instrument;
@@ -22,6 +25,7 @@ public final class MessageFactory {
         payload.put("price", update.price());
         payload.put("previous_size", Integer.toString(update.previousSize()));
         payload.put("new_size", Integer.toString(update.newSize()));
+        payload.put("stream_sequence", nextStreamSequence());
         return toJson(payload);
     }
 
@@ -34,6 +38,7 @@ public final class MessageFactory {
         payload.put("aggressor_side", aggressorSide);
         payload.put("instrument", instrument.symbol());
         payload.put("sequence_id", sequenceId);
+        payload.put("stream_sequence", nextStreamSequence());
         return toJson(payload);
     }
 
@@ -66,12 +71,23 @@ public final class MessageFactory {
     }
 
     public String dataGap(long droppedCount, String reason) {
-        Map<String, Object> payload = controlMap("data_gap", Clock.systemUTC().millis() * 1_000_000L, "unknown", droppedCount);
+        // A gap marker is synthesized ahead of older queued events. It must not
+        // consume a stream sequence or it would itself make the wire order look
+        // reversed. The next ordinary event exposes the missing sequence(s).
+        Map<String, Object> payload = controlMapWithoutSequence(
+                "data_gap", Clock.systemUTC().millis() * 1_000_000L, "unknown", droppedCount);
         payload.put("reason", reason);
         return toJson(payload);
     }
 
     private Map<String, Object> controlMap(String type, long timestampNs, String sourceMode, long droppedCount) {
+        Map<String, Object> payload = controlMapWithoutSequence(type, timestampNs, sourceMode, droppedCount);
+        payload.put("stream_sequence", nextStreamSequence());
+        return payload;
+    }
+
+    private Map<String, Object> controlMapWithoutSequence(
+            String type, long timestampNs, String sourceMode, long droppedCount) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", type);
         payload.put("timestamp_ns", timestampNs);
@@ -87,6 +103,10 @@ public final class MessageFactory {
         payload.put("addon_version", BridgeConfig.ADDON_VERSION);
         payload.put("dropped_message_count", droppedCount);
         return payload;
+    }
+
+    private long nextStreamSequence() {
+        return streamSequence.getAndIncrement();
     }
 
     private static String toJson(Map<String, Object> payload) {

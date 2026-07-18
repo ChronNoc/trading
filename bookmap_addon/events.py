@@ -15,10 +15,13 @@ RawStreamEvent: TypeAlias = dict[str, object]
 DEPTH_UPDATE_KEYS = frozenset(
     {"type", "timestamp", "symbol", "side", "price", "previous_size", "new_size"},
 )
+DEPTH_UPDATE_KEYS_V11 = DEPTH_UPDATE_KEYS | {"stream_sequence"}
 TRADE_KEYS = frozenset(
     {"timestamp_ns", "price", "size", "aggressor_side", "instrument", "sequence_id"},
 )
 TRADE_KEYS_WITH_TYPE = TRADE_KEYS | {"type"}
+TRADE_KEYS_V11 = TRADE_KEYS | {"stream_sequence"}
+TRADE_KEYS_WITH_TYPE_V11 = TRADE_KEYS_WITH_TYPE | {"stream_sequence"}
 CONTROL_EVENT_TYPES = frozenset(
     {
         "connected",
@@ -47,10 +50,11 @@ def format_depth_update(
     price: object,
     previous_size: object,
     new_size: object,
+    stream_sequence: int | None = None,
 ) -> RawMarketEvent:
     """Format one depth update with the exact Task 5 depth-update schema."""
     normalized_price = _decimal_wire_value(price, "price", minimum=Decimal("0"), inclusive=False)
-    return {
+    result: RawMarketEvent = {
         "type": "depth_update",
         "timestamp": _timestamp_value(timestamp, "timestamp"),
         "symbol": _required_text(symbol, "symbol"),
@@ -64,6 +68,9 @@ def format_depth_update(
         ),
         "new_size": _decimal_wire_value(new_size, "new_size", minimum=Decimal("0"), inclusive=True),
     }
+    if stream_sequence is not None:
+        result["stream_sequence"] = _stream_sequence_value(stream_sequence)
+    return result
 
 
 def format_trade(
@@ -74,9 +81,10 @@ def format_trade(
     aggressor_side: str,
     instrument: str,
     sequence_id: int,
+    stream_sequence: int | None = None,
 ) -> RawMarketEvent:
     """Format one trade with the exact Task 5 trade schema."""
-    return {
+    result: RawMarketEvent = {
         "timestamp_ns": _timestamp_value(timestamp_ns, "timestamp_ns"),
         "price": _decimal_wire_value(price, "price", minimum=Decimal("0"), inclusive=False),
         "size": _decimal_wire_value(size, "size", minimum=Decimal("0"), inclusive=False),
@@ -84,6 +92,9 @@ def format_trade(
         "instrument": _required_text(instrument, "instrument"),
         "sequence_id": _sequence_value(sequence_id),
     }
+    if stream_sequence is not None:
+        result["stream_sequence"] = _stream_sequence_value(stream_sequence)
+    return result
 
 
 def event_to_json(event: RawMarketEvent) -> str:
@@ -131,7 +142,7 @@ def _json_object(message: str | bytes) -> dict[str, object]:
 
 def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
     keys = frozenset(event)
-    if keys == DEPTH_UPDATE_KEYS:
+    if keys in (DEPTH_UPDATE_KEYS, DEPTH_UPDATE_KEYS_V11):
         if event.get("type") != "depth_update":
             raise EventSchemaError("depth update type must be depth_update")
         _reject_json_float_fields(event, ("price", "previous_size", "new_size"))
@@ -142,8 +153,10 @@ def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
             price=event["price"],
             previous_size=event["previous_size"],
             new_size=event["new_size"],
+            stream_sequence=_raw_int(event["stream_sequence"], "stream_sequence")
+            if "stream_sequence" in event else None,
         )
-    if keys == TRADE_KEYS or keys == TRADE_KEYS_WITH_TYPE:
+    if keys in (TRADE_KEYS, TRADE_KEYS_WITH_TYPE, TRADE_KEYS_V11, TRADE_KEYS_WITH_TYPE_V11):
         if "type" in event and event.get("type") != "trade":
             raise EventSchemaError("trade type must be trade")
         _reject_json_float_fields(event, ("price", "size"))
@@ -154,6 +167,8 @@ def _normalize_event(event: RawMarketEvent) -> RawMarketEvent:
             aggressor_side=str(event["aggressor_side"]),
             instrument=str(event["instrument"]),
             sequence_id=_raw_int(event["sequence_id"], "sequence_id"),
+            stream_sequence=_raw_int(event["stream_sequence"], "stream_sequence")
+            if "stream_sequence" in event else None,
         )
     raise EventSchemaError("message must match the Task 5 depth_update or trade schema exactly")
 
@@ -167,6 +182,8 @@ def _normalize_control_event(event: RawStreamEvent) -> RawStreamEvent:
         normalized["timestamp_ns"] = _timestamp_value(normalized["timestamp_ns"], "timestamp_ns")
     if "timestamp" in normalized:
         normalized["timestamp"] = _timestamp_value(normalized["timestamp"], "timestamp")
+    if "stream_sequence" in normalized:
+        normalized["stream_sequence"] = _stream_sequence_value(normalized["stream_sequence"])
     return normalized
 
 
@@ -233,6 +250,13 @@ def _sequence_value(value: int) -> int:
     if sequence_id < 0:
         raise EventSchemaError("sequence_id must be non-negative")
     return sequence_id
+
+
+def _stream_sequence_value(value: object) -> int:
+    sequence = _raw_int(value, "stream_sequence")
+    if sequence <= 0:
+        raise EventSchemaError("stream_sequence must be positive")
+    return sequence
 
 
 def _raw_int(value: object, field_name: str) -> int:

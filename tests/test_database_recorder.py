@@ -431,6 +431,7 @@ def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None
         missed_events=7,
         malformed_events=1,
         out_of_order_events=1,
+        duplicate_events=3,
         clock_drift_alerts=0,
     )
     recorder.finalize(clean_shutdown=True)
@@ -440,6 +441,9 @@ def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None
     assert quality["rejected_events"] == 1
     assert quality["trade_sequence_gaps"] == 2
     assert quality["missed_trade_events"] == 7
+    assert quality["stream_sequence_gaps"] == 2
+    assert quality["missed_stream_events"] == 7
+    assert quality["duplicate_stream_events"] == 3
     assert quality["ok"] is False
     assert manifest["valid_for_order_flow_replay"] is False
     assert not recorder.manifest_path.with_suffix(".json.tmp").exists()

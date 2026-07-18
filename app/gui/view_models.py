@@ -27,6 +27,13 @@ class Health(str, Enum):
     FAIL = "fail"
     IDLE = "idle"
     LOCKED = "locked"
+    WARMING_UP = "warming_up"
+    DEGRADED = "degraded"
+    THROTTLED = "throttled"
+    INVALIDATED = "invalidated"
+    PAUSED = "paused"
+    STOPPING = "stopping"
+    UNAVAILABLE = "unavailable"
 
 
 class Capability(str, Enum):
@@ -115,11 +122,11 @@ class CaptureSnapshot:
     def health(self) -> Health:
         """Any current-session loss is a failure, not a warning."""
         if self.current_session_drops:
-            return Health.FAIL
+            return Health.INVALIDATED
         if not self.bookmap_connected:
             return Health.IDLE
         if self.queue_pressure >= 0.7:
-            return Health.WARN
+            return Health.DEGRADED
         return Health.OK if self.recording else Health.IDLE
 
 

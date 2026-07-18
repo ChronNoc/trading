@@ -49,12 +49,27 @@ async def _drive_forever(port: int, rate: float, stop: threading.Event, sent_box
     from tools.pipeline_loadtest import _build_events
 
     async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap", max_queue=None) as ws:
-        await ws.send(json.dumps({"type": "connected", "timestamp_ns": 1, "alias": "MNQU6",
-                                  "addon_version": "0.1.0", "protocol_version": "1.0"}))
+        await ws.send(json.dumps({
+            "type": "connected", "timestamp_ns": 1, "alias": "MNQU6", "symbol": "MNQ",
+            "addon_version": "0.1.0", "protocol_version": "1.1",
+            "stream_id": "soak-stream", "connection_id": "soak-connection",
+            "session_id": "soak-session", "provider": "soak", "source_mode": "delayed",
+            "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+            "dropped_message_count": 0, "stream_sequence": 1,
+        }))
         start = time.perf_counter()
         chunk_seconds = 5.0
+        stream_sequence = 1
+        trade_sequence = 0
         while not stop.is_set():
-            events = _build_events(int(rate * chunk_seconds), start_ns=time.time_ns(), rate=rate)
+            count = int(rate * chunk_seconds)
+            events = _build_events(
+                count,
+                start_ns=time.time_ns(),
+                rate=rate,
+                stream_sequence_start=stream_sequence + 1,
+                trade_sequence_start=trade_sequence,
+            )
             chunk_start = time.perf_counter()
             per_tick = max(1, int(rate / 100))
             index = 0
@@ -67,8 +82,11 @@ async def _drive_forever(port: int, rate: float, stop: threading.Event, sent_box
                 delay = target - time.perf_counter()
                 if delay > 0:
                     await asyncio.sleep(delay)
+            stream_sequence += len(events)
+            trade_sequence += count // 4
         await ws.send(json.dumps({"type": "session_ended", "timestamp_ns": int(time.time_ns()),
-                                  "source_mode": "delayed", "dropped_messages": 0,
+                                  "source_mode": "delayed", "dropped_message_count": 0,
+                                  "stream_sequence": stream_sequence + 1,
                                   "reason": "clean shutdown"}))
         await asyncio.sleep(0.5)
         _ = start

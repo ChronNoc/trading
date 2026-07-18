@@ -18,6 +18,29 @@ from bookmap_addon.events import (
 )
 
 
+def test_protocol_11_market_events_preserve_global_stream_sequence() -> None:
+    depth = format_depth_update(
+        timestamp=1,
+        symbol="MNQ",
+        side="bid",
+        price="100.00",
+        previous_size="0",
+        new_size="1",
+        stream_sequence=7,
+    )
+    trade = format_trade(
+        timestamp_ns=2,
+        price="100.25",
+        size="1",
+        aggressor_side="buy",
+        instrument="MNQ",
+        sequence_id=1,
+        stream_sequence=8,
+    )
+    assert parse_stream_message(event_to_json(depth))["stream_sequence"] == 7
+    assert parse_stream_message(event_to_json(trade))["stream_sequence"] == 8
+
+
 class CapturePublisher:
     """In-memory publisher used to test the Bookmap adapter without WebSockets."""
 

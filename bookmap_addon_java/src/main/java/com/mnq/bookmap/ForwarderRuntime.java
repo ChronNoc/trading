@@ -190,16 +190,28 @@ public final class ForwarderRuntime implements Closeable {
 
     private void sendLoop() {
         while (running.get()) {
+            String payload = null;
             try {
                 ensureConnected();
-                String payload = queue.take(250, TimeUnit.MILLISECONDS);
-                if (payload != null && transport.send(payload)) {
-                    queue.markSent();
+                payload = queue.take(250, TimeUnit.MILLISECONDS);
+                if (payload != null) {
+                    if (transport.send(payload)) {
+                        queue.markSent();
+                    } else {
+                        queue.markTransportDrop();
+                        transport.close();
+                    }
                 }
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (RuntimeException error) {
+                if (payload != null) {
+                    // The send outcome is uncertain. Fail closed: count it as
+                    // loss so Python invalidates the segment rather than
+                    // pretending conservation held.
+                    queue.markTransportDrop();
+                }
                 publishDisconnected(error.getMessage());
                 transport.close();
                 sleep(reconnectState.nextDelayMillis());

@@ -20,6 +20,26 @@ from app.paper.streaming_engine import (
 )
 
 
+def test_condition_evidence_exposes_observed_and_required_values() -> None:
+    from app.paper.streaming_engine import _condition_evidence
+
+    observed, required = _condition_evidence(
+        "absorption_confirmed",
+        False,
+        "opposite aggressive volume 142, requires >= 200",
+    )
+    assert observed == "opposite aggressive volume 142"
+    assert required == ">= 200"
+
+    observed, required = _condition_evidence(
+        "reload_confirmed",
+        False,
+        "No block available to evaluate reload",
+    )
+    assert observed == "not detected"
+    assert "reload" in required
+
+
 def _depth(i: int, price: Decimal) -> dict:
     return {"type": "depth_update", "timestamp": 1_752_537_751_000_000_000 + i * 500_000_000,
             "symbol": "MNQ", "side": "bid" if i % 2 else "ask", "price": f"{price:.2f}",
