@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,6 +48,9 @@ public final class TestRunner {
         testDepthTrackingAndRemoval();
         testTradeSideAndSequence();
         testJsonSchemas();
+        testBatchEnvelope();
+        testRuntimeMicroBatchesReduceFrames();
+        testBatchTransportDropAccountsEveryEvent();
         testProtocolHandshakeFields();
         testQueueDropAndDataGap();
         testTransportDropIsAccounted();
@@ -108,7 +112,7 @@ public final class TestRunner {
         MessageFactory factory = factory();
         String depth = factory.depthUpdate(123L, new DepthUpdate("bid", "100.25", 4, 8));
         String trade = factory.trade(456L, "100.25", 3, "sell", 42L);
-        String heartbeat = factory.heartbeat(789L, "live", 2L, 10L);
+        String heartbeat = factory.heartbeat(789L, "live", 2L, 10L, 4L);
 
         assertContains(depth, "\"type\":\"depth_update\"", "depth type");
         assertContains(depth, "\"previous_size\":\"4\"", "depth previous");
@@ -119,6 +123,58 @@ public final class TestRunner {
         assertContains(heartbeat, "\"session_id\":\"session_test\"", "heartbeat session");
         assertContains(heartbeat, "\"stream_sequence\":3", "control stream sequence");
         assertContains(heartbeat, "\"addon_version\":\"" + BridgeConfig.ADDON_VERSION + "\"", "heartbeat version");
+        assertContains(heartbeat, "\"sent_count\":10", "heartbeat sent events");
+        assertContains(heartbeat, "\"sent_frame_count\":4", "heartbeat sent frames");
+        testsRun++;
+    }
+
+    private void testBatchEnvelope() {
+        MessageFactory factory = factory();
+        String first = factory.depthUpdate(1L, new DepthUpdate("bid", "100.00", 0, 1));
+        String second = factory.trade(2L, "100.25", 1, "buy", 1L);
+        String batch = MessageBatcher.encode(List.of(first, second));
+
+        assertContains(batch, "\"type\":\"event_batch\"", "batch envelope type");
+        assertContains(batch, "\"protocol_version\":\"1.2\"", "batch protocol version");
+        assertContains(batch, "\"event_count\":2", "batch event count");
+        assertTrue(batch.indexOf(first) < batch.indexOf(second), "batch preserves event order");
+        assertEquals(first, MessageBatcher.encode(List.of(first)), "single payload compatibility");
+        testsRun++;
+    }
+
+    private void testRuntimeMicroBatchesReduceFrames() throws Exception {
+        BridgeConfig config = BridgeConfig.defaults();
+        RecordingTransport transport = new RecordingTransport();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                transport,
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+
+        // Preload deterministically so the sender can drain two full batches;
+        // this avoids wall-clock timing assumptions in the test.
+        for (int index = 0; index < 256; index++) {
+            runtime.publishDepth(100L + index, true, 119085 + index, 12);
+        }
+        runtime.start();
+        waitUntil(() -> runtime.queue().sentCount() >= 256L, 2_000L,
+                "micro-batched events were not delivered");
+        runtime.close();
+
+        assertEquals(256L, runtime.queue().sentCount(), "confirmed event count");
+        assertEquals(2L, runtime.queue().sentFrameCount(), "two bounded WebSocket frames");
+        long batchFrames = transport.sent().stream()
+                .filter(value -> value.contains("\"type\":\"event_batch\""))
+                .count();
+        assertEquals(2L, batchFrames, "transport received two batch envelopes");
+        assertEquals(0L, runtime.queue().droppedCount(), "batching caused no drops");
+        testsRun++;
+    }
+
+    private void testBatchTransportDropAccountsEveryEvent() {
+        ForwardingQueue queue = new ForwardingQueue(10, factory());
+        queue.markTransportDrop(7L);
+        assertEquals(7L, queue.droppedCount(), "every event in failed frame is a drop");
         testsRun++;
     }
 
@@ -139,7 +195,7 @@ public final class TestRunner {
 
         // Stream and connection ids appear on every control message, so the
         // receiver can distinguish a reconnect (same stream, new connection).
-        String heartbeat = factory.heartbeat(2L, "delayed", 0L, 1L);
+        String heartbeat = factory.heartbeat(2L, "delayed", 0L, 1L, 1L);
         assertContains(heartbeat, "\"stream_id\":", "heartbeat stream id");
         assertContains(heartbeat, "\"connection_id\":", "heartbeat connection id");
         assertContains(heartbeat, "\"protocol_version\":\"" + BridgeConfig.PROTOCOL_VERSION + "\"",

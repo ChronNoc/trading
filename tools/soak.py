@@ -49,15 +49,21 @@ def _memory_mb() -> float | None:
         return None
 
 
-async def _drive_forever(port: int, rate: float, stop: threading.Event, sent_box: list[int]) -> None:
+async def _drive_forever(
+    port: int,
+    rate: float,
+    stop: threading.Event,
+    sent_box: list[int],
+    wire_batch_size: int,
+) -> None:
     import websockets
 
-    from tools.pipeline_loadtest import _build_events
+    from tools.pipeline_loadtest import _build_events, _wire_frames
 
     async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap", max_queue=None) as ws:
         await ws.send(json.dumps({
             "type": "connected", "timestamp_ns": 1, "alias": "MNQU6", "symbol": "MNQ",
-            "addon_version": "0.1.0", "protocol_version": "1.1",
+            "addon_version": "0.1.0", "protocol_version": "1.2",
             "stream_id": "soak-stream", "connection_id": "soak-connection",
             "session_id": "soak-session", "provider": "soak", "source_mode": "delayed",
             "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
@@ -80,9 +86,10 @@ async def _drive_forever(port: int, rate: float, stop: threading.Event, sent_box
             per_tick = max(1, int(rate / 100))
             index = 0
             while index < len(events) and not stop.is_set():
-                for payload in events[index:index + per_tick]:
-                    await ws.send(payload)
-                sent_box[0] += min(per_tick, len(events) - index)
+                event_slice = events[index:index + per_tick]
+                for frame in _wire_frames(event_slice, wire_batch_size):
+                    await ws.send(frame)
+                sent_box[0] += len(event_slice)
                 index += per_tick
                 target = chunk_start + index / rate
                 delay = target - time.perf_counter()
@@ -103,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Production-pipeline long soak.")
     parser.add_argument("--minutes", type=float, default=30.0)
     parser.add_argument("--rate", type=float, default=1500.0)
+    parser.add_argument("--wire-batch-size", type=int, default=128)
     parser.add_argument("--metrics-out", type=Path, default=None,
                         help="JSONL metrics file (default: <tempdir>/soak_metrics.jsonl)")
     args = parser.parse_args(argv)
@@ -146,7 +154,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     stop = threading.Event()
     sent_box = [0]
     driver = threading.Thread(
-        target=lambda: asyncio.run(_drive_forever(snap.port, args.rate, stop, sent_box)),
+        target=lambda: asyncio.run(_drive_forever(
+            snap.port,
+            args.rate,
+            stop,
+            sent_box,
+            args.wire_batch_size,
+        )),
         name="soak-driver", daemon=True,
     )
     started = time.monotonic()

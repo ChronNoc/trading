@@ -14,11 +14,23 @@ preserving the historical evidence. Starting HEAD:
 - The GUI is now an attachable client. Snapshot providers run outside Qt and
   emit immutable, strictly decoded snapshots. Closing/reopening the GUI cannot
   own or stop capture.
-- Bridge protocol 1.1 adds a global stream sequence and strict production
+- Bridge protocol 1.1 introduced a global stream sequence and strict production
   handshake. Stream gaps, missed events, duplicates, out-of-order events,
   malformed/rejected messages, bridge drops, and persistence loss are named and
   included in eligibility. A transport payload removed but not confirmed sent
   is counted as a real loss.
+- Bridge protocol **1.2** additionally micro-batches for at most 2 ms and 128
+  events while retaining legacy single-event frames. At 2,500 events/second
+  plus a 6,000-event burst, the batch path reduced WebSocket frames from 31,002
+  to 1,049 (96.6%), intake high-water from 1,527 to 30, and final analysis lag
+  from 1.7043 ms to 0.6403 ms. Both paths accepted, persisted, and analysed all
+  31,000 events with zero overflow. A failed or evicted batch is accounted by
+  contained event count, never mislabeled as one lost event.
+- Post-change verification: **818 Python tests passed**, **29 Java bridge tests
+  passed**, acceptance **23/23**, and a short 2,500 events/second soak conserved
+  **37,100/37,100** events with clean finalization. The rebuilt 29,450-byte JAR
+  contains 21 application classes, **0 `velox` classes**, SHA-256
+  `2B3D04B7C163345305CC0121C9481F8B2DE2F99F742A85A83D9E1C0FDCAAFED1`.
 - The Java bridge's process-lifetime drop counter is baselined at each new
   session. Old loss no longer invalidates a fresh session; new loss still does.
 - Strategy checks now expose observed and required values. MBO-only behavior is

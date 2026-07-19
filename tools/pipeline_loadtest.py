@@ -73,15 +73,39 @@ def _build_events(
     return events
 
 
-async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -> dict[str, float]:
-    """Send events at ``rate`` (batched at 10ms ticks); optional final burst."""
+def _wire_frames(events: list[str], batch_size: int) -> list[str]:
+    """Wrap serialized events in the same bounded envelope as the Java bridge."""
+    if batch_size <= 0 or batch_size > 128:
+        raise ValueError("batch_size must be between 1 and 128")
+    frames: list[str] = []
+    for offset in range(0, len(events), batch_size):
+        batch = events[offset:offset + batch_size]
+        if len(batch) == 1:
+            frames.append(batch[0])
+        else:
+            frames.append(
+                '{"type":"event_batch","protocol_version":"1.2","event_count":'
+                f'{len(batch)},"events":[' + ",".join(batch) + "]}",
+            )
+    return frames
+
+
+async def _drive(
+    port: int,
+    events: list[str],
+    rate: float,
+    *,
+    burst: int = 0,
+    wire_batch_size: int = 1,
+) -> dict[str, float]:
+    """Send events at ``rate`` using the production micro-batch envelope."""
     import websockets
 
     sent = 0
     async with websockets.connect(f"ws://127.0.0.1:{port}/bookmap", max_queue=None) as ws:
         await ws.send(json.dumps({
             "type": "connected", "timestamp_ns": 1, "alias": "MNQU6", "symbol": "MNQ",
-            "addon_version": "0.1.0", "protocol_version": "1.1",
+            "addon_version": "0.1.0", "protocol_version": "1.2",
             "stream_id": "loadtest-stream", "connection_id": "loadtest-connection",
             "session_id": "loadtest-session", "provider": "loadtest",
             "source_mode": "delayed", "dropped_message_count": 0,
@@ -91,10 +115,13 @@ async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -
         start = time.perf_counter()
         per_tick = max(1, int(rate / 100))
         index = 0
+        frames_sent = 1  # handshake frame
         while index < len(events):
             batch = events[index:index + per_tick]
-            for payload in batch:
-                await ws.send(payload)
+            frames = _wire_frames(batch, wire_batch_size)
+            for frame in frames:
+                await ws.send(frame)
+            frames_sent += len(frames)
             sent += len(batch)
             index += per_tick
             target = start + index / rate
@@ -116,8 +143,10 @@ async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -
                 "new_size": str(i % 40 + 1),
                 "stream_sequence": len(events) + 2 + i,
             }) for i in range(burst)]
-            for payload in burst_events:
-                await ws.send(payload)
+            frames = _wire_frames(burst_events, wire_batch_size)
+            for frame in frames:
+                await ws.send(frame)
+            frames_sent += len(frames)
             sent += burst
         elapsed = time.perf_counter() - start
         await ws.send(json.dumps({"type": "session_ended", "timestamp_ns": time.time_ns(),
@@ -125,7 +154,12 @@ async def _drive(port: int, events: list[str], rate: float, *, burst: int = 0) -
                                   "stream_sequence": len(events) + burst + 2,
                                   "reason": "clean shutdown"}))
         await asyncio.sleep(0.5)
-    return {"sent": sent, "seconds": elapsed, "actual_rate": sent / elapsed if elapsed else 0.0}
+    return {
+        "sent": sent,
+        "frames_sent": frames_sent + 1,  # terminal control frame
+        "seconds": elapsed,
+        "actual_rate": sent / elapsed if elapsed else 0.0,
+    }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -134,6 +168,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--rate", type=float, default=1500.0, help="events/sec to sustain")
     parser.add_argument("--seconds", type=float, default=20.0)
     parser.add_argument("--burst", type=int, default=0, help="extra unpaced events at the end")
+    parser.add_argument(
+        "--wire-batch-size",
+        type=int,
+        default=128,
+        help="events per WebSocket frame (1 keeps legacy single-event framing)",
+    )
     parser.add_argument("--inline", action="store_true",
                         help="reproduce the OLD architecture: analysis inline on the capture loop")
     parser.add_argument("--json-out", type=Path, default=None)
@@ -203,7 +243,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     total = int(args.rate * args.seconds)
     events = _build_events(total, start_ns=time.time_ns(), rate=args.rate)
-    drive = asyncio.run(_drive(snap.port, events, args.rate, burst=args.burst))
+    drive = asyncio.run(_drive(
+        snap.port,
+        events,
+        args.rate,
+        burst=args.burst,
+        wire_batch_size=args.wire_batch_size,
+    ))
 
     # Let the analysis feed catch up, then drain everything.
     deadline = time.monotonic() + 30
@@ -246,6 +292,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"target rate:          {args.rate:,.0f} ev/s for {args.seconds:.0f}s"
           + (f" + burst {args.burst:,}" if args.burst else ""))
     print(f"actually sent:        {drive['sent']:,} at {drive['actual_rate']:,.0f} ev/s")
+    print(f"WebSocket frames:     {int(drive['frames_sent']):,} "
+          f"({drive['sent'] / drive['frames_sent']:.2f} events/frame)")
     print()
     print("CONSERVATION  (every event accounted, none vanishing):")
     print(f"  sent                {drive['sent']:>10,}")
@@ -276,6 +324,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.json_out.write_text(json.dumps({
             "mode": "inline" if args.inline else "feed",
             "sent": drive["sent"], "actual_rate": drive["actual_rate"],
+            "frames_sent": int(drive["frames_sent"]),
+            "wire_batch_size": args.wire_batch_size,
             "accepted": accepted, "persisted": persisted_total,
             "guard_rejected": guard_rejected, "malformed": malformed,
             "offered": metrics.offered, "processed": metrics.processed,

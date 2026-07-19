@@ -2,6 +2,8 @@ package com.mnq.bookmap;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,7 +56,9 @@ public final class ForwarderRuntime implements Closeable {
         executor = Executors.newScheduledThreadPool(2, new NamedDaemonThreadFactory("mnq-bookmap-forwarder"));
         executor.execute(this::sendLoop);
         executor.scheduleAtFixedRate(
-                () -> enqueue(messageFactory.heartbeat(nowNs(), sourceMode.get(), queue.droppedCount(), queue.sentCount())),
+                () -> enqueue(messageFactory.heartbeat(
+                        nowNs(), sourceMode.get(), queue.droppedCount(),
+                        queue.sentCount(), queue.sentFrameCount())),
                 config.heartbeatInterval().toMillis(),
                 config.heartbeatInterval().toMillis(),
                 TimeUnit.MILLISECONDS);
@@ -164,20 +168,21 @@ public final class ForwarderRuntime implements Closeable {
     private long drainRemaining(long budgetMillis) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMillis);
         while (System.nanoTime() < deadline) {
-            String payload;
+            OutboundBatch batch;
             try {
-                payload = queue.take(10, TimeUnit.MILLISECONDS);
+                batch = nextBatch(10, TimeUnit.MILLISECONDS, false);
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 break;
             }
-            if (payload == null) {
+            if (batch == null) {
                 return 0; // queue drained
             }
-            if (!trySend(payload)) {
-                break; // transport is gone; remaining messages cannot be delivered
+            if (!trySend(batch.payload())) {
+                queue.markTransportDrop(batch.eventCount());
+                return queue.size() + batch.eventCount();
             }
-            queue.markSent();
+            queue.markSent(batch.eventCount());
         }
         return queue.size();
     }
@@ -192,15 +197,15 @@ public final class ForwarderRuntime implements Closeable {
 
     private void sendLoop() {
         while (running.get()) {
-            String payload = null;
+            OutboundBatch batch = null;
             try {
                 ensureConnected();
-                payload = queue.take(250, TimeUnit.MILLISECONDS);
-                if (payload != null) {
-                    if (transport.send(payload)) {
-                        queue.markSent();
+                batch = nextBatch(250, TimeUnit.MILLISECONDS, true);
+                if (batch != null) {
+                    if (transport.send(batch.payload())) {
+                        queue.markSent(batch.eventCount());
                     } else {
-                        queue.markTransportDrop();
+                        queue.markTransportDrop(batch.eventCount());
                         transport.close();
                     }
                 }
@@ -208,11 +213,11 @@ public final class ForwarderRuntime implements Closeable {
                 Thread.currentThread().interrupt();
                 return;
             } catch (RuntimeException error) {
-                if (payload != null) {
+                if (batch != null) {
                     // The send outcome is uncertain. Fail closed: count it as
                     // loss so Python invalidates the segment rather than
                     // pretending conservation held.
-                    queue.markTransportDrop();
+                    queue.markTransportDrop(batch.eventCount());
                 }
                 publishDisconnected(error.getMessage());
                 transport.close();
@@ -250,6 +255,45 @@ public final class ForwarderRuntime implements Closeable {
         } finally {
             reconnecting.set(false);
         }
+    }
+
+    /** Collect one bounded low-latency frame while preserving queue order. */
+    private OutboundBatch nextBatch(long timeout, TimeUnit unit, boolean waitForWindow)
+            throws InterruptedException {
+        String first = queue.take(timeout, unit);
+        if (first == null) {
+            return null;
+        }
+        List<String> payloads = new ArrayList<>(BridgeConfig.BATCH_MAX_EVENTS);
+        payloads.add(first);
+        if (!waitForWindow) {
+            while (payloads.size() < BridgeConfig.BATCH_MAX_EVENTS) {
+                String next = queue.take(0L, TimeUnit.NANOSECONDS);
+                if (next == null) {
+                    break;
+                }
+                payloads.add(next);
+            }
+            return new OutboundBatch(MessageBatcher.encode(payloads), payloads.size());
+        }
+        long deadline = System.nanoTime() + TimeUnit.MICROSECONDS.toNanos(
+                BridgeConfig.BATCH_WINDOW_MICROS);
+        while (payloads.size() < BridgeConfig.BATCH_MAX_EVENTS) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0L) {
+                break;
+            }
+            String next = queue.take(remaining, TimeUnit.NANOSECONDS);
+            if (next == null) {
+                break;
+            }
+            payloads.add(next);
+        }
+        return new OutboundBatch(MessageBatcher.encode(payloads), payloads.size());
+    }
+
+    /** One confirmed WebSocket frame and its exact contained-event count. */
+    private record OutboundBatch(String payload, int eventCount) {
     }
 
     private void enqueue(String payload) {

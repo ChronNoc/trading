@@ -197,6 +197,26 @@ def test_one_incoming_frame_evicts_at_most_one_queued_frame() -> None:
     assert delivered + lost == 20
 
 
+def test_batched_intake_overflow_counts_every_lost_event() -> None:
+    """Evicting one batch accounts for all contained events, not one frame."""
+    async def run() -> tuple[list[str], BoundedIntakeBuffer]:
+        batches = [json.dumps({
+            "type": "event_batch",
+            "protocol_version": "1.2",
+            "event_count": 128,
+            "events": [{"type": "heartbeat"}] * 128,
+        }) for _ in range(3)]
+        buffer = BoundedIntakeBuffer(_FakeConnection(batches), capacity=1)
+        await buffer.pump()
+        return [str(item) async for item in buffer], buffer
+
+    out, buffer = asyncio.run(run())
+    gap = next(json.loads(item) for item in out if "data_gap" in item)
+    assert buffer.metrics.ingress == 384
+    assert buffer.metrics.overflow == 256
+    assert gap["receiver_intake_lost"] == 256
+
+
 def test_overflow_emits_a_coalesced_gap_marker_with_running_total() -> None:
     """Loss stays loud: a marker carrying the running lost count is delivered."""
     async def run() -> list[str]:

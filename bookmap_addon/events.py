@@ -12,6 +12,10 @@ AggressorSide: TypeAlias = Literal["buy", "sell"]
 RawMarketEvent: TypeAlias = dict[str, object]
 RawStreamEvent: TypeAlias = dict[str, object]
 
+EVENT_BATCH_TYPE = "event_batch"
+EVENT_BATCH_KEYS = frozenset({"type", "protocol_version", "event_count", "events"})
+MAX_EVENTS_PER_BATCH = 512
+
 DEPTH_UPDATE_KEYS = frozenset(
     {"type", "timestamp", "symbol", "side", "price", "previous_size", "new_size"},
 )
@@ -110,8 +114,62 @@ def parse_event_message(message: str | bytes) -> RawMarketEvent:
 
 
 def parse_stream_message(message: str | bytes) -> RawStreamEvent:
-    """Parse one Java Bookmap bridge message into a market or control event."""
+    """Parse one single-event Java Bookmap bridge message.
+
+    Batch-aware consumers must use :func:`parse_stream_messages`. Keeping this
+    function single-event prevents existing callers from accidentally ignoring
+    every event after the first item in a micro-batch.
+    """
+    events = parse_stream_messages(message)
+    if len(events) != 1:
+        raise EventSchemaError("message contains an event batch; use parse_stream_messages")
+    return events[0]
+
+
+def parse_stream_messages(message: str | bytes) -> tuple[RawStreamEvent, ...]:
+    """Parse one WebSocket frame into one or more ordered stream events.
+
+    Protocol 1.2 adds a small ``event_batch`` envelope to reduce WebSocket and
+    JSON framing overhead. Legacy single-event frames remain fully supported.
+    The envelope is deliberately strict and bounded so one malformed or
+    unreasonably large frame fails closed before any contained event mutates
+    market state.
+    """
     payload = cast(RawStreamEvent, _json_object(message))
+    if payload.get("type") != EVENT_BATCH_TYPE:
+        return (_normalize_stream_payload(payload),)
+
+    if frozenset(payload) != EVENT_BATCH_KEYS:
+        raise EventSchemaError("event batch must match the exact envelope schema")
+    version = str(payload.get("protocol_version", "")).strip()
+    if not version or version.split(".", 1)[0] != "1":
+        raise EventSchemaError("event batch protocol_version must use supported major version 1")
+    event_count = _raw_int(payload.get("event_count"), "event_count")
+    if event_count <= 0 or event_count > MAX_EVENTS_PER_BATCH:
+        raise EventSchemaError(
+            f"event_count must be between 1 and {MAX_EVENTS_PER_BATCH}",
+        )
+    raw_events = payload.get("events")
+    if not isinstance(raw_events, list):
+        raise EventSchemaError("event batch events must be a JSON array")
+    if len(raw_events) != event_count:
+        raise EventSchemaError("event batch event_count does not match events length")
+
+    normalized: list[RawStreamEvent] = []
+    for index, raw_event in enumerate(raw_events):
+        if not isinstance(raw_event, dict):
+            raise EventSchemaError(f"event batch item {index} must be a JSON object")
+        if raw_event.get("type") == EVENT_BATCH_TYPE:
+            raise EventSchemaError("nested event batches are not supported")
+        try:
+            normalized.append(_normalize_stream_payload(cast(RawStreamEvent, raw_event)))
+        except EventSchemaError as error:
+            raise EventSchemaError(f"event batch item {index}: {error}") from error
+    return tuple(normalized)
+
+
+def _normalize_stream_payload(payload: RawStreamEvent) -> RawStreamEvent:
+    """Normalize one already-decoded market or control payload."""
     event_type = payload.get("type")
     if isinstance(event_type, str) and event_type in CONTROL_EVENT_TYPES:
         return _normalize_control_event(payload)

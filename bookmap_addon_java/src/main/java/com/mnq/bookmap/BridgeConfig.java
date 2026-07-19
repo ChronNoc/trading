@@ -15,7 +15,11 @@ public final class BridgeConfig {
      * silently misparsing. It is carried on the handshake and every control
      * message; the strict market-event schemas are intentionally unchanged.
      */
-    public static final String PROTOCOL_VERSION = "1.1";
+    public static final String PROTOCOL_VERSION = "1.2";
+    /** Maximum number of ordered events sent in one WebSocket frame. */
+    public static final int BATCH_MAX_EVENTS = 128;
+    /** Maximum time spent collecting a micro-batch after its first event. */
+    public static final long BATCH_WINDOW_MICROS = 2_000L;
     /**
      * What this bridge genuinely delivers. It exposes aggregated depth, trades,
      * and the verified aggressor side, but NOT order-by-order (MBO) data, so the

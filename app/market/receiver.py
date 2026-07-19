@@ -17,6 +17,7 @@ from bookmap_addon.events import (
     is_control_event,
     parse_event_message,
     parse_stream_message,
+    parse_stream_messages,
 )
 
 DEFAULT_RECEIVER_URL = "ws://127.0.0.1:8765/bookmap"
@@ -116,9 +117,10 @@ async def consume_market_stream(
     events_processed = 0
     control_events_processed = 0
     messages_processed = 0
+    stop_requested = False
     async for message in stream:
         try:
-            event = parse_stream_message(message)
+            frame_events = parse_stream_messages(message)
         except EventSchemaError as error:
             if on_schema_error is None:
                 raise
@@ -127,37 +129,43 @@ async def consume_market_stream(
             if max_messages is not None and messages_processed >= max_messages:
                 break
             continue
-        messages_processed += 1
-        if is_control_event(event):
-            if recorder is not None and hasattr(recorder, "record_control_event"):
-                recorder.record_control_event(event)
-            if on_control_event is not None:
-                on_control_event(event)
-            control_events_processed += 1
+        for event in frame_events:
+            messages_processed += 1
+            if is_control_event(event):
+                if recorder is not None and hasattr(recorder, "record_control_event"):
+                    recorder.record_control_event(event)
+                if on_control_event is not None:
+                    on_control_event(event)
+                control_events_processed += 1
+                if max_messages is not None and messages_processed >= max_messages:
+                    stop_requested = True
+                    break
+                continue
+            if event_filter is not None and not event_filter(event):
+                if max_messages is not None and messages_processed >= max_messages:
+                    stop_requested = True
+                    break
+                continue
+            state = apply_market_event(state, event)
+            if state_store is not None:
+                state_store.set_state(state)
+            if recorder is not None:
+                recorder.record(event)
+            if on_market_event is not None:
+                on_market_event(event)
+            if on_event_state is not None:
+                # Hands the ALREADY-BUILT state to the analysis feed - an O(1)
+                # enqueue. Analysis (controller context, paper evaluation) must
+                # never run inline here: it starves the socket, backpressures TCP,
+                # and overflows the Java bridge queue (real, measured data loss).
+                on_event_state(event, state)
+            if on_state is not None:
+                on_state(state)
+            events_processed += 1
             if max_messages is not None and messages_processed >= max_messages:
+                stop_requested = True
                 break
-            continue
-        if event_filter is not None and not event_filter(event):
-            if max_messages is not None and messages_processed >= max_messages:
-                break
-            continue
-        state = apply_market_event(state, event)
-        if state_store is not None:
-            state_store.set_state(state)
-        if recorder is not None:
-            recorder.record(event)
-        if on_market_event is not None:
-            on_market_event(event)
-        if on_event_state is not None:
-            # Hands the ALREADY-BUILT state to the analysis feed - an O(1)
-            # enqueue. Analysis (controller context, paper evaluation) must
-            # never run inline here: it starves the socket, backpressures TCP,
-            # and overflows the Java bridge queue (real, measured data loss).
-            on_event_state(event, state)
-        if on_state is not None:
-            on_state(state)
-        events_processed += 1
-        if max_messages is not None and messages_processed >= max_messages:
+        if stop_requested:
             break
 
     return MarketReceiverResult(
@@ -219,3 +227,8 @@ def decode_market_message(message: WebSocketMessage) -> RawMarketEvent:
 def decode_stream_message(message: WebSocketMessage) -> RawStreamEvent:
     """Decode and validate one Java Bookmap bridge stream message."""
     return parse_stream_message(message)
+
+
+def decode_stream_messages(message: WebSocketMessage) -> tuple[RawStreamEvent, ...]:
+    """Decode one Java bridge frame, including a bounded event micro-batch."""
+    return parse_stream_messages(message)

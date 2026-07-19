@@ -62,6 +62,23 @@ Built JAR:
 bookmap_addon_java\build\libs\mnq-bookmap-forwarder-all.jar
 ```
 
+### Capture micro-batching
+
+The installed add-on protocol is 1.2. It retains legacy single-event frames at
+low activity and automatically combines queued events for at most 2 ms, up to
+128 ordered events per frame. This reduces socket/frame/JSON overhead without
+changing event sequence, timestamps, recorder eligibility, or paper causality.
+Python accepts both 1.2 batches and older single-event frames. If an entire
+batch is lost, the bridge and receiver account for every contained event and
+invalidate the affected segment.
+
+Reproduce the production-path comparison without touching user data:
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.pipeline_loadtest --rate 2500 --seconds 10 --burst 6000 --wire-batch-size 128
+.\.venv\Scripts\python.exe -m tools.pipeline_loadtest --rate 2500 --seconds 10 --burst 6000 --wire-batch-size 1
+```
+
 Startup output includes:
 
 ```text

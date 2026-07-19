@@ -4,6 +4,8 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 `84e362a` on
 `feature/automatic-runtime`.
 
+The capture micro-batching continuation started from `3dd4c06`.
+
 ## Completed and verified in this continuation
 
 - The default GUI attaches to a persistent detached supervisor/backend. An
@@ -17,10 +19,10 @@ Updated 2026-07-19. Starting HEAD for this continuation:
 - The runtime now exposes one internally consistent component snapshot. A lost
   market event invalidates capture/recording, pauses causal paper, and prevents
   research eligibility instead of displaying contradictory green states.
-- Bookmap bridge protocol 1.1 carries stream/session/connection identity,
+- Bookmap bridge protocol 1.2 carries stream/session/connection identity,
   capabilities, provenance, and a global sequence across market and control
-  events. Legacy single-event messages remain accepted outside strict production
-  mode. Production requires a compatible handshake. A transport reconnect
+  events. It also sends bounded 2 ms / 128-event micro-batches while retaining
+  legacy single-event compatibility. Production requires a compatible handshake. A transport reconnect
   discards and counts the dead-socket backlog, rotates `connection_id`, and sends
   a fresh handshake before the new Python WebSocket handler accepts market data.
 - Transport sends removed from the Java queue but not confirmed by the socket are
@@ -48,18 +50,31 @@ Updated 2026-07-19. Starting HEAD for this continuation:
   after restart, so neither task can block capture or its bounded clean drain.
 - The soak verifier now fails on an unclean receiver drain or unclean finalized
   manifest; exact event counts alone can no longer produce a false PASS.
+- Intake overflow accounting understands batch cardinality: evicting one
+  128-event frame reports 128 lost events. Failed Java transport sends likewise
+  count every event in the frame. Batch event/frame counts are emitted in
+  heartbeats for truthful diagnostics.
 
 ## Verification evidence
 
-- Python: `810 passed, 4 warnings` in 114.31 seconds.
-- Java: `26` bridge tests; `clean test shadowJar` succeeded.
+- Python: `818 passed, 0 failures` in 105.418 seconds (JUnit evidence).
+- Java: `29` bridge tests; `clean test shadowJar` succeeded.
 - Acceptance verifier: `23/23` checks passed.
 - JAR: `bookmap_addon_java/build/libs/mnq-bookmap-forwarder-all.jar`,
-  26,816 bytes, 19 application classes, 0 `velox` classes.
+  29,450 bytes, 21 application classes, 0 `velox` classes; SHA-256
+  `2B3D04B7C163345305CC0121C9481F8B2DE2F99F742A85A83D9E1C0FDCAAFED1`.
 - Production-path load, 1,650 events/second target plus 5,000 burst:
   21,500 accepted and persisted, zero overflow/loss, final analysis lag 2.9188 ms.
 - Production-path load, 2,500 events/second target plus 6,000 burst:
   31,000 accepted and persisted, zero overflow/loss, final analysis lag 1.8766 ms.
+- Protocol 1.2 production-path comparison at the same 2,500 events/second plus
+  6,000 burst: 31,000 events used 1,049 frames instead of 31,002 (96.6% fewer),
+  intake high-water fell from 1,527 to 30, final analysis lag fell from 1.7043
+  ms to 0.6403 ms, and both modes conserved every event with zero overflow.
+- Completed post-change short soak at 2,500 events/second: 37,100 sent,
+  accepted, persisted, and analysed; zero skipped events, clean finalization,
+  automatic paper/session/daily-learning reports, PASS. The prior 30.1-minute
+  1,650 events/second production soak remains the long-duration baseline.
 - 30.1-minute production-process soak at 1,650 events/second:
   2,953,772 accepted, persisted, and analyzed; zero skipped analysis events;
   3,464 causal paper evaluations; analysis queue high-water 191; clean drain,

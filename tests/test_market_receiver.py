@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -11,7 +12,12 @@ import pytest
 import pyarrow.parquet as pq
 
 from app.database.recorder import MarketEventRecorder
-from app.market.receiver import consume_market_stream, decode_market_message, decode_stream_message
+from app.market.receiver import (
+    consume_market_stream,
+    decode_market_message,
+    decode_stream_message,
+    decode_stream_messages,
+)
 from app.market.state import MarketState
 from bookmap_addon.events import EventSchemaError, event_to_json, format_depth_update, format_trade
 
@@ -146,6 +152,93 @@ def test_receiver_can_stop_after_max_messages() -> None:
 
     assert result.events_processed == 2
     assert result.final_state.executed_buy_volume == Decimal("2")
+
+
+def test_receiver_expands_ordered_micro_batch_and_preserves_single_frames() -> None:
+    """Protocol 1.2 batches and legacy frames use the same causal event path."""
+    depth = format_depth_update(
+        timestamp=100,
+        symbol="MNQ",
+        side="bid",
+        price="100.00",
+        previous_size="0",
+        new_size="10",
+        stream_sequence=1,
+    )
+    trade = format_trade(
+        timestamp_ns=101,
+        price="100.00",
+        size="2",
+        aggressor_side="sell",
+        instrument="MNQ",
+        sequence_id=1,
+        stream_sequence=2,
+    )
+    batch = json.dumps({
+        "type": "event_batch",
+        "protocol_version": "1.2",
+        "event_count": 2,
+        "events": [depth, trade],
+    })
+
+    assert decode_stream_messages(event_to_json(depth)) == (depth,)
+    assert decode_stream_messages(batch) == (depth, trade)
+    result = asyncio.run(consume_market_stream(MockWebSocketClient([batch])))
+    assert result.events_processed == 2
+    assert result.final_state.best_bid == Decimal("100.00")
+    assert result.final_state.executed_sell_volume == Decimal("2")
+
+
+@pytest.mark.parametrize(
+    "change, expected",
+    [
+        ({"event_count": 3}, "does not match"),
+        ({"protocol_version": "2.0"}, "supported major version 1"),
+        ({"events": [] , "event_count": 0}, "between 1 and"),
+    ],
+)
+def test_receiver_rejects_malformed_or_incompatible_micro_batch(
+    change: dict[str, object],
+    expected: str,
+) -> None:
+    """Bad batch envelopes fail before any contained event changes state."""
+    event = format_trade(
+        timestamp_ns=1,
+        price="100.25",
+        size="1",
+        aggressor_side="buy",
+        instrument="MNQ",
+        sequence_id=1,
+    )
+    envelope: dict[str, object] = {
+        "type": "event_batch",
+        "protocol_version": "1.2",
+        "event_count": 1,
+        "events": [event],
+    }
+    envelope.update(change)
+    with pytest.raises(EventSchemaError, match=expected):
+        decode_stream_messages(json.dumps(envelope))
+
+
+def test_single_event_decoder_refuses_to_silently_truncate_batch() -> None:
+    """Legacy single-event callers cannot accidentally ignore batched events."""
+    event = format_trade(
+        timestamp_ns=1,
+        price="100.25",
+        size="1",
+        aggressor_side="buy",
+        instrument="MNQ",
+        sequence_id=1,
+    )
+    batch = json.dumps({
+        "type": "event_batch",
+        "protocol_version": "1.2",
+        "event_count": 2,
+        "events": [event, {**event, "timestamp_ns": 2, "sequence_id": 2}],
+    })
+    with pytest.raises(EventSchemaError, match="use parse_stream_messages"):
+        decode_stream_message(batch)
 
 
 def test_receiver_raises_for_invalid_websocket_message() -> None:

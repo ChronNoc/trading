@@ -13,6 +13,12 @@ ws://127.0.0.1:8765/bookmap
 It does not submit orders, does not import any broker code, and does not contain
 credentials.
 
+Protocol 1.2 uses bounded micro-batches: after the first queued event, the
+sender collects for at most 2 milliseconds and sends no more than 128 ordered
+events in one WebSocket frame. A lone event keeps the legacy single-event
+format. The receiver accepts both formats. Heartbeats report confirmed event
+and frame counts, and a failed batch counts every contained event as lost.
+
 ## API Version
 
 Production compilation prefers the API jars from the installed Bookmap build:
@@ -118,6 +124,8 @@ Replay data:
   and analysis validity.
 - The Java add-on uses a bounded queue and reports a `data_gap` event when it
   drops messages.
+- Heartbeats expose `sent_count` (confirmed events) and `sent_frame_count`
+  (confirmed WebSocket frames) so batching efficiency is measurable.
 
 ## Known Limitations
 

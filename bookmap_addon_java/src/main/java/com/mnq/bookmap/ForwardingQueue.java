@@ -17,6 +17,7 @@ public final class ForwardingQueue {
     private final MessageFactory messageFactory;
     private final AtomicLong droppedCount = new AtomicLong();
     private final AtomicLong sentCount = new AtomicLong();
+    private final AtomicLong sentFrameCount = new AtomicLong();
     private final AtomicLong lastGapMarkerNanos = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean gapMarkerPending = new AtomicBoolean();
 
@@ -39,7 +40,15 @@ public final class ForwardingQueue {
 
     /** Account a payload removed from the queue but not confirmed by transport. */
     public void markTransportDrop() {
-        droppedCount.incrementAndGet();
+        markTransportDrop(1L);
+    }
+
+    /** Account every event in one unconfirmed transport frame as lost. */
+    public void markTransportDrop(long eventCount) {
+        if (eventCount <= 0) {
+            throw new IllegalArgumentException("eventCount must be greater than zero");
+        }
+        droppedCount.addAndGet(eventCount);
         gapMarkerPending.set(true);
     }
 
@@ -79,8 +88,22 @@ public final class ForwardingQueue {
         return sentCount.get();
     }
 
+    /** Return the number of confirmed WebSocket frames, batched or single. */
+    public long sentFrameCount() {
+        return sentFrameCount.get();
+    }
+
     public void markSent() {
-        sentCount.incrementAndGet();
+        markSent(1L);
+    }
+
+    /** Mark one frame containing ``eventCount`` events as confirmed. */
+    public void markSent(long eventCount) {
+        if (eventCount <= 0) {
+            throw new IllegalArgumentException("eventCount must be greater than zero");
+        }
+        sentCount.addAndGet(eventCount);
+        sentFrameCount.incrementAndGet();
     }
 
     public int size() {

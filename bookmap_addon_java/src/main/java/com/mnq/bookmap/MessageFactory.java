@@ -53,9 +53,15 @@ public final class MessageFactory {
         return toJson(payload);
     }
 
-    public String heartbeat(long timestampNs, String sourceMode, long droppedCount, long sentCount) {
+    public String heartbeat(
+            long timestampNs,
+            String sourceMode,
+            long droppedCount,
+            long sentCount,
+            long sentFrameCount) {
         Map<String, Object> payload = controlMap("heartbeat", timestampNs, sourceMode, droppedCount);
         payload.put("sent_count", sentCount);
+        payload.put("sent_frame_count", sentFrameCount);
         return toJson(payload);
     }
 

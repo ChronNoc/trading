@@ -25,11 +25,42 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Mapping
+
+
+_BATCH_TYPE_PATTERN = re.compile(rb'"type"\s*:\s*"event_batch"')
+_BATCH_COUNT_PATTERN = re.compile(rb'"event_count"\s*:\s*(\d+)')
+_MAX_WIRE_BATCH_EVENTS = 512
+
+
+@dataclass(frozen=True, slots=True)
+class _QueuedFrame:
+    """One socket frame plus the exact event cardinality it represents."""
+
+    payload: str | bytes
+    event_count: int
+
+
+def _wire_event_count(message: str | bytes) -> int:
+    """Return an event frame's declared bounded cardinality without JSON decoding.
+
+    The normal schema parser remains authoritative. This lightweight scan exists
+    only so an intake overflow accounts for every event in an evicted batch,
+    instead of incorrectly reporting one lost frame as one lost market event.
+    """
+    encoded = message.encode("utf-8", errors="ignore") if isinstance(message, str) else message
+    if _BATCH_TYPE_PATTERN.search(encoded) is None:
+        return 1
+    match = _BATCH_COUNT_PATTERN.search(encoded)
+    if match is None:
+        return 1
+    count = int(match.group(1))
+    return count if 1 <= count <= _MAX_WIRE_BATCH_EVENTS else 1
 
 
 @dataclass(slots=True)
@@ -121,13 +152,13 @@ class BoundedIntakeBuffer:
         self._connection = connection
         # Only real frames (or the close sentinel) are queued; gap markers are
         # synthesized out-of-band so they never consume capacity.
-        self._queue: asyncio.Queue[str | bytes] = asyncio.Queue(maxsize=capacity)
+        self._queue: asyncio.Queue[_QueuedFrame] = asyncio.Queue(maxsize=capacity)
         self.metrics = StageMetrics(capacity=capacity)
         self._lost = 0
         self._gap_pending = False
         self._closed = False
 
-    def _force_put(self, item: str | bytes | None) -> None:
+    def _force_put(self, item: _QueuedFrame) -> None:
         """Enqueue without blocking, evicting AT MOST ONE item to make room.
 
         Every queued item is a real market frame (or the close sentinel), so an
@@ -137,25 +168,26 @@ class BoundedIntakeBuffer:
         """
         if self._queue.full():
             try:
-                self._queue.get_nowait()
+                evicted = self._queue.get_nowait()
             except asyncio.QueueEmpty:  # pragma: no cover - race
                 pass
             else:
-                self._lost += 1  # every queued item is a real market frame
-                self.metrics.overflow += 1
+                self._lost += evicted.event_count
+                self.metrics.overflow += evicted.event_count
         self._queue.put_nowait(item)
 
     async def pump(self) -> None:
         """Read the socket until it closes; never blocks the socket on a full queue."""
         try:
             async for message in self._connection:  # type: ignore[attr-defined]
-                self.metrics.ingress += 1
+                frame = _QueuedFrame(message, _wire_event_count(message))
+                self.metrics.ingress += frame.event_count
                 if self._queue.full():
                     # Loss is loud but coalesced: the new frame displaces exactly
                     # ONE old frame, and the gap is announced out-of-band so the
                     # announcement itself never costs another real event.
                     self._gap_pending = True
-                self._force_put(message)
+                self._force_put(frame)
                 self.metrics.occupancy = self._queue.qsize()
                 self.metrics.high_water = max(self.metrics.high_water, self.metrics.occupancy)
         finally:
@@ -193,8 +225,8 @@ class BoundedIntakeBuffer:
                 except (TimeoutError, asyncio.TimeoutError):
                     continue  # re-check the closed flag, then keep waiting
             self.metrics.occupancy = self._queue.qsize()
-            self.metrics.egress += 1
-            return item
+            self.metrics.egress += item.event_count
+            return item.payload
 
 
 class RecorderPipeline:
