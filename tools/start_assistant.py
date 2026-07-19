@@ -444,6 +444,7 @@ def run_assistant(config: AssistantConfig) -> int:
                 flush=True,
             )
             return 2
+        from app.gui.backend_commands import ExecutionCommander
         from app.gui.file_snapshot import FileSnapshotProvider
 
         exit_code = _run_gui(
@@ -451,6 +452,7 @@ def run_assistant(config: AssistantConfig) -> int:
                 config.session_config, report_root=config.report_root,
             ),
             provider=FileSnapshotProvider(config.runtime_dir),
+            execution_commander=ExecutionCommander(config.runtime_dir),
         )
         print(
             "GUI closed. The capture backend is still running and recording.\n"

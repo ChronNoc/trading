@@ -64,6 +64,7 @@ class SnapshotSource:
         market_state: Callable[[], object] | None = None,
         paper_engine: object | None = None,
         analysis_feed: object | None = None,
+        demo_service: object | None = None,
     ) -> None:
         """Bind the live components; all are optional for headless/GUI-only use."""
         self._controller = controller
@@ -73,6 +74,7 @@ class SnapshotSource:
         self._market_state = market_state
         self._paper_engine = paper_engine
         self._analysis_feed = analysis_feed
+        self._demo_service = demo_service
         self._frame_cache: dict[str, object | None] | None = None
         from app.risk.account_profile import load_selected_profile
 
@@ -430,9 +432,37 @@ class SnapshotSource:
             live_enabled_in_config=read_live_enabled(Path("config/production_config.yaml")),
             prop_rules_resolved=self._profile.resolved,
         ))
+        demo = None
+        if self._demo_service is not None:
+            try:
+                demo = self._demo_service.status()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001 - a broker fault must not break the GUI
+                demo = None
+        if demo is None:
+            from app.execution.demo_service import credential_checklist
+
+            return ExecutionSnapshot(
+                environment="PAPER", connected=False, demo_armed=False, live_armed=False,
+                live_blockers=decision.failures, prop_rules_resolved=self._profile.resolved,
+                demo_credential_checklist=credential_checklist(),
+            )
         return ExecutionSnapshot(
-            environment="PAPER", connected=False, demo_armed=False, live_armed=False,
-            live_blockers=decision.failures, prop_rules_resolved=self._profile.resolved,
+            environment="PAPER", connected=bool(demo.connected), demo_armed=False,
+            live_armed=False, live_blockers=decision.failures,
+            prop_rules_resolved=self._profile.resolved,
+            demo_state=str(demo.state),
+            demo_account=str(demo.selected_account),
+            demo_balance=str(demo.balance),
+            demo_position_net=int(demo.position_net),
+            demo_working_orders=int(demo.working_orders),
+            demo_contract=str(demo.contract),
+            demo_sync_age_seconds=demo.sync_age_seconds,
+            demo_orphan_orders=int(demo.orphan_orders),
+            demo_reconnects=int(demo.reconnects),
+            demo_last_error=str(demo.last_error),
+            demo_last_command_result=str(demo.last_command_result),
+            demo_credential_checklist=tuple(demo.credential_checklist),
+            demo_arming_blockers=tuple(demo.arming_blockers),
         )
 
     def _components(self) -> tuple[ComponentHealth, ...]:

@@ -290,6 +290,22 @@ class ExecutionSnapshot:
     live_armed: bool = False
     live_blockers: tuple[str, ...] = ()
     prop_rules_resolved: bool = False
+    # --- Tradovate DEMO (read-only) -------------------------------------------
+    # Published by the backend's DemoConnectionService; contains no secrets.
+    demo_state: str = "DISCONNECTED"
+    demo_account: str = ""
+    demo_balance: str = "unknown"
+    demo_position_net: int = 0
+    demo_working_orders: int = 0
+    demo_contract: str = ""
+    demo_sync_age_seconds: float | None = None
+    demo_orphan_orders: int = 0
+    demo_reconnects: int = 0
+    demo_last_error: str = ""
+    demo_last_command_result: str = ""
+    # (variable name, present) pairs - values are never included anywhere.
+    demo_credential_checklist: tuple[tuple[str, bool], ...] = ()
+    demo_arming_blockers: tuple[str, ...] = ()
 
     @property
     def live_health(self) -> Health:

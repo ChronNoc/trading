@@ -591,3 +591,79 @@ def test_meter_never_claims_profitability_it_cannot_support(qtbot: object) -> No
     body = _meter_body(qtbot, fraction=0.067, computed=True, claim_supported=False)
     assert "NOT claimed" in body
     assert "profitable" in body.lower()
+
+
+# --- the Execution screen shows the REAL backend DEMO state -----------------------
+
+
+def _execution_body(qtbot: object, **execution: object) -> str:
+    from dataclasses import replace
+
+    from app.gui.view_models import ExecutionSnapshot
+
+    snapshot = replace(_rich_snapshot(), execution=ExecutionSnapshot(**execution))
+    window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Execution")
+    window.refresh_from_snapshot()
+    return window.findChild(QLabel, "screen_execution_body").text()
+
+
+def test_execution_screen_shows_demo_connection_state(qtbot: object) -> None:
+    body = _execution_body(
+        qtbot,
+        live_blockers=("live_enabled is not true",),
+        demo_state="CONNECTED_READONLY", demo_account="DEMO12345",
+        demo_balance="52000.00", demo_position_net=-2, demo_working_orders=1,
+        demo_contract="MNQZ6", demo_sync_age_seconds=7.0,
+        demo_credential_checklist=(("TRADOVATE_DEMO_USERNAME", True),
+                                   ("TRADOVATE_DEMO_SECRET", False)),
+        demo_arming_blockers=("read-only build",),
+    )
+    assert "TRADOVATE DEMO: CONNECTED_READONLY" in body
+    assert "Account: DEMO12345" in body and "Balance: 52000.00" in body
+    assert "Position: -2" in body and "Working orders: 1" in body
+    assert "Broker contract: MNQZ6" in body
+    assert "Last sync: 7s ago" in body
+    assert "[set] TRADOVATE_DEMO_USERNAME" in body
+    assert "[MISSING] TRADOVATE_DEMO_SECRET" in body
+    assert "read-only build" in body
+    assert "LIVE: LOCKED" in body and "live_enabled is not true" in body
+
+
+def test_execution_controls_disabled_without_a_commander(qtbot: object) -> None:
+    """In-process/legacy mode has no backend command channel: controls stay off."""
+    from PySide6.QtWidgets import QPushButton
+
+    window = AppWindow(snapshot_provider=_rich_snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Execution")
+    window.refresh_from_snapshot()
+    for name in ("execution_connect_demo", "execution_sync_now", "execution_disconnect"):
+        button = window.findChild(QPushButton, name)
+        assert button is not None
+        assert button.isEnabled() is False
+
+
+def test_execution_connect_button_submits_a_backend_command(qtbot: object, tmp_path) -> None:
+    import time as _time
+
+    from PySide6.QtWidgets import QPushButton
+
+    from app.gui.backend_commands import ExecutionCommander
+    from app.runtime.process_files import CommandFile
+
+    window = AppWindow(snapshot_provider=_rich_snapshot, start_timer=False,
+                       execution_commander=ExecutionCommander(tmp_path))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Execution")
+    window.refresh_from_snapshot()
+    button = window.findChild(QPushButton, "execution_connect_demo")
+    assert button.isEnabled() is True
+    button.click()
+    payload = None
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline and payload is None:
+        payload = CommandFile(tmp_path).consume()
+        _time.sleep(0.02)
+    assert payload is not None and payload["name"] == "connect_readonly"

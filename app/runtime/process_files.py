@@ -478,3 +478,58 @@ def _atomic_write_json(path: Path, payload: Mapping[str, object]) -> None:
         replace_with_retry(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+class CommandFile:
+    """Bounded GUI -> backend command channel: one pending command file.
+
+    The GUI writes ``runtime/execution_command.json`` atomically (uuid
+    command_id + name + args); the backend consumes it exactly once per poll
+    and hands it to the owning service, which de-duplicates by command_id. The
+    file lives in the same user-owned runtime directory as the status file, so
+    the trust boundary is the same filesystem ACL that already protects the
+    lock and heartbeat.
+    """
+
+    NAME = "execution_command.json"
+
+    def __init__(self, runtime_dir: Path | str = DEFAULT_RUNTIME_DIR) -> None:
+        """Bind to the runtime directory (created if missing)."""
+        self._path = Path(runtime_dir) / self.NAME
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def path(self) -> Path:
+        """The command file location."""
+        return self._path
+
+    def submit(self, name: str, args: dict[str, object] | None = None) -> str:
+        """Write one command atomically; returns its command_id."""
+        import uuid
+
+        command_id = uuid.uuid4().hex
+        payload = json.dumps({
+            "command_id": command_id,
+            "name": name,
+            "args": dict(args or {}),
+            "submitted_at_unix": time.time(),
+            "submitter_pid": os.getpid(),
+        })
+        temporary = unique_temp_path(self._path, ".tmp")
+        temporary.write_text(payload, encoding="utf-8")
+        try:
+            replace_with_retry(temporary, self._path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return command_id
+
+    def consume(self) -> dict[str, object] | None:
+        """Take the pending command (exactly once), or None when absent/torn."""
+        if not self._path.is_file():
+            return None
+        try:
+            payload = json.loads(self._path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None  # mid-replace read: next poll gets it
+        self._path.unlink(missing_ok=True)
+        return payload if isinstance(payload, dict) else None

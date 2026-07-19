@@ -437,21 +437,81 @@ class RiskLucidScreen(_ListScreen):
 
 
 class ExecutionScreen(_ListScreen):
-    """PAPER / DEMO / locked LIVE, visually separated."""
+    """PAPER / Tradovate DEMO (read-only) / locked LIVE, visually separated."""
 
     def __init__(self) -> None:
-        """Build the execution screen."""
+        """Build the execution screen with real backend DEMO controls."""
         super().__init__("screen_execution", "Execution")
+        from PySide6.QtWidgets import QMessageBox, QPushButton
+
+        self._commander = None  # injected by the window; None disables controls
+        self._message_box = QMessageBox
+        buttons = QHBoxLayout()
+        self.connect_button = QPushButton("Connect DEMO (read-only)")
+        self.connect_button.setObjectName("execution_connect_demo")
+        self.connect_button.clicked.connect(lambda: self._submit("connect_readonly"))
+        self.sync_button = QPushButton("Sync now")
+        self.sync_button.setObjectName("execution_sync_now")
+        self.sync_button.clicked.connect(lambda: self._submit("sync_now"))
+        self.disconnect_button = QPushButton("Disconnect")
+        self.disconnect_button.setObjectName("execution_disconnect")
+        self.disconnect_button.clicked.connect(self._disconnect_clicked)
+        for button in (self.connect_button, self.sync_button, self.disconnect_button):
+            button.setEnabled(False)
+            buttons.addWidget(button)
+        buttons.addStretch(1)
+        self.layout().addLayout(buttons)
+
+    def set_commander(self, commander: object | None) -> None:
+        """Inject the background command submitter (isolated-GUI mode only)."""
+        self._commander = commander
+
+    def _submit(self, name: str) -> None:
+        if self._commander is not None:
+            # The file write happens on a worker thread inside the commander -
+            # nothing on the Qt thread touches the filesystem.
+            self._commander.submit(name)
+
+    def _disconnect_clicked(self) -> None:
+        confirm = self._message_box.question(
+            self, "Disconnect Tradovate DEMO",
+            "Disconnect the read-only DEMO session?",
+        )
+        if confirm == self._message_box.StandardButton.Yes:
+            self._submit("disconnect")
 
     def render(self, snapshot: AppSnapshot) -> None:
-        """Show environment and the exact unmet LIVE gates."""
+        """Show PAPER, the REAL backend DEMO state, and the exact LIVE gates."""
         e = snapshot.execution
+        have_commander = self._commander is not None
+        demo_connected = e.demo_state == "CONNECTED_READONLY"
+        self.connect_button.setEnabled(have_commander and not demo_connected)
+        self.sync_button.setEnabled(have_commander and demo_connected)
+        self.disconnect_button.setEnabled(have_commander and demo_connected)
+
+        sync_age = ("never" if e.demo_sync_age_seconds is None
+                    else f"{e.demo_sync_age_seconds:.0f}s ago")
         lines = [
-            f"Environment: {e.environment}",
-            f"Connected: {'yes' if e.connected else 'no'}   DEMO armed: {'YES' if e.demo_armed else 'no'}",
+            "PAPER: automatic delayed-paper simulation (always on).",
             "",
-            "LIVE: LOCKED. Unmet requirements:",
+            f"TRADOVATE DEMO: {e.demo_state}   armed: {'YES' if e.demo_armed else 'no (never persists)'}",
+            f"  Account: {e.demo_account or '—'}   Balance: {e.demo_balance}",
+            f"  Position: {e.demo_position_net:+d}   Working orders: {e.demo_working_orders}",
+            f"  Broker contract: {e.demo_contract or '—'}   Bookmap: {snapshot.market.contract}",
+            f"  Last sync: {sync_age}   Reconnects: {e.demo_reconnects}   "
+            f"Orphan orders: {e.demo_orphan_orders}",
         ]
+        if e.demo_last_error:
+            lines.append(f"  Last error: {e.demo_last_error}")
+        if e.demo_last_command_result:
+            lines.append(f"  Last command: {e.demo_last_command_result}")
+        lines += ["", "  Credentials (values are never shown or stored):"]
+        for name, present in e.demo_credential_checklist:
+            lines.append(f"    [{'set' if present else 'MISSING'}] {name}")
+        lines += ["", "  DEMO order arming is blocked because:"]
+        lines += [f"    • {reason}" for reason in e.demo_arming_blockers] or [
+            "    • (blockers not evaluated)"]
+        lines += ["", "LIVE: LOCKED. Unmet requirements:"]
         lines += [f"  • {b}" for b in e.live_blockers] or ["  • (gate not evaluated)"]
         lines += ["", "Delayed data can never place a broker order."]
         self.body.setText("\n".join(lines))

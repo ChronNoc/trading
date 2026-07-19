@@ -137,11 +137,29 @@ def run_backend(
     )
     receiver.start()
 
+    # Tradovate DEMO: backend-owned, read-only, permanently disarmed. The GUI
+    # sees its status through the same snapshot and drives it only through
+    # the bounded command file below - never a direct broker call.
+    from app.execution.demo_service import DemoConnectionService
+    from app.runtime.process_files import CommandFile
+
+    demo_service = DemoConnectionService()
+    command_file = CommandFile(runtime_dir)
+    # Unattended-run guards: disk space under the recording root and sustained
+    # writer deficit. Action order is fixed: pause research FIRST (optional
+    # work never competes with recording); a critical disk is loudly surfaced
+    # so the session's integrity risk is visible before flushes start failing.
+    from app.runtime.disk_guard import DISK_CRITICAL, DISK_HEALTHY, DiskGuard, ThroughputGuard
+
+    disk_guard = DiskGuard(config.output_root)
+    throughput_guard = ThroughputGuard()
+    last_disk_check = 0.0
+    disk_state = disk_guard.check()
     source = SnapshotSource(
         controller=controller, pipeline_holder=pipeline_holder,
         research_service=research_service, receiver_status=status_holder.snapshot,
         market_state=get_current_market_state, paper_engine=paper_engine,
-        analysis_feed=feed,
+        analysis_feed=feed, demo_service=demo_service,
     )
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)
@@ -204,6 +222,43 @@ def run_backend(
                     logger.error("status publication failed three consecutive times; restarting backend")
                     clean = False
                     break
+            now = time.monotonic()
+            if now - last_disk_check >= 10.0:
+                last_disk_check = now
+                previous_level = disk_state.level
+                disk_state = disk_guard.check()
+                pipe = pipeline_holder.snapshot()
+                ingress = int(pipe.recorder.get("ingress", 0)) if pipe.recorder else 0
+                persisted = int(pipe.recorder.get("egress", 0)) if pipe.recorder else 0
+                writer_behind = throughput_guard.observe(ingress, persisted)
+                if disk_state.level != DISK_HEALTHY or writer_behind:
+                    if research_service is not None and hasattr(research_service, "request_pause"):
+                        research_service.request_pause()
+                    logger.warning(
+                        "capture protection: disk=%s (%s) writer_deficit=%.0f ev/s%s",
+                        disk_state.level, disk_state.detail,
+                        throughput_guard.last_deficit_per_second,
+                        " - research paused" if research_service is not None else "",
+                    )
+                elif previous_level != DISK_HEALTHY and disk_state.level == DISK_HEALTHY:
+                    if research_service is not None and hasattr(research_service, "resume"):
+                        research_service.resume()
+                    logger.info("capture protection cleared: %s", disk_state.detail)
+                if disk_state.level == DISK_CRITICAL:
+                    controller.health.record_event(
+                        "disk", "critical", disk_state.detail,
+                    )
+            command = command_file.consume()
+            if command is not None:
+                # Executed on the backend; idempotent by command_id inside the
+                # service, so a re-delivered file can never double-execute.
+                outcome = demo_service.handle_command({
+                    "command_id": command.get("command_id", ""),
+                    "name": command.get("name", ""),
+                    **dict(command.get("args", {}) or {}),
+                })
+                logger.info("execution command %s -> %s",
+                            command.get("name"), outcome.get("result", outcome.get("error")))
             if stop.pending():
                 logger.info("stop requested; draining")
                 break
@@ -225,6 +280,7 @@ def run_backend(
                 f"{time.time()} {type(error).__name__}: {error}",
                 encoding="utf-8",
             )
+        demo_service.stop()  # always exits DISCONNECTED and DISARMED
         stop.clear()
         lock.release()
         logger.info("backend stopped (clean=%s)", clean)

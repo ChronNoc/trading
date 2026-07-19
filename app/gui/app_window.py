@@ -87,6 +87,7 @@ class AppWindow(QMainWindow):
         self,
         *,
         snapshot_provider: SnapshotProvider | None = None,
+        execution_commander: object | None = None,
         theme: str = "dark",
         gui_scale: float = 1.0,
         start_timer: bool = True,
@@ -98,6 +99,7 @@ class AppWindow(QMainWindow):
         self.resize(1280, 720)
         self.setMinimumSize(1100, 640)
         self._snapshot_provider = snapshot_provider
+        self._execution_commander = execution_commander
         self._snapshot_worker: SnapshotWorker | None = None
         self._snapshot = AppSnapshot()
         self._theme = theme
@@ -123,6 +125,11 @@ class AppWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setObjectName("screen_stack")
         self._screens = build_screens()
+        # Isolated-GUI mode: the Execution screen drives the backend's DEMO
+        # service through the bounded command file (worker-thread writes).
+        execution = self._screens.get("Execution")
+        if execution is not None and hasattr(execution, "set_commander"):
+            execution.set_commander(self._execution_commander)
         for name in SCREEN_ORDER:
             self.stack.addWidget(self._screens[name])
         body_layout.addWidget(self.stack, 1)
