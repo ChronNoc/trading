@@ -34,6 +34,12 @@ LAG_LIMIT_MS = 2_000.0
 QUEUE_FRACTION_LIMIT = 0.8
 
 
+def _record_shutdown_result(failures: list[str], drained_cleanly: bool) -> None:
+    """Make an unclean receiver drain a soak failure, never a false pass."""
+    if not drained_cleanly:
+        failures.append("receiver shutdown did not drain cleanly within 20 seconds")
+
+
 def _memory_mb() -> float | None:
     try:
         import psutil  # type: ignore[import-untyped]
@@ -203,12 +209,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     while feed_final.depth and time.monotonic() < deadline:
         time.sleep(0.2)
         feed_final = feed.metrics()
-    _shutdown_receiver(shutdown, receiver, timeout=20.0)
+    drained_cleanly = _shutdown_receiver(shutdown, receiver, timeout=20.0)
+    _record_shutdown_result(failures, drained_cleanly)
 
     manifests = list((tmp / "raw").rglob("session_manifest.json"))
     persisted = 0
     bridge_drops = 0
     rejected = 0
+    unclean_sessions = 0
     for manifest_path in manifests:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         counts = manifest.get("event_counts", {})
@@ -216,11 +224,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         quality = manifest.get("data_quality", {})
         bridge_drops += int(quality.get("bridge_dropped_messages", 0))
         rejected += int(quality.get("rejected_events", 0))
+        if not bool(manifest.get("clean_shutdown", False)):
+            unclean_sessions += 1
     accepted = sent_box[0] - rejected
     if persisted != accepted:
         failures.append(f"conservation: persisted {persisted:,} != accepted {accepted:,}")
     if bridge_drops:
         failures.append(f"bridge drops during soak: {bridge_drops}")
+    if unclean_sessions:
+        failures.append(f"unclean finalized sessions during soak: {unclean_sessions}")
     if feed_final.skipped:
         failures.append(f"analysis skipped {feed_final.skipped} (paper-only, but a soak must keep up)")
     if ran_seconds < duration - 1:

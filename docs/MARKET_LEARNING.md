@@ -46,7 +46,8 @@ levels are never loosened merely to populate the GUI.
 
 New receiver sessions flush readable closed parts under `depth_parts/` and
 `trade_parts/` while recording. On clean finalization they also produce the compatible
-`depth.parquet` and `trades.parquet` files. The WebSocket event schema is unchanged;
+closed `depth_parts/*.parquet` and `trade_parts/*.parquet` files (legacy compacted
+`depth.parquet` and `trades.parquet` remain readable). The WebSocket event schema is unchanged;
 `receive_sequence` is local disk provenance added by Python after validation.
 
 ## Automatic Reports

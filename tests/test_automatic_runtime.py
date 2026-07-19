@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -24,7 +26,13 @@ from app.strategy.dynamic_thresholds import DynamicThresholdEngine, RollingBasel
 from app.strategy.profile_registry import ProfileRegistry
 from app.strategy.session_router import SessionRouter
 from app.strategy.setups import SetupConditionResult, SetupEvaluationResult
-from tools.start_assistant import AssistantConfig, _finalize_assistant_session, find_repo_root, parse_args
+from tools.start_assistant import (
+    AssistantConfig,
+    _finalize_assistant_session,
+    _schedule_daily_learning_report,
+    find_repo_root,
+    parse_args,
+)
 
 
 def test_session_context_detects_new_york_open_across_dst_offsets() -> None:
@@ -321,6 +329,39 @@ def test_assistant_session_finalization_writes_daily_learning_report(tmp_path: P
     assert learning_report.exists()
     assert learning_json.exists()
     assert json.loads(learning_json.read_text(encoding="utf-8"))["auto_retraining_enabled"] is False
+
+
+def test_expensive_daily_learning_runs_off_the_capture_thread(tmp_path: Path, monkeypatch) -> None:
+    """A multi-million-event report must not hold the WebSocket handler during shutdown."""
+    import tools.start_assistant as launcher
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Paths:
+        markdown_path = tmp_path / "reports" / "daily_learning.md"
+
+    def slow_report(*_args: object, **_kwargs: object) -> Paths:
+        entered.set()
+        assert release.wait(5)
+        return Paths()
+
+    monkeypatch.setattr(launcher, "analyze_and_write_daily_learning_report", slow_report)
+    config = AssistantConfig.sandboxed(tmp_path / "raw", gui=False)
+    controller = AutomaticRuntimeController.from_config(
+        config.session_config, report_root=config.report_root,
+    )
+
+    started = time.monotonic()
+    worker = _schedule_daily_learning_report(config, date(2026, 7, 18), controller)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert entered.wait(2)
+    assert worker.is_alive(), "report work should be isolated from capture"
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
 
 
 def _market_snapshots(*, count: int) -> tuple[MarketState, ...]:

@@ -17,6 +17,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from app.database.recorder import MarketSessionRecorder
+from app.research.replay_loader import stream_session_events
 
 _EVENTS_PER_STREAM = 20_000  # 40k total; above typical sustained MNQ depth+trade rates
 
@@ -67,6 +68,38 @@ def test_finalize_is_idempotent(tmp_path: Path) -> None:
     first = _row_count(rec.depth_path)
     rec.finalize(clean_shutdown=True)  # second call must be a no-op
     assert _row_count(rec.depth_path) == first == 1000
+
+
+def test_production_finalization_uses_closed_parts_without_rewriting_session(tmp_path: Path) -> None:
+    """Large production sessions finalize quickly and remain replayable from parts."""
+    rec = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 15, 0, 22, tzinfo=UTC),
+        compact_on_finalize=False,
+    )
+    rec.record_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    base = 1_752_537_751_000_000_000
+    for i in range(600):
+        rec.record({
+            "type": "depth_update", "timestamp": base + i * 2, "symbol": "MNQ",
+            "side": "bid", "price": "29500.00", "previous_size": "0", "new_size": "5",
+        })
+        rec.record({
+            "timestamp_ns": base + i * 2 + 1, "price": "29500.00", "size": "1",
+            "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": i + 1,
+        })
+
+    rec.finalize(clean_shutdown=True)
+
+    assert not rec.depth_path.exists()
+    assert not rec.trades_path.exists()
+    assert len(list(stream_session_events(rec.session_dir))) == 1200
+    import json
+
+    manifest = json.loads(rec.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["clean_shutdown"] is True
+    assert manifest["storage"]["finalized_single_files"] is False
+    assert manifest["storage"]["compaction_deferred"] is True
 
 
 def test_data_gap_is_reported_not_swallowed(tmp_path: Path) -> None:

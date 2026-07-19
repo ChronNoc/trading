@@ -123,6 +123,7 @@ class MarketSessionRecorder:
     partition_timezone: timezone = UTC
     session_start_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
     requested_session_id: str | None = None
+    compact_on_finalize: bool = True
     session_dir: Path = field(init=False)
     session_id: str = field(init=False)
     depth_updates: int = field(init=False, default=0)
@@ -210,10 +211,11 @@ class MarketSessionRecorder:
     def record(self, event: Mapping[str, object]) -> Path:
         """Buffer one raw market event with local receive-order provenance.
 
-        Rows are flushed as atomically closed Parquet parts.  Every completed
+        Rows are flushed as atomically closed Parquet parts. Every completed
         part is readable while Bookmap continues recording and survives an
-        unclean process exit.  Finalization also creates the historical
-        single-file paths for existing replay and GUI consumers.
+        unclean process exit. Compatibility callers may request final single
+        files; production replays the parts directly so shutdown never rewrites
+        a multi-million-event session.
         """
         if self.finalized:
             raise RuntimeError("cannot record market events after session finalization")
@@ -350,8 +352,9 @@ class MarketSessionRecorder:
             return
         self._flush_depth()
         self._flush_trades()
-        _merge_parquet_parts(self.depth_parts_dir, self.depth_path, SESSION_DEPTH_SCHEMA)
-        _merge_parquet_parts(self.trade_parts_dir, self.trades_path, SESSION_TRADE_SCHEMA)
+        if self.compact_on_finalize:
+            _merge_parquet_parts(self.depth_parts_dir, self.depth_path, SESSION_DEPTH_SCHEMA)
+            _merge_parquet_parts(self.trade_parts_dir, self.trades_path, SESSION_TRADE_SCHEMA)
         self.clean_shutdown = clean_shutdown
         if not clean_shutdown:
             self.continuity_status = reason or "incomplete"
@@ -445,7 +448,10 @@ class MarketSessionRecorder:
                 "format": "closed_parquet_parts_v1",
                 "depth_parts": self._depth_part_index,
                 "trade_parts": self._trade_part_index,
-                "finalized_single_files": self.finalized,
+                "finalized_single_files": (
+                    self.depth_path.is_file() or self.trades_path.is_file()
+                ),
+                "compaction_deferred": self.finalized and not self.compact_on_finalize,
             },
             "receive_order": {
                 "field": "receive_sequence",

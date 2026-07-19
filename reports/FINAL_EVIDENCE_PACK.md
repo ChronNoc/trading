@@ -4,7 +4,7 @@
 
 This section supersedes older test totals and current-state claims below while
 preserving the historical evidence. Starting HEAD:
-`dfc3759c8806256adcf006431f24544dc987b11a`.
+`84e362a`.
 
 - Persistent detached supervisor/backend implemented with an OS-held singleton
   lease, versioned process identity, PID-reuse protection, configuration
@@ -23,22 +23,28 @@ preserving the historical evidence. Starting HEAD:
   session. Old loss no longer invalidates a fresh session; new loss still does.
 - Strategy checks now expose observed and required values. MBO-only behavior is
   `UNAVAILABLE` on the aggregated bridge rather than a generic failed condition.
-- Complete Python suite: **804 passed, 4 third-party deprecation warnings**.
+- Complete Python suite: **810 passed, 4 third-party deprecation warnings**.
 - Java: **26 bridge tests**, clean `shadowJar`; JAR 26,816 bytes, 19 classes,
   **0 `velox` classes**.
 - Acceptance verifier: **23/23 passed**.
 - Production-path load at a 2,500 events/second target plus a 6,000-event burst:
   **31,000 accepted = 31,000 persisted = 31,000 analysed**, zero unexplained
-  loss, zero overflow, final lag 1.8601 ms.
-- Production-process soak at 1,650 events/second for 72 seconds:
-  **122,924 accepted = 122,924 persisted**, zero analysis skips, 30 causal paper
-  evaluations, analysis queue high-water 31, PASS.
+  loss, zero overflow, final lag 1.9829 ms.
+- Production-process soak at 1,650 events/second for 30.1 minutes:
+  **2,953,772 accepted = persisted = analysed**, zero analysis skips, 3,464
+  causal paper evaluations, analysis queue high-water 191, clean receiver drain,
+  clean finalized manifest, PASS.
+- The long soak initially uncovered a false-positive acceptance defect: exact
+  event counts could still report PASS after an unclean shutdown. The verifier
+  now fails on an incomplete drain or unclean manifest. Root cause was synchronous
+  daily replay plus redundant final Parquet compaction. Daily learning is now a
+  coalesced recoverable background job, and production sessions finalize from
+  immutable closed parts consumed directly by replay/research.
 
 This update is automated integration evidence, not a real Bookmap-market claim.
 No new live/delayed Bookmap session or real Tradovate DEMO session was available.
-The 30-minute command exists but was not run in this continuation. Historical
-recordings remain untouched, LIVE remains locked, and profitability is not
-claimed.
+Historical recordings remain untouched, LIVE remains locked, and profitability
+is not claimed.
 
 Every number below was produced by a command in this repository and is
 reproducible. Where something is unproven or unavailable, it says so.

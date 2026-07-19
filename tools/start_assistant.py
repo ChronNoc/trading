@@ -31,6 +31,10 @@ DEFAULT_LOG_DIR = Path("logs")
 # A GUI unresponsive this long is a real stall worth a full thread dump.
 GUI_STALL_SECONDS = 12.0
 
+_DAILY_REPORT_LOCK = threading.Lock()
+_DAILY_REPORT_REQUESTS: dict[tuple[str, str, str], int] = {}
+_DAILY_REPORT_THREADS: dict[tuple[str, str, str], threading.Thread] = {}
+
 
 class AssistantStartupError(RuntimeError):
     """User-facing startup failure."""
@@ -235,7 +239,10 @@ async def run_headless_assistant(
     def _make_session_pipeline() -> RecorderPipeline:
         # Bounded recorder stage: a dedicated writer thread persists batches so
         # a slow GUI or research burst can never stall capture. Metrics are real.
-        recorder = MarketSessionRecorder(root_dir=config.output_root)
+        recorder = MarketSessionRecorder(
+            root_dir=config.output_root,
+            compact_on_finalize=False,
+        )
         # Bind the REAL session id the moment recording starts, so the GUI, the
         # paper engine, the ledger, and the logs never show "unknown".
         if paper_engine is not None:
@@ -259,6 +266,7 @@ async def run_headless_assistant(
             _make_session_pipeline,
             on_rotated_out=lambda old: _finalize_assistant_session(
                 controller, config, old, research_service, paper_engine,
+                daily_learning_background=True,
             ),
             on_damage=(paper_engine.notify_causality_gap if paper_engine is not None else None),
         )
@@ -274,6 +282,7 @@ async def run_headless_assistant(
         initial_control_events=delayed_events,
         on_session_finalized=lambda recorder: _finalize_assistant_session(
             controller, config, recorder, research_service, paper_engine,
+            daily_learning_background=True,
         ),
         feed_guard=feed_guard,
         on_connection_started=(pipeline_holder.attach if pipeline_holder is not None else None),  # type: ignore[union-attr]
@@ -303,6 +312,7 @@ async def run_headless_assistant(
             print("Automatic paper research resumed (background; data capture has priority).", flush=True)
         except Exception as error:  # pragma: no cover - service must never break recording
             print(f"Automatic research could not start: {error}", file=sys.stderr, flush=True)
+    _schedule_daily_learning_catchup(config, controller)
     # A future the GUI can resolve from its own thread. Without this the loop
     # waits forever and the daemon thread is killed at process exit, losing the
     # tail of the recording and skipping finalization entirely.
@@ -667,6 +677,8 @@ def _finalize_assistant_session(
     recorder: MarketSessionRecorder,
     research_service: object | None = None,
     paper_engine: object | None = None,
+    *,
+    daily_learning_background: bool = False,
 ) -> None:
     """Write reports and auto-build episodes when one Bookmap session ends cleanly."""
     session_date = recorder.session_start_utc.astimezone(UTC).date()
@@ -682,6 +694,10 @@ def _finalize_assistant_session(
     # service will then pick up the new build on its next batch.
     if recorder.finalized and recorder.clean_shutdown:
         _schedule_auto_build(config)
+    print(f"Session report written: {report_dir}", flush=True)
+    if daily_learning_background:
+        _schedule_daily_learning_report(config, session_date, controller)
+        return
     try:
         paths = analyze_and_write_daily_learning_report(
             config.output_root,
@@ -696,8 +712,95 @@ def _finalize_assistant_session(
         "daily_summary",
         f"daily learning summary written: {paths.markdown_path}",
     )
-    print(f"Session report written: {report_dir}", flush=True)
     print(f"Daily learning summary written: {paths.markdown_path}", flush=True)
+
+
+def _schedule_daily_learning_report(
+    config: AssistantConfig,
+    session_date: object,
+    controller: AutomaticRuntimeController,
+) -> threading.Thread:
+    """Coalesce expensive daily replay/report work onto a background worker.
+
+    A multi-million-event daily scan must never run inside the WebSocket
+    connection handler: doing so held the receiver event loop beyond the
+    bounded shutdown deadline after an otherwise lossless 30-minute soak.
+    Requests arriving while a report is running increment a generation; the
+    worker reruns once so the final report includes the newest finalized
+    session without concurrent writers.
+    """
+    date_text = str(session_date)
+    key = (str(config.output_root.resolve()), str(config.report_root.resolve()), date_text)
+    with _DAILY_REPORT_LOCK:
+        _DAILY_REPORT_REQUESTS[key] = _DAILY_REPORT_REQUESTS.get(key, 0) + 1
+        existing = _DAILY_REPORT_THREADS.get(key)
+        if existing is not None and existing.is_alive():
+            return existing
+
+        def _worker() -> None:
+            while True:
+                with _DAILY_REPORT_LOCK:
+                    generation = _DAILY_REPORT_REQUESTS.get(key, 0)
+                try:
+                    from datetime import date as _date
+
+                    paths = analyze_and_write_daily_learning_report(
+                        config.output_root,
+                        config.report_root,
+                        _date.fromisoformat(date_text),
+                        processed_root=config.processed_root,
+                    )
+                    controller.health.record_event(
+                        "learning", "daily_summary",
+                        f"daily learning summary written: {paths.markdown_path}",
+                    )
+                    print(f"Daily learning summary written: {paths.markdown_path}", flush=True)
+                except Exception as error:  # noqa: BLE001 - reporting cannot stop capture
+                    controller.health.record_event(
+                        "learning", "failed", f"daily learning report failed: {error}",
+                    )
+                with _DAILY_REPORT_LOCK:
+                    if _DAILY_REPORT_REQUESTS.get(key, 0) == generation:
+                        _DAILY_REPORT_REQUESTS.pop(key, None)
+                        _DAILY_REPORT_THREADS.pop(key, None)
+                        return
+
+        thread = threading.Thread(
+            target=_worker,
+            name=f"daily-learning-{date_text}",
+            daemon=True,
+        )
+        _DAILY_REPORT_THREADS[key] = thread
+        thread.start()
+        return thread
+
+
+def _schedule_daily_learning_catchup(
+    config: AssistantConfig,
+    controller: AutomaticRuntimeController,
+) -> threading.Thread:
+    """Regenerate missing or stale daily reports after an interrupted restart."""
+    def _scan() -> None:
+        if not config.output_root.is_dir():
+            return
+        for date_dir in sorted(path for path in config.output_root.iterdir() if path.is_dir()):
+            try:
+                from datetime import date as _date
+
+                session_date = _date.fromisoformat(date_dir.name)
+            except ValueError:
+                continue
+            manifests = list(date_dir.rglob("session_manifest.json"))
+            if not manifests:
+                continue
+            report = config.report_root / "daily_learning" / date_dir.name / "daily_learning.json"
+            newest_manifest = max(path.stat().st_mtime_ns for path in manifests)
+            if not report.exists() or report.stat().st_mtime_ns < newest_manifest:
+                _schedule_daily_learning_report(config, session_date, controller)
+
+    thread = threading.Thread(target=_scan, name="daily-learning-catchup", daemon=True)
+    thread.start()
+    return thread
 
 
 def _write_paper_daily_report(

@@ -152,7 +152,9 @@ Live smoke test:
 6. Confirm readable files appear under the session's `depth_parts/` and
    `trade_parts/` directories while recording.
 7. Stop the Bookmap stream and confirm the GUI shows connection lost while the app
-   remains open, then confirm finalized `depth.parquet` and `trades.parquet` files exist.
+   remains open, then confirm finalized closed files exist under `depth_parts/`
+   and `trade_parts/`. Replay and research consume these immutable parts directly;
+   production shutdown does not rewrite them into duplicate monolithic files.
 
 Replay smoke test:
 
