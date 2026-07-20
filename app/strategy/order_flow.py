@@ -83,6 +83,12 @@ class OrderFlowThresholds:
     max_spread_ticks: Decimal = Decimal("4")
     max_volatility_ticks: Decimal = Decimal("12")
     max_price_velocity_ticks_per_second: Decimal = Decimal("8")
+    # The speed check guards against chasing a market that is fast RIGHT NOW,
+    # so volatility/velocity are measured over this trailing slice of market
+    # time - never over the full analysis window. The 12-tick volatility cap
+    # is calibrated for this short horizon; three minutes of any live MNQ
+    # tape exceeds it almost always (measured 74-82% of real 180s windows).
+    speed_tail_seconds: Decimal = Decimal("10")
     first_observation_minutes: int = 10
     min_reaction_snapshots: int = 3
     max_dol_distance_ticks: Decimal = Decimal("120")
@@ -640,14 +646,29 @@ def _check_market_speed(
         if snapshots[-1].spread is not None
         else Decimal("0")
     )
-    volatility_ticks = calculate_short_term_volatility(snapshots) / thresholds.tick_size
-    velocity_ticks = _price_velocity_ticks_per_second(snapshots, thresholds)
+    tail = _speed_tail_snapshots(snapshots, thresholds)
+    volatility_ticks = calculate_short_term_volatility(tail) / thresholds.tick_size
+    velocity_ticks = _price_velocity_ticks_per_second(tail, thresholds)
     if latest_spread_ticks > thresholds.max_spread_ticks:
-        return _fail("market_not_too_fast", "Spread is too wide")
+        return _fail(
+            "market_not_too_fast",
+            f"Spread is too wide ({latest_spread_ticks} ticks, "
+            f"max {thresholds.max_spread_ticks})",
+        )
     if volatility_ticks > thresholds.max_volatility_ticks:
-        return _fail("market_not_too_fast", "Market is too volatile; do not chase")
+        return _fail(
+            "market_not_too_fast",
+            f"Market is too volatile; do not chase "
+            f"({thresholds.speed_tail_seconds}s volatility {volatility_ticks:.1f} ticks, "
+            f"max {thresholds.max_volatility_ticks})",
+        )
     if velocity_ticks > thresholds.max_price_velocity_ticks_per_second:
-        return _fail("market_not_too_fast", "Market is moving too fast; do not chase")
+        return _fail(
+            "market_not_too_fast",
+            f"Market is moving too fast; do not chase "
+            f"({thresholds.speed_tail_seconds}s velocity {velocity_ticks:.1f} ticks/s, "
+            f"max {thresholds.max_price_velocity_ticks_per_second})",
+        )
     return _pass("market_not_too_fast", "Market speed is controlled enough to evaluate")
 
 
@@ -826,6 +847,22 @@ def _tail_snapshots(snapshots: Sequence[MarketState]) -> tuple[MarketState, ...]
     return tuple(snapshots[len(snapshots) // 2 :])
 
 
+def _speed_tail_snapshots(
+    snapshots: Sequence[MarketState],
+    thresholds: OrderFlowThresholds,
+) -> tuple[MarketState, ...]:
+    """Snapshots from the trailing ``speed_tail_seconds`` of market time."""
+    if not snapshots:
+        return ()
+    cutoff_ns = snapshots[-1].timestamp_ns - int(
+        thresholds.speed_tail_seconds * NANOSECONDS_PER_SECOND
+    )
+    index = len(snapshots) - 1
+    while index > 0 and snapshots[index - 1].timestamp_ns >= cutoff_ns:
+        index -= 1
+    return tuple(snapshots[index:])
+
+
 def _defending_side(direction: TradeDirection) -> BookSide:
     return BookSide.BID if direction == TradeDirection.LONG else BookSide.ASK
 
@@ -858,6 +895,8 @@ def _validate_thresholds(thresholds: OrderFlowThresholds) -> None:
         raise ValueError("large_block_minimum must be greater than zero")
     if thresholds.durable_block_min_snapshots < 1:
         raise ValueError("durable_block_min_snapshots must be at least one")
+    if thresholds.speed_tail_seconds <= Decimal("0"):
+        raise ValueError("speed_tail_seconds must be greater than zero")
 
 
 def _pass(key: str, message: str) -> SetupConditionResult:

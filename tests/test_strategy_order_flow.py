@@ -386,3 +386,55 @@ def _trade(
         "instrument": "MNQ",
         "sequence_id": sequence_id,
     }
+
+
+def _speed_check_snapshots(prices_ticks: list[int]) -> tuple[MarketState, ...]:
+    """One snapshot per second with the mid parked at 100.00 + n ticks."""
+    state = MarketState()
+    snapshots: list[MarketState] = []
+    base = 601_000_000_000
+    prev: tuple[Decimal, Decimal] | None = None
+    for i, ticks in enumerate(prices_ticks):
+        ts = base + i * 1_000_000_000
+        bid = Decimal("100.00") + Decimal("0.25") * ticks
+        ask = bid + Decimal("0.25")
+        if prev is not None and prev != (bid, ask):
+            state = state.update(_depth(ts, "bid", f"{prev[0]:.2f}", "10", "0"))
+            state = state.update(_depth(ts, "ask", f"{prev[1]:.2f}", "10", "0"))
+        state = state.update(_depth(ts, "bid", f"{bid:.2f}", "0", "10"))
+        state = state.update(_depth(ts, "ask", f"{ask:.2f}", "0", "10"))
+        prev = (bid, ask)
+        snapshots.append(state)
+    return tuple(snapshots)
+
+
+def test_market_speed_measures_the_recent_tail_not_the_whole_window() -> None:
+    """Regression: the 2026-07-20 zero-trade session (454/454 speed rejections).
+
+    When the analysis window became 180s of market time, the full-window
+    stddev of any normally drifting tape exceeded the 12-tick cap (74-82%
+    of real recorded windows), so the speed gate vetoed every candidate.
+    A three-minute 60-tick drift whose FINAL 10 seconds are calm must pass:
+    the check guards against chasing a market that is fast RIGHT NOW.
+    """
+    from app.strategy.order_flow import _check_market_speed
+
+    ramp = [round(i * 60 / 170) for i in range(171)] + [60] * 10
+    result = _check_market_speed(_speed_check_snapshots(ramp), OrderFlowThresholds())
+
+    assert result.passed is True
+
+
+def test_market_speed_still_rejects_a_wild_recent_tail() -> None:
+    """The 12-tick cap is unchanged: a tape that is wild NOW still fails."""
+    from app.strategy.order_flow import _check_market_speed
+
+    flat_then_wild = [0] * 171 + [0, 30, 0, 30, 0, 30, 0, 30, 0, 30]
+    result = _check_market_speed(
+        _speed_check_snapshots(flat_then_wild), OrderFlowThresholds(),
+    )
+
+    assert result.passed is False
+    assert "too volatile" in result.message
+    # Observed-vs-required evidence is part of the message.
+    assert "max 12" in result.message
