@@ -624,6 +624,7 @@ def _run_gui(
     paper_engine: object | None = None,
     analysis_feed: object | None = None,
     provider: object | None = None,
+    execution_commander: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -649,6 +650,7 @@ def _run_gui(
             paper_engine=paper_engine,
             analysis_feed=analysis_feed,
         ),
+        execution_commander=execution_commander,
     )
     window.show()
     # A frozen UI crashes nothing, so nothing is logged and the window just stops

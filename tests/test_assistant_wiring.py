@@ -95,3 +95,44 @@ def test_headless_assistant_publishes_bound_state_and_starts_research(tmp_path: 
     assert listening is True  # actual bound socket state was published
     assert start_calls == 1  # automatic research resumed without a button press
     assert holder.snapshot().listening is False  # unbound on shutdown
+
+
+def test_every_run_gui_call_site_binds_against_the_real_signature() -> None:
+    """Regression: the 2026-07-19 launch crash.
+
+    run_assistant() passed execution_commander= to _run_gui(), whose signature
+    had not been updated, so the REAL launcher died instantly with TypeError
+    while every unit test still passed. Bind the exact keywords used at every
+    call site against the real signature so signature drift fails HERE first.
+    """
+    import ast
+    import inspect
+
+    from tools import start_assistant
+
+    source = Path(inspect.getsourcefile(start_assistant)).read_text(encoding="utf-8")
+    signature = inspect.signature(start_assistant._run_gui)
+    call_sites = [
+        node for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name) and node.func.id == "_run_gui"
+    ]
+    assert call_sites, "expected at least one _run_gui call site"
+    for call in call_sites:
+        positional = [None] * len(call.args)
+        keywords = {kw.arg: None for kw in call.keywords if kw.arg is not None}
+        # Raises TypeError on drift, naming the offending keyword.
+        signature.bind(*positional, **keywords)
+
+
+def test_gui_call_site_forwards_the_execution_commander() -> None:
+    """The Execution screen is dead without the commander actually forwarded."""
+    import inspect
+
+    from tools import start_assistant
+
+    assert "execution_commander" in inspect.signature(start_assistant._run_gui).parameters
+    body = inspect.getsource(start_assistant._run_gui)
+    assert "execution_commander=execution_commander" in body, (
+        "_run_gui must pass the commander through to AppWindow"
+    )
