@@ -13,4 +13,4 @@ live_mode: false
 # order-flow plan. It never replaces the canonical plan, uses the same risk
 # gates and the same LIVE lockout, and its simulated trades are labeled
 # momentum-v1 in the ledger. Requires an app restart to take effect.
-paper_momentum_setup_enabled: false
+paper_momentum_setup_enabled: true
