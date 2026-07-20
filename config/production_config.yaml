@@ -7,3 +7,10 @@
 # typed confirmation, second confirmation, ...). Arming never survives restart.
 live_enabled: false
 live_mode: false
+
+# paper_momentum_setup_enabled: when true, the PAPER engine also evaluates the
+# optional momentum-continuation setup (momentum-v1) beside the canonical
+# order-flow plan. It never replaces the canonical plan, uses the same risk
+# gates and the same LIVE lockout, and its simulated trades are labeled
+# momentum-v1 in the ledger. Requires an app restart to take effect.
+paper_momentum_setup_enabled: false

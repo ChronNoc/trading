@@ -313,7 +313,10 @@ class SnapshotSource:
         balance = Decimal(status.balance)
         return replace(
             base,
-            mode=f"DELAYED PAPER — {status.state}",
+            mode=(
+                f"DELAYED PAPER — {status.state}"
+                + (" +MOMENTUM" if getattr(status, "momentum_enabled", False) else "")
+            ),
             setup_name=status.last_setup or "none",
             setup_checks=checks,
             evaluations=status.evaluations,

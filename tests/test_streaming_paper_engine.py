@@ -152,7 +152,11 @@ def test_missing_mbo_disables_only_mbo_setups_not_the_engine() -> None:
 
     with_mbo = DelayedPaperEngine(capabilities={"mbo": True})
     with_mbo.bind_session("s", "MNQ")
-    assert with_mbo.status().disabled_setups == ()
+    # With MBO available the only remaining entry is the OPTIONAL momentum
+    # setup, disabled by config default - never a capability problem.
+    remaining = dict(with_mbo.status().disabled_setups)
+    assert set(remaining) == {"momentum-v1"}
+    assert "disabled by config" in remaining["momentum-v1"]
 
 
 def test_engine_is_causal_and_never_needs_a_finalized_session() -> None:
@@ -207,7 +211,9 @@ def test_launcher_feeds_every_market_event_to_the_paper_engine() -> None:
     real Bookmap drops and must never come back.
     """
     source = Path("tools/start_assistant.py").read_text(encoding="utf-8")
-    assert "DelayedPaperEngine()" in source, "the launcher must create the engine at startup"
+    assert "paper_engine = DelayedPaperEngine(" in source, (
+        "the launcher must create the engine at startup"
+    )
     assert "on_event_state=feed.offer" in source, (
         "every accepted market event must be offered to the analysis feed"
     )

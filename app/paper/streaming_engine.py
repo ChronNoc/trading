@@ -105,6 +105,7 @@ class PaperEngineStatus:
     accepted_setups: int = 0
     events_seen: int = 0
     last_setup: str = ""
+    momentum_enabled: bool = False
     last_direction: str = ""
     last_decision: str = ""
     last_reason: str = ""
@@ -232,6 +233,16 @@ class DelayedPaperEngine:
         # the setup that needs it is disabled unless a caller proves otherwise.
         if not caps.get(CapabilityId.MBO.value, caps.get("mbo", False)):
             disabled.append(("iceberg_continuation", "requires MBO (order-by-order) data"))
+        # The optional momentum-continuation setup runs BESIDE the canonical
+        # plan only when the user enabled it in production_config.yaml.
+        from app.strategy.momentum import MomentumThresholds
+
+        self._momentum_thresholds = MomentumThresholds()
+        if not self._config.momentum_enabled:
+            disabled.append(
+                ("momentum-v1", "disabled by config (paper_momentum_setup_enabled: false)"),
+            )
+        self._status.momentum_enabled = self._config.momentum_enabled
         self._disabled = tuple(disabled)
 
     def capabilities(self) -> "FeedCapabilities":  # noqa: F821 - imported in __init__
@@ -415,6 +426,37 @@ class DelayedPaperEngine:
                     self._status.error = f"evaluation error: {type(error).__name__}: {error}"
                 continue
             self._record(direction, evaluation, derived, tick)
+        if self._config.momentum_enabled:
+            self._evaluate_momentum(window, tick)
+
+    def _evaluate_momentum(self, window: tuple[object, ...], tick: MarketTick | None) -> None:
+        """Evaluate the OPTIONAL momentum setup beside (never instead of) the plan."""
+        from app.strategy.momentum import (
+            MOMENTUM_STRATEGY_VERSION,
+            derive_momentum_context,
+            evaluate_momentum_plan,
+        )
+
+        for direction in (TradeDirection.LONG, TradeDirection.SHORT):
+            try:
+                derived = derive_momentum_context(
+                    window, direction, self._tracker, self._thresholds,
+                    self._momentum_thresholds,
+                    stop_buffer_points=self._config.stop_buffer_points,
+                )
+                evaluation = evaluate_momentum_plan(
+                    window, derived, self._thresholds, self._momentum_thresholds,
+                )
+            except Exception as error:  # noqa: BLE001 - keep the stream alive
+                with self._lock:
+                    self._status.error = (
+                        f"momentum evaluation error: {type(error).__name__}: {error}"
+                    )
+                continue
+            self._record(
+                direction, evaluation, derived, tick,
+                setup_version=MOMENTUM_STRATEGY_VERSION,
+            )
 
     def _record(
         self,
@@ -422,6 +464,7 @@ class DelayedPaperEngine:
         evaluation: object,
         derived: object | None = None,
         tick: MarketTick | None = None,
+        setup_version: str = STRATEGY_VERSION,
     ) -> None:
         conditions = tuple(
             ConditionResult(
@@ -439,8 +482,8 @@ class DelayedPaperEngine:
             session_id = self._status.session_id
         record = EvaluationRecord(
             session_id=session_id,
-            setup_id=f"{session_id}:{direction.value}:{self._event_index}",
-            strategy_version=STRATEGY_VERSION,
+            setup_id=f"{session_id}:{setup_version}:{direction.value}:{self._event_index}",
+            strategy_version=setup_version,
             direction=direction.value,
             evaluated_at_ns=time.time_ns(),
             event_index=self._event_index,
@@ -457,7 +500,7 @@ class DelayedPaperEngine:
                 self._rejections[condition.name] += 1
         with self._lock:
             self._status.evaluations += 1
-            self._status.last_setup = f"{STRATEGY_VERSION}_{direction.value}"
+            self._status.last_setup = f"{setup_version}_{direction.value}"
             self._status.last_direction = direction.value
             self._status.last_decision = "accepted" if accepted else "rejected"
             self._status.last_reason = "" if accepted else (record.first_failure or "")

@@ -85,6 +85,12 @@ class EpisodeConfig:
     timeout_seconds: int = 900
     dedupe_price_ticks: Decimal = Decimal("4")
     dedupe_seconds: int = 300
+    # Optional momentum-continuation setup evaluated BESIDE the canonical
+    # order-flow plan (never instead of it). Ships disabled; the live paper
+    # engine reads paper_momentum_setup_enabled from production_config.yaml.
+    # Research episodes keep the canonical default unless a candidate says
+    # otherwise explicitly.
+    momentum_enabled: bool = False
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

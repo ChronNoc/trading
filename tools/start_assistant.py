@@ -472,10 +472,16 @@ def run_assistant(config: AssistantConfig) -> int:
     pipeline_holder = PipelineStateHolder()
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
+    from app.paper.options import read_momentum_enabled
+    from app.research.episode_builder import EpisodeConfig
 
     # Automatic by construction: the engine is created at startup and fed by the
     # receiver. No button, no finalized session, no user action required.
-    paper_engine = DelayedPaperEngine()
+    paper_engine = DelayedPaperEngine(
+        config=EpisodeConfig(
+            momentum_enabled=read_momentum_enabled(Path("config/production_config.yaml")),
+        ),
+    )
     # Every closed simulated trade is appended to the durable ledger. Opening an
     # existing ledger continues it - a prior run's trades are never overwritten.
     paper_ledger = PaperLedger(config.paper_ledger_path)

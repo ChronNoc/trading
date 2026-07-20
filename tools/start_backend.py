@@ -59,6 +59,8 @@ def run_backend(
     from app.market.receiver import get_current_market_state
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
+    from app.paper.options import read_momentum_enabled
+    from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
     from app.runtime.process_files import ProcessIdentity, SingletonLock, StatusFile, StopRequest
@@ -121,7 +123,11 @@ def run_backend(
     )
     status_holder = ReceiverStatusHolder()
     pipeline_holder = PipelineStateHolder()
-    paper_engine = DelayedPaperEngine()
+    paper_engine = DelayedPaperEngine(
+        config=EpisodeConfig(
+            momentum_enabled=read_momentum_enabled(Path("config/production_config.yaml")),
+        ),
+    )
     paper_ledger = PaperLedger(config.paper_ledger_path)
     paper_engine.on_trade_closed(paper_ledger.append)
     research_service = _build_research_service(config, controller, pipeline_holder)
