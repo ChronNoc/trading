@@ -55,19 +55,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     trained = 0
+    errored = 0
     for session in sessions:
         if not session.is_dir():
-            print(f"SKIP  {session} (not a directory)")
+            print(f"SKIP     {session} (not a directory)", flush=True)
             continue
-        summary, report = train_session_model(
-            session, args.output_root, config=config, version=args.version)
+        # One corrupt or unreadable session must never abort the whole run.
+        try:
+            summary, report = train_session_model(
+                session, args.output_root, config=config, version=args.version)
+        except Exception as error:  # noqa: BLE001 - report and continue, never crash
+            errored += 1
+            print(f"ERROR    {session.name}: {type(error).__name__}: {error}", flush=True)
+            continue
         status = "TRAINED" if report["trained"] else "skipped"
         trained += 1 if report["trained"] else 0
         print(f"{status:8s} {summary.session_id}: rows={summary.rows} "
               f"win={summary.wins} loss={summary.losses} "
-              f"dropped={summary.dropped_incomplete} | {summary.note}")
-    print(f"\n{trained}/{len(sessions)} session(s) trained; "
-          f"reports under {args.output_root}")
+              f"dropped={summary.dropped_incomplete} | {summary.note}", flush=True)
+    print(f"\n{trained}/{len(sessions)} session(s) trained "
+          f"({errored} errored); reports under {args.output_root}", flush=True)
     return 0
 
 

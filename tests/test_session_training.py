@@ -141,6 +141,26 @@ def test_unlabelable_session_reports_honestly_without_models(tmp_path: Path) -> 
     assert not list(session_out.glob("*.joblib")), "no model when data is not trainable"
 
 
+def test_cli_survives_a_corrupt_session_and_trains_the_rest(tmp_path: Path) -> None:
+    """One unreadable session must never abort the whole --all run."""
+    from tools.train_per_session import main
+
+    raw = tmp_path / "raw"
+    # A good, trainable session...
+    _oscillating_session(raw)
+    # ...and a corrupt one: a bogus trades.parquet the reader will reject.
+    corrupt = raw / "2026-07-01" / "session_corrupt"
+    corrupt.mkdir(parents=True)
+    (corrupt / "trades.parquet").write_bytes(b"not a parquet file at all")
+
+    out = tmp_path / "models"
+    code = main(["--all", "--raw-root", str(raw), "--output-root", str(out),
+                 "--target-ticks", "6", "--stop-ticks", "6", "--horizon-seconds", "60"])
+    assert code == 0, "the run completes despite the corrupt session"
+    # The good session still produced a model.
+    assert list(out.rglob("*.joblib")), "the healthy session was trained"
+
+
 def test_config_validation_rejects_impossible_values() -> None:
     import pytest
 
