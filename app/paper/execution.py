@@ -24,6 +24,7 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 from app.paper.models import (
     MNQ_TICK_SIZE,
+    MNQ_TICK_VALUE,
     CloseReason,
     Direction,
     Fill,
@@ -110,9 +111,11 @@ class PaperExecutor:
         max_contracts: int,
         config: ExecutionConfig | None = None,
         is_synthetic_fixture: bool = False,
+        tick_value: Decimal = MNQ_TICK_VALUE,
     ) -> None:
         """Create an executor for one account."""
         self._config = config or ExecutionConfig()
+        self._tick_value = tick_value
         self._balance = starting_balance
         self._starting_balance = starting_balance
         self._max_contracts = max_contracts
@@ -296,15 +299,15 @@ class PaperExecutor:
         position = self.position
         assert position is not None
         points = (exit_price - position.entry_price) * position.direction.sign
-        gross = points_to_dollars(points, position.contracts)
+        gross = points_to_dollars(points, position.contracts, self._tick_value)
         commission = (self._config.commission_per_contract * Decimal(position.contracts)).quantize(Decimal("0.01"))
         slippage_cost = points_to_dollars(
             (self._config.entry_slippage_ticks + self._config.stop_slippage_ticks) * MNQ_TICK_SIZE,
-            position.contracts,
+            position.contracts, self._tick_value,
         )
         net = (gross - commission).quantize(Decimal("0.01"))
         risk_dollars = points_to_dollars(
-            abs(position.entry_price - position.stop), position.contracts,
+            abs(position.entry_price - position.stop), position.contracts, self._tick_value,
         )
         r_multiple = (net / risk_dollars).quantize(Decimal("0.0001")) if risk_dollars > 0 else Decimal("0")
         self._balance = (self._balance + net).quantize(Decimal("0.01"))
@@ -350,6 +353,7 @@ def size_intent(
     drawdown_room: Decimal,
     max_contracts: int,
     commission_per_contract: Decimal,
+    tick_value: Decimal = MNQ_TICK_VALUE,
 ) -> RiskDecision:
     """Size an intent through the PROJECT risk engine (never bypassed).
 
@@ -365,7 +369,7 @@ def size_intent(
             account_size=max(balance, Decimal("0")),
             remaining_allowable_drawdown=drawdown_room,
             stop_distance_ticks=intent.stop_distance_ticks,
-            tick_value=Decimal("0.50"),
+            tick_value=tick_value,
             estimated_commission=commission_per_contract,
             estimated_slippage=Decimal("0.50"),
         ),

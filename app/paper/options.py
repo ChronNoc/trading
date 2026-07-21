@@ -47,3 +47,23 @@ def read_strategy_profile(production_config_path: Path) -> str:
     if not isinstance(payload, dict):
         return CANONICAL
     return normalize_profile(payload.get("paper_strategy_profile"))
+
+
+def read_instrument(production_config_path: Path) -> str:
+    """Return the paper instrument: 'MNQ' (default) or 'NQ'.
+
+    Missing/unknown/unreadable falls back to MNQ (the micro contract).
+    """
+    from app.instruments import DEFAULT_INSTRUMENT, resolve_instrument
+
+    if not production_config_path.is_file():
+        return DEFAULT_INSTRUMENT
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return DEFAULT_INSTRUMENT
+    if not isinstance(payload, dict):
+        return DEFAULT_INSTRUMENT
+    return resolve_instrument(payload.get("paper_instrument")).symbol

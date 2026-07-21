@@ -59,7 +59,7 @@ def run_backend(
     from app.market.receiver import get_current_market_state
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
-    from app.paper.options import read_momentum_enabled, read_strategy_profile
+    from app.paper.options import read_momentum_enabled, read_strategy_profile, read_instrument
     from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
@@ -127,10 +127,16 @@ def run_backend(
         config=EpisodeConfig(
             momentum_enabled=read_momentum_enabled(Path("config/production_config.yaml")),
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
+            instrument=read_instrument(Path("config/production_config.yaml")),
         ),
     )
     paper_ledger = PaperLedger(config.paper_ledger_path)
     paper_engine.on_trade_closed(paper_ledger.append)
+    from app.notify.telegram import TelegramNotifier
+    _trade_notifier = TelegramNotifier()
+    if _trade_notifier.enabled:
+        paper_engine.on_trade_closed(_trade_notifier.notify_trade)
+        print('Telegram trade alerts enabled.', flush=True)
     research_service = _build_research_service(config, controller, pipeline_holder)
     shutdown = ShutdownSignal()
     feed = AnalysisFeed(

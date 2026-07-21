@@ -95,6 +95,10 @@ class EpisodeConfig:
     # profile with lower thresholds and no RTH gate, for per-session training).
     # See app/strategy/profiles.py. Research/replay defaults to canonical.
     strategy_profile: str = "canonical"
+    # Contract whose dollar multiplier the paper P&L uses: "MNQ" ($2/pt) or
+    # "NQ" ($20/pt). See app/instruments.py. Prices are identical; only the
+    # dollars-per-point differ (NQ is 10x MNQ).
+    instrument: str = "MNQ"
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

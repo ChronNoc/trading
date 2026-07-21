@@ -26,3 +26,13 @@ paper_momentum_setup_enabled: true
 #               marks the mode [RELAXED]. LIVE stays locked in either profile.
 # Requires an app restart to take effect.
 paper_strategy_profile: relaxed
+
+# paper_instrument: which contract's dollar multiplier the PAPER P&L uses.
+#   MNQ - Micro E-mini Nasdaq, $2/point ($0.50/tick). The account/risk profile
+#         is sized for this.
+#   NQ  - E-mini Nasdaq, $20/point ($5/tick). 10x the dollars-per-point of MNQ:
+#         every profit AND loss is 10x larger for the same price move. WARNING:
+#         on the LucidFlex 25K profile ($1,000 max drawdown) a single NQ stop
+#         can consume most/all of the drawdown and fail the evaluation. Prices
+#         are identical to MNQ; only the multiplier changes. Restart to apply.
+paper_instrument: NQ

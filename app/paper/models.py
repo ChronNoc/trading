@@ -185,9 +185,9 @@ class PaperPosition:
         """Signed points of open profit at ``mark``."""
         return (mark - self.entry_price) * self.direction.sign
 
-    def unrealized_pnl(self, mark: Decimal) -> Decimal:
-        """Signed dollars of open profit at ``mark`` (Decimal, MNQ economics)."""
-        return points_to_dollars(self.unrealized_points(mark), self.contracts)
+    def unrealized_pnl(self, mark: Decimal, tick_value: Decimal = MNQ_TICK_VALUE) -> Decimal:
+        """Signed dollars of open profit at ``mark`` for the given tick value."""
+        return points_to_dollars(self.unrealized_points(mark), self.contracts, tick_value)
 
     def observe(self, mark: Decimal) -> None:
         """Track MAE/MFE from a new mark (called per event)."""
@@ -258,10 +258,13 @@ class PaperTrade:
         }
 
 
-def points_to_dollars(points: Decimal, contracts: int) -> Decimal:
-    """Convert MNQ points to dollars for a contract count (Decimal only).
+def points_to_dollars(
+    points: Decimal, contracts: int, tick_value: Decimal = MNQ_TICK_VALUE,
+) -> Decimal:
+    """Convert index points to dollars for a contract count (Decimal only).
 
-    One MNQ point = 4 ticks x $0.50 = $2.00 per contract.
+    Dollars per point per contract = tick_value / tick_size. Defaults to MNQ
+    ($0.50/tick -> $2/point); pass NQ's $5.00/tick for $20/point.
     """
-    per_contract = (points / MNQ_TICK_SIZE) * MNQ_TICK_VALUE
+    per_contract = (points / MNQ_TICK_SIZE) * tick_value
     return (per_contract * Decimal(contracts)).quantize(Decimal("0.01"))

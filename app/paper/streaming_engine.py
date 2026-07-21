@@ -107,6 +107,7 @@ class PaperEngineStatus:
     last_setup: str = ""
     momentum_enabled: bool = False
     strategy_profile: str = "canonical"
+    instrument: str = "MNQ"
     last_direction: str = ""
     last_decision: str = ""
     last_reason: str = ""
@@ -181,12 +182,16 @@ class DelayedPaperEngine:
 
         self._profile = account_profile or load_selected_profile()
         limits = self._profile.effective_limits()  # type: ignore[union-attr]
+        self._config = config or EpisodeConfig()
+        from app.instruments import resolve_instrument
+
+        self._instrument = resolve_instrument(self._config.instrument)
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]
             max_contracts=limits.max_contracts,
             is_synthetic_fixture=is_synthetic_fixture,
+            tick_value=self._instrument.tick_value,
         )
-        self._config = config or EpisodeConfig()
         from app.strategy.profiles import thresholds_for_profile
 
         self._thresholds = thresholds or thresholds_for_profile(
@@ -250,6 +255,7 @@ class DelayedPaperEngine:
         from app.strategy.profiles import normalize_profile
 
         self._status.strategy_profile = normalize_profile(self._config.strategy_profile)
+        self._status.instrument = self._instrument.symbol
         self._disabled = tuple(disabled)
 
     def capabilities(self) -> "FeedCapabilities":  # noqa: F821 - imported in __init__
@@ -571,6 +577,7 @@ class DelayedPaperEngine:
             ),
             max_contracts=self._profile.effective_limits().max_contracts,  # type: ignore[union-attr]
             commission_per_contract=self._exec_config.commission_per_contract,
+            tick_value=self._instrument.tick_value,
         )
         self._executor.submit(intent, decision, tick, trading_day=trading_day)
         if not decision.approved:
@@ -620,7 +627,8 @@ class DelayedPaperEngine:
             self._status.position_stop = str(position.stop)
             self._status.position_target = str(position.target)
             if mark is not None:
-                self._status.unrealized_pnl = str(position.unrealized_pnl(mark))
+                self._status.unrealized_pnl = str(
+                    position.unrealized_pnl(mark, self._instrument.tick_value))
 
     # -- lifecycle -------------------------------------------------------------------
 

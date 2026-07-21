@@ -314,7 +314,7 @@ class SnapshotSource:
         return replace(
             base,
             mode=(
-                f"DELAYED PAPER — {status.state}"
+                f"DELAYED PAPER [{getattr(status, 'instrument', 'MNQ')}] — {status.state}"
                 + (" [RELAXED]" if getattr(status, "strategy_profile", "canonical") == "relaxed"
                    else "")
                 + (" +MOMENTUM" if getattr(status, "momentum_enabled", False) else "")
