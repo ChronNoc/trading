@@ -91,6 +91,10 @@ class EpisodeConfig:
     # Research episodes keep the canonical default unless a candidate says
     # otherwise explicitly.
     momentum_enabled: bool = False
+    # "canonical" (the honest RTH-only strategy) or "relaxed" (a research
+    # profile with lower thresholds and no RTH gate, for per-session training).
+    # See app/strategy/profiles.py. Research/replay defaults to canonical.
+    strategy_profile: str = "canonical"
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

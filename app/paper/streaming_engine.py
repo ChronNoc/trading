@@ -106,6 +106,7 @@ class PaperEngineStatus:
     events_seen: int = 0
     last_setup: str = ""
     momentum_enabled: bool = False
+    strategy_profile: str = "canonical"
     last_direction: str = ""
     last_decision: str = ""
     last_reason: str = ""
@@ -186,7 +187,10 @@ class DelayedPaperEngine:
             is_synthetic_fixture=is_synthetic_fixture,
         )
         self._config = config or EpisodeConfig()
-        self._thresholds = thresholds or OrderFlowThresholds(
+        from app.strategy.profiles import thresholds_for_profile
+
+        self._thresholds = thresholds or thresholds_for_profile(
+            self._config.strategy_profile,
             tick_size=self._config.tick_size,
             large_block_minimum=self._config.large_block_minimum,
             absorption_volume_minimum=self._config.absorption_volume_minimum,
@@ -243,6 +247,9 @@ class DelayedPaperEngine:
                 ("momentum-v1", "disabled by config (paper_momentum_setup_enabled: false)"),
             )
         self._status.momentum_enabled = self._config.momentum_enabled
+        from app.strategy.profiles import normalize_profile
+
+        self._status.strategy_profile = normalize_profile(self._config.strategy_profile)
         self._disabled = tuple(disabled)
 
     def capabilities(self) -> "FeedCapabilities":  # noqa: F821 - imported in __init__

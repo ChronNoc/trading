@@ -315,6 +315,8 @@ class SnapshotSource:
             base,
             mode=(
                 f"DELAYED PAPER — {status.state}"
+                + (" [RELAXED]" if getattr(status, "strategy_profile", "canonical") == "relaxed"
+                   else "")
                 + (" +MOMENTUM" if getattr(status, "momentum_enabled", False) else "")
             ),
             setup_name=status.last_setup or "none",

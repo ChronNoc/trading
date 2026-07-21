@@ -14,3 +14,15 @@ live_mode: false
 # gates and the same LIVE lockout, and its simulated trades are labeled
 # momentum-v1 in the ledger. Requires an app restart to take effect.
 paper_momentum_setup_enabled: true
+
+# paper_strategy_profile: which threshold profile the PAPER engine evaluates.
+#   canonical - the honest, deterministic, RTH-only order-flow strategy
+#               (90-contract blocks, 400 absorption, CVD >= 25). Only this
+#               profile's results describe the real strategy.
+#   relaxed   - a RESEARCH profile with lower thresholds and NO RTH gate, so
+#               setups form on thin books and overnight and produce labeled
+#               outcomes for per-session model training. Its trades are NOT the
+#               canonical strategy and carry no profitability meaning; the GUI
+#               marks the mode [RELAXED]. LIVE stays locked in either profile.
+# Requires an app restart to take effect.
+paper_strategy_profile: relaxed

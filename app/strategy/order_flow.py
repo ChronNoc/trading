@@ -90,9 +90,20 @@ class OrderFlowThresholds:
     # tape exceeds it almost always (measured 74-82% of real 180s windows).
     speed_tail_seconds: Decimal = Decimal("10")
     first_observation_minutes: int = 10
+    # When False, the RTH opening-observation gate is skipped entirely so the
+    # plan may evaluate outside 09:30-16:00 New York. The canonical profile
+    # keeps this True (RTH only); the explicit "relaxed" research profile turns
+    # it off. This is a visible profile choice, never a silent default change.
+    enforce_opening_observation: bool = True
     min_reaction_snapshots: int = 3
     max_dol_distance_ticks: Decimal = Decimal("120")
     block_move_tolerance_ticks: Decimal = Decimal("2")
+    # When > 0, block stability is judged over only this trailing slice of
+    # market time instead of the whole window. A block defends a level in the
+    # RECENT tape; over a full 180s window on a drifting book its dominant
+    # price naturally spans many ticks (structurally unstable). Canonical
+    # leaves this 0 (whole window); the relaxed research profile sets it.
+    block_stability_tail_seconds: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,6 +385,9 @@ def _check_opening_observation(
     context: OrderFlowPlanContext,
     thresholds: OrderFlowThresholds,
 ) -> SetupConditionResult:
+    if not thresholds.enforce_opening_observation:
+        return _pass("opening_observation_complete",
+                     "Opening-observation/RTH gate disabled by profile")
     if context.session_open_timestamp_ns is None:
         return _pass("opening_observation_complete", "Opening observation guard not configured")
 
@@ -541,7 +555,13 @@ def _check_block_stability(
     thresholds: OrderFlowThresholds,
 ) -> SetupConditionResult:
     side = _defending_side(context.direction)
-    dominant_prices = _dominant_block_prices(snapshots, side, thresholds)
+    scoped = snapshots
+    if thresholds.block_stability_tail_seconds > Decimal("0") and snapshots:
+        cutoff_ns = snapshots[-1].timestamp_ns - int(
+            thresholds.block_stability_tail_seconds * NANOSECONDS_PER_SECOND
+        )
+        scoped = [s for s in snapshots if s.timestamp_ns >= cutoff_ns] or list(snapshots)
+    dominant_prices = _dominant_block_prices(scoped, side, thresholds)
     if len(dominant_prices) < thresholds.durable_block_min_snapshots:
         return _fail("defending_block_stable", "No stable defending block sequence")
 

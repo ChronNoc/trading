@@ -26,3 +26,24 @@ def read_momentum_enabled(production_config_path: Path) -> bool:
     if not isinstance(payload, dict):
         return False
     return payload.get("paper_momentum_setup_enabled") is True
+
+
+def read_strategy_profile(production_config_path: Path) -> str:
+    """Return the paper strategy profile: 'canonical' (default) or 'relaxed'.
+
+    Any missing/unknown/unreadable value falls back to 'canonical' - the honest
+    strategy is never disabled by accident.
+    """
+    from app.strategy.profiles import CANONICAL, normalize_profile
+
+    if not production_config_path.is_file():
+        return CANONICAL
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return CANONICAL
+    if not isinstance(payload, dict):
+        return CANONICAL
+    return normalize_profile(payload.get("paper_strategy_profile"))
