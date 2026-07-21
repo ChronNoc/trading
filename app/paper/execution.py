@@ -74,6 +74,16 @@ class ExecutionConfig:
     time_stop_ns: int = 900 * 1_000_000_000              # 15 min
     max_entries_per_day: int = 3
     max_losses_per_day: int = 3
+    # --- dynamic stop management (all 0 = disabled) ---------------------------
+    # Break-even: once price has moved this many ticks in favour, move the stop
+    # to entry +/- lock ticks. After it triggers the trade cannot lose (beyond
+    # the small lock offset) - genuinely less risk on trades that work.
+    break_even_trigger_ticks: Decimal = Decimal("0")
+    break_even_lock_ticks: Decimal = Decimal("0")
+    # Trailing: once price has moved this many ticks in favour, trail the stop
+    # this many ticks behind the best price seen. Locks in more as it runs.
+    trail_activation_ticks: Decimal = Decimal("0")
+    trail_distance_ticks: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate assumptions."""
@@ -81,6 +91,12 @@ class ExecutionConfig:
             raise ValueError("commission must be non-negative")
         if self.entry_slippage_ticks < 0 or self.stop_slippage_ticks < 0:
             raise ValueError("slippage must be non-negative")
+        for name in ("break_even_trigger_ticks", "break_even_lock_ticks",
+                     "trail_activation_ticks", "trail_distance_ticks"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if self.trail_activation_ticks > 0 and self.trail_distance_ticks <= 0:
+            raise ValueError("trail_distance_ticks must be positive when trailing is armed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +272,10 @@ class PaperExecutor:
         assert position is not None
         if tick.event_index <= position.opened_event_index:
             return None  # never resolve from the entry event itself
+        # Advance the stop FIRST (break-even / trailing) so this same event is
+        # judged against the tightened stop. Only ever moves the stop toward
+        # price; it can never widen risk.
+        self._advance_stop(position)
         is_long = position.direction is Direction.LONG
         hit_stop = tick.price <= position.stop if is_long else tick.price >= position.stop
         hit_target = tick.price >= position.target if is_long else tick.price <= position.target
@@ -271,6 +291,32 @@ class PaperExecutor:
         if tick.ts_ns - position.opened_ts_ns >= self._config.time_stop_ns:
             return self._close(tick, self._market_exit_price(position, tick), CloseReason.TIME_STOP)
         return None
+
+    def _advance_stop(self, position: PaperPosition) -> None:
+        """Move the stop to break-even / trail it, based on peak favourable move.
+
+        Uses the position's MFE (peak favourable excursion), so it reacts to the
+        best price seen, not a transient wick. Never loosens the stop.
+        """
+        cfg = self._config
+        favorable_ticks = position.mfe_points / MNQ_TICK_SIZE
+        is_long = position.direction is Direction.LONG
+        sign = Decimal("1") if is_long else Decimal("-1")
+        new_stop = position.stop
+
+        if (cfg.break_even_trigger_ticks > 0
+                and favorable_ticks >= cfg.break_even_trigger_ticks):
+            break_even = position.entry_price + sign * cfg.break_even_lock_ticks * MNQ_TICK_SIZE
+            new_stop = _tighter_stop(new_stop, break_even, is_long)
+
+        if (cfg.trail_activation_ticks > 0
+                and favorable_ticks >= cfg.trail_activation_ticks):
+            best_price = position.entry_price + sign * position.mfe_points
+            trailed = best_price - sign * cfg.trail_distance_ticks * MNQ_TICK_SIZE
+            new_stop = _tighter_stop(new_stop, trailed, is_long)
+
+        if new_stop != position.stop:
+            position.stop = new_stop
 
     def _market_exit_price(self, position: PaperPosition, tick: MarketTick) -> Decimal:
         """Return a real tick-aligned price for a market exit (time stop / flat).
@@ -344,6 +390,17 @@ class PaperExecutor:
             self._day = trading_day
             self._day_entries = 0
             self._day_losses = 0
+
+
+def _tighter_stop(current: Decimal, candidate: Decimal, is_long: bool) -> Decimal:
+    """Return whichever stop is closer to price in the favourable direction.
+
+    For a long, higher is tighter; for a short, lower is tighter. This makes
+    stop advancement one-way: it can only ever reduce open risk, never widen it.
+    """
+    if is_long:
+        return max(current, candidate)
+    return min(current, candidate)
 
 
 def size_intent(

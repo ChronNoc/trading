@@ -36,3 +36,17 @@ paper_strategy_profile: relaxed
 #         can consume most/all of the drawdown and fail the evaluation. Prices
 #         are identical to MNQ; only the multiplier changes. Restart to apply.
 paper_instrument: MNQ
+
+# Dynamic stop management for the live PAPER engine (0 disables each).
+# These REDUCE risk on trades that move in your favour; they do NOT increase
+# position size (size is still set by the initial stop). "Bigger trades with
+# less risk" honestly means: once a trade works, the stop moves to break-even
+# so it can no longer lose, then trails to lock in profit.
+#   break_even_trigger: after price moves this many ticks in favour, move the
+#                       stop to entry + lock ticks (trade can no longer lose).
+#   trail: after this many favourable ticks, keep the stop this many ticks
+#          behind the best price seen.
+paper_break_even_trigger_ticks: 24   # +6.0 pts in favour -> stop to ~break-even
+paper_break_even_lock_ticks: 2       # lock +0.5 pt so a break-even exit is not a loss
+paper_trail_activation_ticks: 40     # +10.0 pts in favour -> start trailing
+paper_trail_distance_ticks: 24       # trail 6.0 pts behind the best price

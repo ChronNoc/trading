@@ -99,6 +99,14 @@ class EpisodeConfig:
     # "NQ" ($20/pt). See app/instruments.py. Prices are identical; only the
     # dollars-per-point differ (NQ is 10x MNQ).
     instrument: str = "MNQ"
+    # Dynamic stop management for the live paper engine (0 = off). Break-even
+    # moves the stop to entry (+lock) after a favourable move; trailing then
+    # follows price. These reduce risk on trades that work; they do not change
+    # initial position sizing. See app/paper/execution.py.
+    break_even_trigger_ticks: Decimal = Decimal("0")
+    break_even_lock_ticks: Decimal = Decimal("0")
+    trail_activation_ticks: Decimal = Decimal("0")
+    trail_distance_ticks: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

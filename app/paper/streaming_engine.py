@@ -186,11 +186,20 @@ class DelayedPaperEngine:
         from app.instruments import resolve_instrument
 
         self._instrument = resolve_instrument(self._config.instrument)
+        # One ExecutionConfig drives both the executor and risk sizing, carrying
+        # the dynamic-stop (break-even/trailing) settings from the config.
+        self._exec_config = ExecutionConfig(
+            break_even_trigger_ticks=self._config.break_even_trigger_ticks,
+            break_even_lock_ticks=self._config.break_even_lock_ticks,
+            trail_activation_ticks=self._config.trail_activation_ticks,
+            trail_distance_ticks=self._config.trail_distance_ticks,
+        )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]
             max_contracts=limits.max_contracts,
             is_synthetic_fixture=is_synthetic_fixture,
             tick_value=self._instrument.tick_value,
+            config=self._exec_config,
         )
         from app.strategy.profiles import thresholds_for_profile
 
@@ -223,7 +232,6 @@ class DelayedPaperEngine:
         self._event_index = 0
         self._decision_opportunities = 0
         self._evaluations: deque[EvaluationRecord] = deque(maxlen=500)
-        self._exec_config = ExecutionConfig()
         self._gap_pending = False
         self._rewarm_remaining = 0
         self._peak_balance = self._profile.account_size  # type: ignore[union-attr]

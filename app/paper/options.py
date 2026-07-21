@@ -67,3 +67,40 @@ def read_instrument(production_config_path: Path) -> str:
     if not isinstance(payload, dict):
         return DEFAULT_INSTRUMENT
     return resolve_instrument(payload.get("paper_instrument")).symbol
+
+
+_STOP_KEYS = (
+    "paper_break_even_trigger_ticks",
+    "paper_break_even_lock_ticks",
+    "paper_trail_activation_ticks",
+    "paper_trail_distance_ticks",
+)
+
+
+def read_stop_settings(production_config_path: Path) -> dict[str, "Decimal"]:
+    """Return the dynamic-stop tick settings; all 0 (disabled) if unset/unreadable."""
+    from decimal import Decimal, InvalidOperation
+
+    zeros = {key.replace("paper_", ""): Decimal("0") for key in _STOP_KEYS}
+    if not production_config_path.is_file():
+        return zeros
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return zeros
+    if not isinstance(payload, dict):
+        return zeros
+    result = dict(zeros)
+    for key in _STOP_KEYS:
+        raw = payload.get(key)
+        if raw is None:
+            continue
+        try:
+            value = Decimal(str(raw))
+        except (InvalidOperation, ValueError):
+            continue
+        if value >= 0:
+            result[key.replace("paper_", "")] = value
+    return result
