@@ -35,4 +35,4 @@ paper_strategy_profile: relaxed
 #         on the LucidFlex 25K profile ($1,000 max drawdown) a single NQ stop
 #         can consume most/all of the drawdown and fail the evaluation. Prices
 #         are identical to MNQ; only the multiplier changes. Restart to apply.
-paper_instrument: NQ
+paper_instrument: MNQ
