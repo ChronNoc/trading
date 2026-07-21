@@ -1,0 +1,25 @@
+# Telegram trade alerts launcher (TEMPLATE - safe to commit; contains no secrets).
+#
+# SETUP (one time):
+#   1. In Telegram, open @BotFather -> /revoke -> pick your bot -> copy the NEW token
+#      (this invalidates the old, exposed token). If you have no bot: /newbot.
+#   2. Message your bot once (send "hi"), then open in a browser:
+#         https://api.telegram.org/bot<NEW_TOKEN>/getUpdates
+#      and copy the number in  "chat":{"id": <THIS> }  -> that is your chat id.
+#   3. Copy this file to  start_with_alerts.ps1  (that name is gitignored, so your
+#      token never gets committed) and paste your two values below.
+#
+# RUN:
+#   .\start_with_alerts.ps1
+# It sets the env vars for THIS window only and launches the assistant. On startup
+# you should see:  Telegram trade alerts enabled.
+
+$env:TELEGRAM_BOT_TOKEN = "PASTE_YOUR_FRESH_BOTFATHER_TOKEN_HERE"
+$env:TELEGRAM_CHAT_ID   = "PASTE_YOUR_CHAT_ID_HERE"
+
+# Optional: uncomment to send yourself a one-off test push before launching,
+# so you can confirm alerts reach your phone.
+# $body = @{ chat_id = $env:TELEGRAM_CHAT_ID; text = "MNQ assistant: test alert OK" }
+# Invoke-RestMethod -Method Post -Uri "https://api.telegram.org/bot$($env:TELEGRAM_BOT_TOKEN)/sendMessage" -Body $body | Out-Null
+
+& "$PSScriptRoot\start_mnq_assistant.bat"

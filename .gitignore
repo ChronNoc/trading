@@ -34,3 +34,6 @@ reports/screenshots/
 # Process-isolation runtime files (PID lock, heartbeats, stop requests).
 # Anchored to the repo root: app/runtime/ is source code and must stay tracked.
 /runtime/
+
+# Local Telegram alert launcher (contains your bot token/chat id - NEVER commit).
+/start_with_alerts.ps1
