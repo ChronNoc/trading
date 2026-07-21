@@ -115,6 +115,23 @@ def test_train_session_writes_models_and_honest_report(tmp_path: Path) -> None:
     assert "in-sample" in text
 
 
+def test_report_carries_an_honest_out_of_sample_holdout(tmp_path: Path) -> None:
+    session = _oscillating_session(tmp_path / "raw")
+    out = tmp_path / "models"
+    _, report = train_session_model(session, out, config=_config(), version="0.1.0")
+
+    holdout = report["holdout"]
+    assert isinstance(holdout, dict)
+    if holdout.get("evaluated"):
+        # A real out-of-sample number is present, with the base rate to judge it.
+        assert "accuracy" in holdout and "base_rate" in holdout
+        assert 0.0 <= holdout["accuracy"] <= 1.0
+        assert holdout["test_rows"] >= 1
+        assert "not a profitability claim" in holdout["note"]
+    else:
+        assert "no out-of-sample estimate" in holdout["note"]
+
+
 def test_unlabelable_session_reports_honestly_without_models(tmp_path: Path) -> None:
     """A flat session reaches no barriers: a report, but no model, no fabrication."""
     raw = tmp_path / "raw"

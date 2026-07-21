@@ -240,8 +240,48 @@ def train_session_model(
         "logistic_regression": result.logistic_regression.model_path.name,
         "xgboost": result.xgboost.model_path.name,
     }
+    # HONEST out-of-sample estimate: the delivered models above are trained
+    # in-sample; a model that only memorises its own session is worthless. Split
+    # the session by TIME (first 70% train, last 30% test), train on the past,
+    # and report accuracy on the unseen future vs the naive majority-class base
+    # rate. A model that does not beat the base rate has learned nothing here.
+    report["holdout"] = _temporal_holdout(rows)
     _write_json(session_out / "report.json", report)
     return summary, report
+
+
+def _temporal_holdout(rows: list[dict[str, object]]) -> dict[str, object]:
+    """Train on the session's past, score its future; compare to the base rate."""
+    from app.machine_learning.train import build_feature_matrix, build_label_array
+
+    ordered = sorted(rows, key=lambda row: int(row["timestamp_ns"]))
+    split = int(len(ordered) * 0.7)
+    train_rows, test_rows = ordered[:split], ordered[split:]
+    train_labels = {int(row["label"]) for row in train_rows}
+    if len(train_rows) < 2 or train_labels != {0, 1} or not test_rows:
+        return {"evaluated": False,
+                "note": "insufficient or one-class temporal split; no out-of-sample estimate"}
+
+    from sklearn.linear_model import LogisticRegression
+
+    x_train = build_feature_matrix(train_rows)
+    y_train = build_label_array(train_rows)
+    x_test = build_feature_matrix(test_rows)
+    y_test = build_label_array(test_rows)
+    model = LogisticRegression(max_iter=1_000, solver="liblinear", random_state=7)
+    model.fit(x_train, y_train)
+    accuracy = float((model.predict(x_test) == y_test).mean())
+    positive_rate = float(y_test.mean())
+    base_rate = max(positive_rate, 1.0 - positive_rate)  # naive majority-class guess
+    return {
+        "evaluated": True,
+        "test_rows": len(test_rows),
+        "accuracy": round(accuracy, 3),
+        "base_rate": round(base_rate, 3),
+        "beats_base_rate": bool(accuracy > base_rate),
+        "note": "logistic-regression temporal holdout (first 70% train / last 30% test); "
+                "small samples make this noisy - not a profitability claim",
+    }
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
