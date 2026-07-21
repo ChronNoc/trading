@@ -46,7 +46,7 @@ paper_instrument: MNQ
 #                       stop to entry + lock ticks (trade can no longer lose).
 #   trail: after this many favourable ticks, keep the stop this many ticks
 #          behind the best price seen.
-paper_break_even_trigger_ticks: 24   # +6.0 pts in favour -> stop to ~break-even
+paper_break_even_trigger_ticks: 8    # +2.0 pts in favour -> stop to ~break-even
 paper_break_even_lock_ticks: 2       # lock +0.5 pt so a break-even exit is not a loss
-paper_trail_activation_ticks: 40     # +10.0 pts in favour -> start trailing
-paper_trail_distance_ticks: 24       # trail 6.0 pts behind the best price
+paper_trail_activation_ticks: 10     # +2.5 pts in favour -> start trailing (tighter)
+paper_trail_distance_ticks: 6        # trail only 1.5 pts behind the best price
