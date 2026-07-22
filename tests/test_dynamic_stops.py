@@ -107,9 +107,13 @@ def test_daily_limit_reader_and_wiring(tmp_path: Path) -> None:
     cfg.write_text("paper_max_entries_per_day: 10\npaper_max_losses_per_day: 3\n", encoding="utf-8")
     limits = read_daily_limits(cfg)
     assert limits["max_entries_per_day"] == 10 and limits["max_losses_per_day"] == 3
+    # 0 is valid and means unlimited; a negative or non-numeric is rejected.
+    zero = tmp_path / "zero.yaml"
+    zero.write_text("paper_max_entries_per_day: 0\n", encoding="utf-8")
+    assert read_daily_limits(zero)["max_entries_per_day"] == 0, "0 = unlimited"
     bad = tmp_path / "bad.yaml"
-    bad.write_text("paper_max_entries_per_day: 0\n", encoding="utf-8")
-    assert read_daily_limits(bad)["max_entries_per_day"] == 3, "reject < 1, keep safe default"
+    bad.write_text("paper_max_entries_per_day: -5\n", encoding="utf-8")
+    assert read_daily_limits(bad)["max_entries_per_day"] == 3, "reject negative, keep default"
     for launcher in ("tools/start_backend.py", "tools/start_assistant.py"):
         assert "read_daily_limits" in Path(launcher).read_text(encoding="utf-8")
 
@@ -120,6 +124,31 @@ def test_engine_honours_the_configured_daily_entry_limit() -> None:
 
     engine = DelayedPaperEngine(config=EpisodeConfig(max_entries_per_day=10))
     assert engine._exec_config.max_entries_per_day == 10  # threaded config -> executor
+
+
+def test_zero_daily_cap_means_unlimited() -> None:
+    """A cap of 0 (learning stage) never blocks on the daily limit."""
+    cfg = ExecutionConfig(max_entries_per_day=0, max_losses_per_day=0)
+    ex = PaperExecutor(starting_balance=Decimal("25000"), max_contracts=5, config=cfg)
+    # Simulate having already entered/lost far more than the old cap of 3.
+    ex._day_entries = 50
+    ex._day_losses = 50
+    intent = PaperOrderIntent(direction=Direction.LONG, entry_reference=Decimal("29200.00"),
+                              stop=Decimal("29199.50"), target=Decimal("29202.00"),
+                              provenance=_provenance())
+    decision = ex.gate(intent, _tick(1, "29200.00"), trading_day="2026-07-15")
+    # gate() returns None (not blocked) when nothing rejects; the daily caps must
+    # NOT be what stops it here.
+    assert decision is None or decision.reason_code not in ("daily_entry_lock", "daily_loss_lock")
+
+
+def test_reader_accepts_zero_as_unlimited(tmp_path: Path) -> None:
+    from app.paper.options import read_daily_limits
+
+    cfg = tmp_path / "u.yaml"
+    cfg.write_text("paper_max_entries_per_day: 0\npaper_max_losses_per_day: 0\n", encoding="utf-8")
+    limits = read_daily_limits(cfg)
+    assert limits["max_entries_per_day"] == 0 and limits["max_losses_per_day"] == 0
 
 
 def test_config_reader_and_launcher_wiring(tmp_path: Path) -> None:

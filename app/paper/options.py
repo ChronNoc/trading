@@ -129,6 +129,6 @@ def read_daily_limits(production_config_path: Path) -> dict[str, int]:
             value = int(raw)
         except (TypeError, ValueError):
             continue
-        if value >= 1:
+        if value >= 0:  # 0 = unlimited (learning stage)
             result[out] = value
     return result

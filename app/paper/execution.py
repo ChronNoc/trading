@@ -211,9 +211,13 @@ class PaperExecutor:
             return RiskDecision.reject(REASON_DUPLICATE, "this setup occurrence already traded")
         if self._locked_out:
             return RiskDecision.reject(REASON_DRAWDOWN, "account risk lockout is active")
-        if self._day_entries >= self._config.max_entries_per_day:
+        # A cap of 0 means UNLIMITED (learning-stage data collection). The
+        # account drawdown limit still applies as a natural floor.
+        if (self._config.max_entries_per_day > 0
+                and self._day_entries >= self._config.max_entries_per_day):
             return RiskDecision.reject(REASON_DAILY_ENTRIES, "daily entry limit reached")
-        if self._day_losses >= self._config.max_losses_per_day:
+        if (self._config.max_losses_per_day > 0
+                and self._day_losses >= self._config.max_losses_per_day):
             return RiskDecision.reject(REASON_DAILY_LOSSES, "daily losing-trade limit reached")
         if self._last_entry_ts_ns and tick.ts_ns - self._last_entry_ts_ns < self._config.cooldown_ns:
             return RiskDecision.reject(REASON_COOLDOWN, "setup cooldown has not elapsed")
