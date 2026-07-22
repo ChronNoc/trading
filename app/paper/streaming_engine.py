@@ -193,6 +193,8 @@ class DelayedPaperEngine:
             break_even_lock_ticks=self._config.break_even_lock_ticks,
             trail_activation_ticks=self._config.trail_activation_ticks,
             trail_distance_ticks=self._config.trail_distance_ticks,
+            max_entries_per_day=self._config.max_entries_per_day,
+            max_losses_per_day=self._config.max_losses_per_day,
         )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]

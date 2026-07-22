@@ -104,3 +104,31 @@ def read_stop_settings(production_config_path: Path) -> dict[str, "Decimal"]:
         if value >= 0:
             result[key.replace("paper_", "")] = value
     return result
+
+
+def read_daily_limits(production_config_path: Path) -> dict[str, int]:
+    """Return max_entries_per_day / max_losses_per_day (defaults 3, fail-safe)."""
+    defaults = {"max_entries_per_day": 3, "max_losses_per_day": 3}
+    if not production_config_path.is_file():
+        return defaults
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return defaults
+    if not isinstance(payload, dict):
+        return defaults
+    result = dict(defaults)
+    for key, out in (("paper_max_entries_per_day", "max_entries_per_day"),
+                     ("paper_max_losses_per_day", "max_losses_per_day")):
+        raw = payload.get(key)
+        if isinstance(raw, bool) or raw is None:
+            continue
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value >= 1:
+            result[out] = value
+    return result

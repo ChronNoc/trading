@@ -473,7 +473,8 @@ def run_assistant(config: AssistantConfig) -> int:
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
     from app.paper.options import (read_momentum_enabled, read_strategy_profile,
-                                    read_instrument, read_stop_settings)
+                                    read_instrument, read_stop_settings,
+                                    read_daily_limits)
     from app.research.episode_builder import EpisodeConfig
 
     # Automatic by construction: the engine is created at startup and fed by the
@@ -484,6 +485,7 @@ def run_assistant(config: AssistantConfig) -> int:
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
             instrument=read_instrument(Path("config/production_config.yaml")),
             **read_stop_settings(Path("config/production_config.yaml")),
+            **read_daily_limits(Path("config/production_config.yaml")),
         ),
     )
     # Every closed simulated trade is appended to the durable ledger. Opening an

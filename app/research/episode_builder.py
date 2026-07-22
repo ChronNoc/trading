@@ -107,6 +107,12 @@ class EpisodeConfig:
     break_even_lock_ticks: Decimal = Decimal("0")
     trail_activation_ticks: Decimal = Decimal("0")
     trail_distance_ticks: Decimal = Decimal("0")
+    # Daily activity caps for the live paper engine. The setup can fire far more
+    # candidates than this; these limit how many BECOME trades per day. Raising
+    # entries collects the >=100-setup evidence sample faster but is a deliberate
+    # risk-loosening; the loss cap protects the account and should stay tight.
+    max_entries_per_day: int = 3
+    max_losses_per_day: int = 3
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

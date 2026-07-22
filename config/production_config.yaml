@@ -46,6 +46,16 @@ paper_instrument: MNQ
 #                       stop to entry + lock ticks (trade can no longer lose).
 #   trail: after this many favourable ticks, keep the stop this many ticks
 #          behind the best price seen.
+# Daily activity caps for the PAPER engine. The setup fires far more candidates
+# than this (e.g. ~1,500/session); these cap how many BECOME trades per day.
+#   max_entries_per_day: raise to trade more / reach the >=100-setup evidence
+#     sample faster. For a real prop evaluation, FEWER high-quality trades is
+#     usually better - this higher value is a data-collection choice.
+#   max_losses_per_day: keep tight; it protects the account (stops for the day
+#     after this many losers). Restart to apply.
+paper_max_entries_per_day: 10
+paper_max_losses_per_day: 3
+
 paper_break_even_trigger_ticks: 8    # +2.0 pts in favour -> stop to ~break-even
 paper_break_even_lock_ticks: 2       # lock +0.5 pt so a break-even exit is not a loss
 paper_trail_activation_ticks: 10     # +2.5 pts in favour -> start trailing (tighter)

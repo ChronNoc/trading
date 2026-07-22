@@ -60,7 +60,8 @@ def run_backend(
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
     from app.paper.options import (read_momentum_enabled, read_strategy_profile,
-                                    read_instrument, read_stop_settings)
+                                    read_instrument, read_stop_settings,
+                                    read_daily_limits)
     from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
@@ -130,6 +131,7 @@ def run_backend(
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
             instrument=read_instrument(Path("config/production_config.yaml")),
             **read_stop_settings(Path("config/production_config.yaml")),
+            **read_daily_limits(Path("config/production_config.yaml")),
         ),
     )
     paper_ledger = PaperLedger(config.paper_ledger_path)

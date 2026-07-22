@@ -98,6 +98,30 @@ def test_config_rejects_trailing_without_distance() -> None:
         ExecutionConfig(trail_activation_ticks=Decimal("10"), trail_distance_ticks=Decimal("0"))
 
 
+def test_daily_limit_reader_and_wiring(tmp_path: Path) -> None:
+    from app.paper.options import read_daily_limits
+
+    assert read_daily_limits(tmp_path / "missing.yaml") == {
+        "max_entries_per_day": 3, "max_losses_per_day": 3}
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("paper_max_entries_per_day: 10\npaper_max_losses_per_day: 3\n", encoding="utf-8")
+    limits = read_daily_limits(cfg)
+    assert limits["max_entries_per_day"] == 10 and limits["max_losses_per_day"] == 3
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("paper_max_entries_per_day: 0\n", encoding="utf-8")
+    assert read_daily_limits(bad)["max_entries_per_day"] == 3, "reject < 1, keep safe default"
+    for launcher in ("tools/start_backend.py", "tools/start_assistant.py"):
+        assert "read_daily_limits" in Path(launcher).read_text(encoding="utf-8")
+
+
+def test_engine_honours_the_configured_daily_entry_limit() -> None:
+    from app.paper.streaming_engine import DelayedPaperEngine
+    from app.research.episode_builder import EpisodeConfig
+
+    engine = DelayedPaperEngine(config=EpisodeConfig(max_entries_per_day=10))
+    assert engine._exec_config.max_entries_per_day == 10  # threaded config -> executor
+
+
 def test_config_reader_and_launcher_wiring(tmp_path: Path) -> None:
     from app.paper.options import read_stop_settings
 
