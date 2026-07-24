@@ -19,7 +19,7 @@ from app.market.protocol import (
 _CONNECTED = {
     "type": "connected",
     "timestamp_ns": 1,
-    "protocol_version": "1.0",
+    "protocol_version": "1.2",
     "stream_id": "stream-aaaa",
     "connection_id": "conn-1111",
     "session_id": "session_20260717T140000Z",
@@ -34,7 +34,7 @@ _CONNECTED = {
 def test_a_current_handshake_is_parsed_and_accepted() -> None:
     hs = parse_handshake(_CONNECTED)
     assert hs.compatible is True
-    assert hs.protocol_version == "1.0"
+    assert hs.protocol_version == "1.2"
     assert hs.provider == "bookmap"
     assert hs.session_id == "session_20260717T140000Z"
     assert "trades" in hs.declares
@@ -48,6 +48,12 @@ def test_a_missing_protocol_version_is_incompatible_not_a_crash() -> None:
     assert hs.compatible is False
     assert "no protocol_version" in hs.reason
     assert hs.declares == frozenset()
+
+
+def test_an_older_minor_version_is_refused() -> None:
+    hs = parse_handshake({**_CONNECTED, "protocol_version": "1.1"})
+    assert hs.compatible is False
+    assert "requires at least 1.2" in hs.reason
 
 
 def test_a_different_major_version_is_refused() -> None:
@@ -109,6 +115,6 @@ def test_control_events_remain_tolerant_of_the_new_fields() -> None:
 
     parsed = parse_stream_message(json.dumps(_CONNECTED))
     assert parsed["type"] == "connected"
-    assert parsed["protocol_version"] == "1.0"
+    assert parsed["protocol_version"] == "1.2"
     assert parsed["stream_id"] == "stream-aaaa"
     assert parsed["capabilities"].startswith("aggregated_depth")

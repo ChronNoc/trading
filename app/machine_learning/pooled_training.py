@@ -17,11 +17,8 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
-
-NEW_YORK = ZoneInfo("America/New_York")
+from app.research.causal_context import trading_day_for_timestamp
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,13 +29,15 @@ class WalkForwardResult:
     trading_days: int
     evaluated_days: int
     oos_predictions: int
-    base_rate: float            # win rate taking EVERY out-of-sample trade
-    model_accuracy: float       # model accuracy on unseen days
-    taken_trades: int           # trades the model chose to take (predicted win)
-    taken_win_rate: float       # actual win rate among taken trades
-    expectancy_ticks: float     # per taken trade, after costs
-    baseline_expectancy_ticks: float  # per trade taking everything, after costs
+    base_rate: float
+    model_accuracy: float
+    brier_score: float
+    taken_trades: int
+    taken_win_rate: float
+    expectancy_ticks: float
+    baseline_expectancy_ticks: float
     beats_baseline: bool
+    fold_boundaries: tuple[dict[str, object], ...]
     note: str
 
     def to_json(self) -> dict[str, object]:
@@ -56,8 +55,8 @@ def load_pooled_rows(models_root: Path) -> list[dict[str, object]]:
 
 
 def _trading_day(timestamp_ns: int) -> str:
-    dt = datetime.fromtimestamp(timestamp_ns // 1_000_000_000, tz=timezone.utc).astimezone(NEW_YORK)
-    return dt.date().isoformat()
+    """Return the CME-style futures trading day for a feature timestamp."""
+    return trading_day_for_timestamp(timestamp_ns)
 
 
 def walk_forward_evaluate(
@@ -68,24 +67,38 @@ def walk_forward_evaluate(
     cost_ticks: float = 2.0,
     min_train_days: int = 3,
 ) -> WalkForwardResult:
-    """Train on the past, predict each later day, and score after costs."""
+    """Train on strictly earlier days, score each later day, and retain folds."""
     from app.machine_learning.train import build_feature_matrix, build_label_array
 
-    ordered = sorted(rows, key=lambda r: int(r["timestamp_ns"]))
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            int(str(row["timestamp_ns"])),
+            str(row.get("source_session_id", "")),
+            int(str(row.get("source_row_index", 0))),
+        ),
+    )
     by_day: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in ordered:
-        by_day[_trading_day(int(row["timestamp_ns"]))].append(row)
+        by_day[_trading_day(int(str(row["timestamp_ns"])))].append(row)
     days = sorted(by_day)
 
     oos_pred: list[int] = []
+    oos_probability: list[float] = []
     oos_actual: list[int] = []
-    evaluated_days = 0
+    folds: list[dict[str, object]] = []
     for index, day in enumerate(days):
         if index < min_train_days:
             continue
-        train_rows = [r for earlier in days[:index] for r in by_day[earlier]]
+        train_days = days[:index]
         test_rows = by_day[day]
-        train_labels = {int(r["label"]) for r in train_rows}
+        candidate_train_rows = [row for earlier in train_days for row in by_day[earlier]]
+        train_rows = [
+            row for row in candidate_train_rows
+            if _trading_day(int(str(row["label_resolved_timestamp_ns"]))) < day
+        ]
+        purged_rows = len(candidate_train_rows) - len(train_rows)
+        train_labels = {int(str(row["label"])) for row in train_rows}
         if len(train_rows) < 2 or train_labels != {0, 1}:
             continue
         from sklearn.linear_model import LogisticRegression
@@ -96,23 +109,37 @@ def walk_forward_evaluate(
         y_test = build_label_array(test_rows)
         model = LogisticRegression(max_iter=1_000, solver="liblinear", random_state=7)
         model.fit(x_train, y_train)
-        oos_pred.extend(int(p) for p in model.predict(x_test))
-        oos_actual.extend(int(a) for a in y_test)
-        evaluated_days += 1
+        probabilities = [float(value) for value in model.predict_proba(x_test)[:, 1]]
+        predictions = [int(value >= 0.5) for value in probabilities]
+        actual = [int(value) for value in y_test]
+        oos_pred.extend(predictions)
+        oos_probability.extend(probabilities)
+        oos_actual.extend(actual)
+        folds.append({
+            "test_day": day,
+            "train_start_day": train_days[0],
+            "train_end_day": train_days[-1],
+            "train_days": len(train_days),
+            "train_rows": len(train_rows),
+            "purged_train_rows": purged_rows,
+            "test_rows": len(test_rows),
+        })
 
     if not oos_pred:
         return WalkForwardResult(
             total_rows=len(rows), trading_days=len(days), evaluated_days=0,
-            oos_predictions=0, base_rate=0.0, model_accuracy=0.0, taken_trades=0,
-            taken_win_rate=0.0, expectancy_ticks=0.0, baseline_expectancy_ticks=0.0,
-            beats_baseline=False,
+            oos_predictions=0, base_rate=0.0, model_accuracy=0.0, brier_score=0.0,
+            taken_trades=0, taken_win_rate=0.0, expectancy_ticks=0.0,
+            baseline_expectancy_ticks=0.0, beats_baseline=False, fold_boundaries=(),
             note=f"insufficient walk-forward data (need >= {min_train_days + 1} trading days "
                  "with both label classes)")
 
     n = len(oos_actual)
     base_rate = sum(oos_actual) / n
-    accuracy = sum(int(p == a) for p, a in zip(oos_pred, oos_actual)) / n
-    taken = [a for p, a in zip(oos_pred, oos_actual) if p == 1]
+    accuracy = sum(int(predicted == actual) for predicted, actual in zip(oos_pred, oos_actual)) / n
+    brier = sum((probability - actual) ** 2
+                for probability, actual in zip(oos_probability, oos_actual)) / n
+    taken = [actual for predicted, actual in zip(oos_pred, oos_actual) if predicted == 1]
     taken_win_rate = (sum(taken) / len(taken)) if taken else 0.0
 
     def expectancy(win_rate: float) -> float:
@@ -122,11 +149,12 @@ def walk_forward_evaluate(
     exp_baseline = expectancy(base_rate)
     beats = bool(taken and exp_taken > exp_baseline and exp_taken > 0)
     return WalkForwardResult(
-        total_rows=len(rows), trading_days=len(days), evaluated_days=evaluated_days,
-        oos_predictions=n, base_rate=round(base_rate, 4), model_accuracy=round(accuracy, 4),
-        taken_trades=len(taken), taken_win_rate=round(taken_win_rate, 4),
-        expectancy_ticks=round(exp_taken, 3), baseline_expectancy_ticks=round(exp_baseline, 3),
-        beats_baseline=beats,
+        total_rows=len(rows), trading_days=len(days), evaluated_days=len(folds),
+        oos_predictions=n, base_rate=round(base_rate, 6), model_accuracy=round(accuracy, 6),
+        brier_score=round(brier, 6), taken_trades=len(taken),
+        taken_win_rate=round(taken_win_rate, 6), expectancy_ticks=round(exp_taken, 6),
+        baseline_expectancy_ticks=round(exp_baseline, 6), beats_baseline=beats,
+        fold_boundaries=tuple(folds),
         note=("model's taken-trade expectancy beats take-everything after costs"
               if beats else
               "no out-of-sample edge: the model does not beat taking every trade after costs"))

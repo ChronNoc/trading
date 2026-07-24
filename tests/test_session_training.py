@@ -22,6 +22,13 @@ def _oscillating_session(raw_root: Path) -> Path:
     rec = MarketSessionRecorder(root_dir=raw_root,
                                 session_start_utc=datetime(2026, 7, 15, 14, 30, tzinfo=UTC))
     rec.record_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    rec.record_control_event({
+        "type": "connected", "timestamp_ns": 2, "source_mode": "delayed",
+        "protocol_version": "1.2", "provider": "pytest", "stream_id": "training-stream",
+        "connection_id": "training-connection", "session_id": "training-session",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        "handshake_accepted": True, "dropped_message_count": 0,
+    })
     base = 1_752_590_000_000_000_000
     seq = 0
     # ~12 minutes, a triangle wave of +-12 ticks; both long and short reach
@@ -63,7 +70,12 @@ def test_triple_barrier_produces_both_label_classes(tmp_path: Path) -> None:
     assert labels == {0, 1}
     # Every row carries the full training contract.
     for row in rows:
-        for column in (*FEATURE_COLUMNS, "timestamp_ns", "label"):
+        for column in (
+            *FEATURE_COLUMNS,
+            "timestamp_ns",
+            "label_resolved_timestamp_ns",
+            "label",
+        ):
             assert column in row
 
 
@@ -75,6 +87,13 @@ def test_incomplete_horizons_are_dropped_not_guessed(tmp_path: Path) -> None:
     rec = MarketSessionRecorder(root_dir=raw,
                                 session_start_utc=datetime(2026, 7, 15, 14, 30, tzinfo=UTC))
     rec.record_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    rec.record_control_event({
+        "type": "connected", "timestamp_ns": 2, "source_mode": "delayed",
+        "protocol_version": "1.2", "provider": "pytest", "stream_id": "training-stream",
+        "connection_id": "training-connection", "session_id": "training-session",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        "handshake_accepted": True, "dropped_message_count": 0,
+    })
     base = 1_752_590_000_000_000_000
     for i in range(600):
         ticks = min(30, i // 5) if i < 300 else 30  # rise, then dead-flat plateau
@@ -132,12 +151,46 @@ def test_report_carries_an_honest_out_of_sample_holdout(tmp_path: Path) -> None:
         assert "no out-of-sample estimate" in holdout["note"]
 
 
+def test_temporal_holdout_purges_labels_resolved_at_validation_start() -> None:
+    from app.machine_learning.session_training import _temporal_holdout
+
+    rows: list[dict[str, object]] = []
+    for index in range(10):
+        row = {column: "0" for column in FEATURE_COLUMNS}
+        row.update({
+            "direction": "long",
+            "time_of_day": "10:00:00",
+            "stop_distance": "6",
+            "target_distance": "6",
+            "book_imbalance": "1" if index % 2 else "-1",
+            "timestamp_ns": 1_000 + index * 100,
+            "label_resolved_timestamp_ns": 1_001 + index * 100,
+            "label": index % 2,
+        })
+        rows.append(row)
+    validation_start = int(str(rows[7]["timestamp_ns"]))
+    rows[6]["label_resolved_timestamp_ns"] = validation_start
+
+    holdout = _temporal_holdout(rows)
+
+    assert holdout["purged_train_rows"] == 1
+    assert holdout["train_rows"] == 6
+    assert holdout["test_rows"] == 3
+
+
 def test_unlabelable_session_reports_honestly_without_models(tmp_path: Path) -> None:
     """A flat session reaches no barriers: a report, but no model, no fabrication."""
     raw = tmp_path / "raw"
     rec = MarketSessionRecorder(root_dir=raw,
                                 session_start_utc=datetime(2026, 7, 15, 14, 30, tzinfo=UTC))
     rec.record_control_event({"type": "delayed_mode", "timestamp_ns": 1, "delay_minutes": 15})
+    rec.record_control_event({
+        "type": "connected", "timestamp_ns": 2, "source_mode": "delayed",
+        "protocol_version": "1.2", "provider": "pytest", "stream_id": "training-stream",
+        "connection_id": "training-connection", "session_id": "training-session",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        "handshake_accepted": True, "dropped_message_count": 0,
+    })
     base = 1_752_590_000_000_000_000
     for i in range(400):  # dead-flat price -> no barrier ever hit
         ts = base + i * 500_000_000

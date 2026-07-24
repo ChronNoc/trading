@@ -110,10 +110,18 @@ def _manifest(**overrides: object) -> dict:
         "utc_start": "2026-07-15T00:00:00+00:00", "continuity_status": "continuous",
         "dropped_message_count": 0,
         "event_counts": {"depth_updates": 10_000, "trades": 2_000},
+        "storage": {"format": "closed_parquet_parts_v1", "depth_parts": 1, "trade_parts": 1},
+        "bridge_provenance": {
+            "protocol_version": "1.2", "provider": "pytest", "handshake_accepted": True,
+            "declared_capabilities": ["aggregated_depth", "trades", "aggressor_side", "source_timestamps"],
+            "observed": {"depth_updates": 10_000, "trades": 2_000, "trades_with_aggressor_side": 2_000},
+        },
         "data_quality": {
             "session_dropped_messages": 0, "receiver_queue_overflow": 0,
-            "recorder_queue_overflow": 0, "malformed_events": 0, "rejected_events": 0,
-            "missed_trade_events": 0, "trade_sequence_gaps": 0,
+            "recorder_queue_overflow": 0, "receiver_intake_lost": 0,
+            "malformed_events": 0, "rejected_events": 0, "out_of_order_events": 0,
+            "duplicate_stream_events": 0, "missed_trade_events": 0,
+            "trade_sequence_gaps": 0,
         },
     }
     for key, value in overrides.items():
@@ -131,12 +139,42 @@ def test_clean_manifest_is_order_flow_eligible() -> None:
     assert entry.eligible_for_order_flow_replay is True
 
 
+def test_clean_protocol_12_manifest_is_model_training_eligible(tmp_path: Path) -> None:
+    entry = classify_manifest(_manifest(), tmp_path / "session_manifest.json")
+    assert entry.eligible_for_model_training is True
+    assert entry.model_training_reasons == ()
+
+
+def test_old_protocol_and_missing_provider_fail_closed_for_model_training(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest["bridge_provenance"]["protocol_version"] = "1.1"  # type: ignore[index]
+    manifest["bridge_provenance"]["provider"] = ""  # type: ignore[index]
+    entry = classify_manifest(manifest, tmp_path / "session_manifest.json")
+    assert entry.eligible_for_order_flow_replay is True
+    assert entry.eligible_for_model_training is False
+    assert any("protocol 1.2" in reason for reason in entry.model_training_reasons)
+    assert "bridge provider is missing" in entry.model_training_reasons
+
+
+def test_missing_capability_and_aggressor_coverage_block_model_training(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest["bridge_provenance"]["declared_capabilities"] = ["aggregated_depth", "trades"]  # type: ignore[index]
+    manifest["bridge_provenance"]["observed"]["trades_with_aggressor_side"] = 1_999  # type: ignore[index]
+    entry = classify_manifest(manifest, tmp_path / "session_manifest.json")
+    assert entry.eligible_for_model_training is False
+    assert any("required capabilities" in reason for reason in entry.model_training_reasons)
+    assert any("aggressor-side coverage incomplete" in reason for reason in entry.model_training_reasons)
+
+
 @pytest.mark.parametrize("override,label", [
     ({"clean_shutdown": False}, "unclean shutdown"),
     ({"continuity_status": "receiver_error"}, "not continuous"),
     ({"session_dropped_messages": 1}, "one session drop"),
     ({"receiver_queue_overflow": 1}, "receiver queue overflow"),
     ({"recorder_queue_overflow": 1}, "recorder queue overflow"),
+    ({"receiver_intake_lost": 1}, "receiver intake loss"),
+    ({"out_of_order_events": 1}, "out-of-order event"),
+    ({"duplicate_stream_events": 1}, "duplicate stream event"),
     ({"malformed_events": 1}, "malformed event"),
     ({"rejected_events": 1}, "rejected event"),
     ({"missed_trade_events": 1}, "missing trade event"),

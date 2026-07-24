@@ -115,6 +115,19 @@ class MarketEventRecorder:
         return RecorderWriteSummary(depth_updates=depth_updates, trades=trades)
 
 
+
+
+_REASON_BUCKET_LIMIT = 256
+
+
+def _reason_bucket(reason: str, *, fallback: str) -> str:
+    """Bound reason-cardinality while retaining an attributable prefix."""
+    normalized = reason.strip() or fallback
+    # Feed-guard details append volatile timestamps/sequence numbers after a
+    # colon. Keeping the stable category prevents manifest/memory explosions.
+    category = normalized.split(":", 1)[0].strip() or fallback
+    return category[:160]
+
 @dataclass(slots=True)
 class MarketSessionRecorder:
     """Append one Bookmap bridge run into a unique raw-data session folder."""
@@ -131,12 +144,28 @@ class MarketSessionRecorder:
     connection_events: int = field(init=False, default=0)
     dropped_message_count: int = field(init=False, default=0)
     malformed_event_count: int = field(init=False, default=0)
+    malformed_event_reasons: dict[str, int] = field(init=False, default_factory=dict)
     rejected_event_count: int = field(init=False, default=0)
+    rejected_event_reasons: dict[str, int] = field(init=False, default_factory=dict)
     out_of_order_event_count: int = field(init=False, default=0)
     trade_sequence_gap_count: int = field(init=False, default=0)
     missed_trade_event_count: int = field(init=False, default=0)
     duplicate_stream_event_count: int = field(init=False, default=0)
     clock_drift_alert_count: int = field(init=False, default=0)
+    receiver_intake_lost_count: int = field(init=False, default=0)
+    bridge_drop_baseline: int | None = field(init=False, default=None)
+    transport_connections: int = field(init=False, default=0)
+    transport_reconnects: int = field(init=False, default=0)
+    protocol_version: str | None = field(init=False, default=None)
+    provider: str | None = field(init=False, default=None)
+    bridge_stream_id: str | None = field(init=False, default=None)
+    bridge_session_id: str | None = field(init=False, default=None)
+    connection_ids: set[str] = field(init=False, default_factory=set)
+    declared_capabilities: set[str] = field(init=False, default_factory=set)
+    handshake_accepted: bool = field(init=False, default=False)
+    first_stream_sequence: int | None = field(init=False, default=None)
+    last_stream_sequence: int | None = field(init=False, default=None)
+    aggressor_side_trade_count: int = field(init=False, default=0)
     alias: str | None = field(init=False, default=None)
     symbol: str | None = field(init=False, default=None)
     addon_version: str | None = field(init=False, default=None)
@@ -238,6 +267,11 @@ class MarketSessionRecorder:
     def _record_validated(self, normalized_event: Mapping[str, object]) -> Path:
         event_kind = market_event_kind(normalized_event)
         self._receive_sequence += 1
+        stream_sequence = normalized_event.get("stream_sequence")
+        if isinstance(stream_sequence, int):
+            if self.first_stream_sequence is None:
+                self.first_stream_sequence = stream_sequence
+            self.last_stream_sequence = stream_sequence
         if event_kind == "depth":
             self._depth_buffer.append(_depth_row(normalized_event, self._receive_sequence))
             self.depth_updates += 1
@@ -249,6 +283,8 @@ class MarketSessionRecorder:
         else:
             self._trade_buffer.append(_trade_row(normalized_event, self._receive_sequence))
             self.trades += 1
+            if str(normalized_event.get("aggressor_side", "")).lower() in {"buy", "sell"}:
+                self.aggressor_side_trade_count += 1
             self.symbol = str(normalized_event["instrument"])
             output_path = self.trades_path
             if len(self._trade_buffer) >= PARQUET_FLUSH_THRESHOLD:
@@ -301,14 +337,21 @@ class MarketSessionRecorder:
         self._trade_buffer = []
 
     def note_malformed_event(self, reason: str) -> None:
-        """Count one malformed inbound message without storing its payload."""
-        del reason
+        """Count malformed input with bounded, attributable reason categories."""
+        category = _reason_bucket(reason, fallback="unspecified schema error")
         self.malformed_event_count += 1
+        if category not in self.malformed_event_reasons and len(self.malformed_event_reasons) >= _REASON_BUCKET_LIMIT:
+            category = "other malformed schema errors"
+        self.malformed_event_reasons[category] = self.malformed_event_reasons.get(category, 0) + 1
 
     def note_rejected_event(self, reason: str) -> None:
-        """Count one feed-guard rejection and classify out-of-order rejects."""
+        """Count rejections with bounded, attributable reason categories."""
+        category = _reason_bucket(reason, fallback="unspecified rejection")
         self.rejected_event_count += 1
-        if "out-of-order" in reason.lower():
+        if category not in self.rejected_event_reasons and len(self.rejected_event_reasons) >= _REASON_BUCKET_LIMIT:
+            category = "other feed-guard rejections"
+        self.rejected_event_reasons[category] = self.rejected_event_reasons.get(category, 0) + 1
+        if "out-of-order" in category.lower():
             self.out_of_order_event_count += 1
 
     def update_feed_quality(
@@ -367,8 +410,46 @@ class MarketSessionRecorder:
         self.alias = str(event.get("alias", self.alias or "")) or self.alias
         self.symbol = str(event.get("symbol", self.symbol or "")) or self.symbol
         self.addon_version = str(event.get("addon_version", self.addon_version or "")) or self.addon_version
+        stream_sequence = event.get("stream_sequence")
+        if isinstance(stream_sequence, int):
+            if self.first_stream_sequence is None:
+                self.first_stream_sequence = stream_sequence
+            self.last_stream_sequence = stream_sequence
         if "dropped_message_count" in event:
-            self.dropped_message_count = max(self.dropped_message_count, int(event["dropped_message_count"]))
+            lifetime_drops = int(str(event["dropped_message_count"]))
+            if self.bridge_drop_baseline is None:
+                self.bridge_drop_baseline = lifetime_drops
+            self.dropped_message_count = max(self.dropped_message_count, lifetime_drops)
+        if event_type == "connected":
+            self.transport_connections += 1
+            if str(event.get("connection_boundary", "")) in {"reconnect", "new_stream"}:
+                self.transport_reconnects += 1
+            protocol_version = str(event.get("protocol_version", "")).strip()
+            provider = str(event.get("provider", "")).strip()
+            bridge_stream_id = str(event.get("stream_id", "")).strip()
+            bridge_session_id = str(event.get("session_id", "")).strip()
+            connection_id = str(event.get("connection_id", "")).strip()
+            if protocol_version:
+                self.protocol_version = protocol_version
+            if provider:
+                self.provider = provider
+            if bridge_stream_id:
+                self.bridge_stream_id = bridge_stream_id
+            if bridge_session_id:
+                self.bridge_session_id = bridge_session_id
+            if connection_id:
+                self.connection_ids.add(connection_id)
+            self.declared_capabilities.update(
+                capability.strip()
+                for capability in str(event.get("capabilities", "")).split(",")
+                if capability.strip()
+            )
+            self.handshake_accepted = bool(event.get("handshake_accepted", False))
+        if "receiver_intake_lost" in event:
+            self.receiver_intake_lost_count = max(
+                self.receiver_intake_lost_count,
+                int(str(event["receiver_intake_lost"])),
+            )
         if event_type in {"replay_started", "historical_mode"} and not self.is_delayed:
             self.source_mode = "replay"
         elif event_type == "prototype_mode":
@@ -394,7 +475,7 @@ class MarketSessionRecorder:
         if "synthetic" in event:
             self.synthetic = bool(event["synthetic"])
         if "seed" in event:
-            self.seed = int(event["seed"])
+            self.seed = int(str(event["seed"]))
         if "scenario_version" in event:
             self.scenario_version = str(event["scenario_version"])
         if "playback_speed" in event:
@@ -407,6 +488,11 @@ class MarketSessionRecorder:
             self.finalize(clean_shutdown=True)
 
     def _manifest(self) -> dict[str, object]:
+        session_bridge_drops = (
+            self.dropped_message_count
+            if self.bridge_drop_baseline is None
+            else max(0, self.dropped_message_count - self.bridge_drop_baseline)
+        )
         quality_counters = {
             "malformed_events": self.malformed_event_count,
             "rejected_events": self.rejected_event_count,
@@ -417,9 +503,16 @@ class MarketSessionRecorder:
             "missed_stream_events": self.missed_trade_event_count,
             "duplicate_stream_events": self.duplicate_stream_event_count,
             "clock_drift_alerts": self.clock_drift_alert_count,
+            "session_dropped_messages": session_bridge_drops,
             "bridge_dropped_messages": self.dropped_message_count,
+            "receiver_intake_lost": self.receiver_intake_lost_count,
         }
-        quality_ok = all(value == 0 for value in quality_counters.values())
+        invalidating_counters = {
+            key: value
+            for key, value in quality_counters.items()
+            if key != "bridge_dropped_messages"
+        }
+        quality_ok = all(value == 0 for value in invalidating_counters.values())
         valid_for_analysis = (
             self.finalized
             and self.clean_shutdown
@@ -444,6 +537,27 @@ class MarketSessionRecorder:
                 "trades": self.trades,
                 "connection_events": self.connection_events,
             },
+            "transport": {
+                "connections": self.transport_connections,
+                "reconnects": self.transport_reconnects,
+            },
+            "bridge_provenance": {
+                "protocol_version": self.protocol_version,
+                "minimum_protocol_version": "1.2",
+                "provider": self.provider,
+                "stream_id": self.bridge_stream_id,
+                "bridge_session_id": self.bridge_session_id,
+                "connection_ids": sorted(self.connection_ids),
+                "declared_capabilities": sorted(self.declared_capabilities),
+                "handshake_accepted": self.handshake_accepted,
+                "first_stream_sequence": self.first_stream_sequence,
+                "last_stream_sequence": self.last_stream_sequence,
+                "observed": {
+                    "depth_updates": self.depth_updates,
+                    "trades": self.trades,
+                    "trades_with_aggressor_side": self.aggressor_side_trade_count,
+                },
+            },
             "storage": {
                 "format": "closed_parquet_parts_v1",
                 "depth_parts": self._depth_part_index,
@@ -462,6 +576,8 @@ class MarketSessionRecorder:
             "data_quality": {
                 "ok": quality_ok,
                 **quality_counters,
+                "malformed_event_reasons": dict(sorted(self.malformed_event_reasons.items())),
+                "rejected_event_reasons": dict(sorted(self.rejected_event_reasons.items())),
             },
             "dropped_message_count": self.dropped_message_count,
             "continuity_status": self.continuity_status,
@@ -542,7 +658,7 @@ def atomic_write_text(destination: Path, payload: str) -> None:
     temporary = unique_temp_path(destination, ".tmp")
     with _write_lock_for(destination):
         try:
-            with temporary.open("w", encoding="utf-8") as handle:
+            with temporary.open("w", encoding="utf-8", newline="\n") as handle:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())  # survive a crash, not just a clean exit

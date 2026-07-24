@@ -275,6 +275,7 @@ def test_guard_malformed_messages_are_counted_loudly() -> None:
 
     status = guard.status()
     assert status.malformed_events == 1
+    assert guard.malformed_reasons == {"price used a JSON float": 1}
     assert any("malformed" in entry for entry in guard.rejections)
 
 

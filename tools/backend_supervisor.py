@@ -22,7 +22,15 @@ from typing import Sequence
 
 BACKOFF_INITIAL_SECONDS = 2.0
 BACKOFF_MAX_SECONDS = 60.0
-HEARTBEAT_GRACE_SECONDS = 30.0
+# Bump whenever capture/protocol semantics change. Including this in the process
+# fingerprint prevents a GUI launched from new source from silently attaching to
+# an old detached backend that is still parsing with obsolete capture logic.
+CAPTURE_RUNTIME_REVISION = "capture-reliability-v2"
+# How long a just-spawned backend may take to publish its first healthy
+# heartbeat.  Cold starts import the full app and can exceed 30s on a
+# CPU-contended machine; giving up early orphans a backend that is still
+# booting, so this window is deliberately generous.
+STARTUP_HANDSHAKE_SECONDS = 90.0
 SUPERVISOR_LOCK_NAME = "supervisor.lock"
 SUPERVISOR_GUARD_NAME = "supervisor.lock.guard"
 
@@ -42,6 +50,7 @@ class BackendSpec:
     processed_root: str = "data/processed"
     labels_root: str = "data/labels"
     research_state_root: str = "data/research_state"
+    models_root: str = "data/models"
 
     @property
     def fingerprint(self) -> str:
@@ -49,6 +58,7 @@ class BackendSpec:
         from app.runtime.process_files import configuration_fingerprint
 
         return configuration_fingerprint({
+            "capture_runtime_revision": CAPTURE_RUNTIME_REVISION,
             "host": self.host,
             "port": self.port,
             "delayed_data_minutes": self.delayed_data_minutes,
@@ -60,6 +70,7 @@ class BackendSpec:
             "processed_root": str(Path(self.processed_root).resolve()),
             "labels_root": str(Path(self.labels_root).resolve()),
             "research_state_root": str(Path(self.research_state_root).resolve()),
+            "models_root": str(Path(self.models_root).resolve()),
         })
 
     def backend_args(self, runtime_dir: Path) -> list[str]:
@@ -77,6 +88,7 @@ class BackendSpec:
             "--processed-root", self.processed_root,
             "--labels-root", self.labels_root,
             "--research-state-root", self.research_state_root,
+            "--models-root", self.models_root,
             "--config-fingerprint", self.fingerprint,
         ]
 
@@ -95,6 +107,7 @@ class BackendSpec:
             "--processed-root", self.processed_root,
             "--labels-root", self.labels_root,
             "--research-state-root", self.research_state_root,
+            "--models-root", self.models_root,
         ]
 
 
@@ -160,7 +173,7 @@ def ensure_supervisor(
     runtime_dir: Path,
     *,
     spec: BackendSpec,
-    wait_seconds: float = 35.0,
+    wait_seconds: float = STARTUP_HANDSHAKE_SECONDS,
 ) -> bool:
     """Ensure a persistent supervisor and compatible healthy backend exist."""
     from app.runtime.process_files import StatusFile
@@ -272,8 +285,11 @@ def supervise(
     restarts = 0
     backoff = BACKOFF_INITIAL_SECONDS
     try:
-        if not ensure_backend(runtime_dir, spec=spec):
-            return 2
+        if not ensure_backend(runtime_dir, spec=spec, wait_seconds=STARTUP_HANDSHAKE_SECONDS):
+            # The spawned backend may still be booting; exiting here would
+            # orphan it with no owner to recover a later crash.  Fall into
+            # the recovery loop instead of giving up.
+            _log(runtime_dir, "initial handshake incomplete; supervisor continues recovering")
         while True:
             time.sleep(2.0)
             if stop.pending():
@@ -297,7 +313,10 @@ def supervise(
                 _recover_backend(runtime_dir, holder)
             time.sleep(backoff)
             backoff = min(BACKOFF_MAX_SECONDS, backoff * 2)
-            if not ensure_backend(runtime_dir, spec=spec, wait_seconds=HEARTBEAT_GRACE_SECONDS):
+            if stop.pending():
+                _log(runtime_dir, "intentional stop requested during recovery; not respawning")
+                return 0
+            if not ensure_backend(runtime_dir, spec=spec, wait_seconds=STARTUP_HANDSHAKE_SECONDS):
                 _log(runtime_dir, "replacement backend did not complete its health handshake")
     finally:
         lease.release()
@@ -339,6 +358,7 @@ def _spec_from_args(args: argparse.Namespace) -> BackendSpec:
         processed_root=str(args.processed_root),
         labels_root=str(args.labels_root),
         research_state_root=str(args.research_state_root),
+        models_root=str(args.models_root),
     )
 
 
@@ -357,6 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--processed-root", type=Path, default=Path("data/processed"))
     parser.add_argument("--labels-root", type=Path, default=Path("data/labels"))
     parser.add_argument("--research-state-root", type=Path, default=Path("data/research_state"))
+    parser.add_argument("--models-root", type=Path, default=Path("data/models"))
     parser.add_argument("--ensure", action="store_true")
     parser.add_argument("--ensure-supervisor", action="store_true")
     parser.add_argument("--stop", action="store_true")

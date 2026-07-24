@@ -14,6 +14,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 PROVENANCE_SYNTHETIC = "SYNTHETIC"
 PROVENANCE_REAL_DELAYED = "REAL_DELAYED"
@@ -46,12 +47,14 @@ class SessionEntry:
     utc_end: str | None
     eligible_for_analysis: bool
     eligible_for_order_flow_replay: bool
+    eligible_for_model_training: bool
     valid_for_live_decisions: bool
     reasons: tuple[str, ...]
+    model_training_reasons: tuple[str, ...]
 
 
 def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> SessionEntry:
-    """Classify a single session manifest (already parsed) read-only."""
+    """Classify one session for analysis and stricter model-training use."""
     synthetic = bool(manifest.get("synthetic", False))
     delay = _as_int(manifest.get("data_delay_minutes"))
     is_delayed = bool(manifest.get("is_delayed", False)) or (delay is not None and delay > 0)
@@ -60,34 +63,32 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
 
     clean = bool(manifest.get("clean_shutdown", False))
     utc_end = manifest.get("utc_end")
-    # A session that reached an end (clean or not) is finalized. One with no
-    # utc_end never finalized: it is actively recording or crashed mid-write -
-    # treat as active and never open its (possibly locked) files.
     finalized = utc_end is not None
     active = utc_end is None
     continuity = str(manifest.get("continuity_status", "unknown"))
-    counts = manifest.get("event_counts", {}) if isinstance(manifest.get("event_counts"), dict) else {}
+    counts = cast(dict[str, object], manifest.get("event_counts", {})) \
+        if isinstance(manifest.get("event_counts"), dict) else {}
     depth_updates = _as_int(counts.get("depth_updates")) or 0
     trades = _as_int(counts.get("trades")) or 0
-    # The Java bridge reports a PROCESS-LIFETIME cumulative drop total; it is not
-    # this session's loss. Prefer the per-session/connection figure when the
-    # manifest carries one, and keep the lifetime number only for display.
     lifetime_dropped = _as_int(manifest.get("dropped_message_count")) or 0
-    quality = manifest.get("data_quality", {}) if isinstance(manifest.get("data_quality"), dict) else {}
+    quality = cast(dict[str, object], manifest.get("data_quality", {})) \
+        if isinstance(manifest.get("data_quality"), dict) else {}
     session_dropped = _as_int(quality.get("session_dropped_messages"))
     if session_dropped is None:
         session_dropped = _as_int(quality.get("bridge_dropped_messages"))
     if session_dropped is None:
-        # No per-session figure recorded: fail closed and treat the lifetime
-        # total as this session's, rather than assuming zero loss.
         session_dropped = lifetime_dropped
     dropped = session_dropped
+    receiver_intake_lost = _as_int(quality.get("receiver_intake_lost")) or 0
     queue_overflow = (
         (_as_int(quality.get("receiver_queue_overflow")) or 0)
         + (_as_int(quality.get("recorder_queue_overflow")) or 0)
+        + receiver_intake_lost
     )
     malformed = _as_int(quality.get("malformed_events")) or 0
     rejected = _as_int(quality.get("rejected_events")) or 0
+    out_of_order = _as_int(quality.get("out_of_order_events")) or 0
+    duplicate = _as_int(quality.get("duplicate_stream_events")) or 0
     missed_trades = _as_int(quality.get("missed_trade_events")) or 0
     sequence_gaps = _as_int(quality.get("trade_sequence_gaps")) or 0
 
@@ -108,8 +109,10 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         reasons.append(f"bridge dropped {dropped} messages during this session")
     if lifetime_dropped != dropped:
         reasons.append(f"(bridge lifetime drop total: {lifetime_dropped})")
-    if queue_overflow > 0:
-        reasons.append(f"capture queues overflowed {queue_overflow} times")
+    if receiver_intake_lost > 0:
+        reasons.append(f"receiver intake lost {receiver_intake_lost} events")
+    if queue_overflow > receiver_intake_lost:
+        reasons.append(f"capture queues overflowed {queue_overflow - receiver_intake_lost} times")
     if malformed > 0:
         reasons.append(f"receiver rejected {malformed} malformed messages")
     if rejected > 0:
@@ -119,17 +122,11 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
     if sequence_gaps > 0:
         reasons.append(f"{sequence_gaps} trade-sequence gap(s)")
     if not synthetic and provenance not in _REAL_PROVENANCES:
-        # An eligibility gate must never be silent: a session recorded with no
-        # declared source mode (no delayed_mode/realtime control event) is
-        # excluded from analysis, and the catalog must say exactly why.
         reasons.append(
             f"provenance {provenance}: source mode was never declared "
             "(missing delayed_mode/realtime_started control event)"
         )
 
-    # A session is analysis-eligible only if it finalized CLEANLY (a crash or a
-    # failed write must never look like a complete recording) and its data is
-    # continuous.
     eligible = (
         finalized
         and clean
@@ -138,22 +135,66 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         and continuity == "continuous"
         and depth_updates > 0
     )
-    # Order-flow research additionally demands BOTH streams and a spotless
-    # quality record. `dropped` here is the per-connection/session bridge drop
-    # count (NOT the Java process-lifetime total), so the ~1M-drop run stays
-    # visibly ineligible instead of quietly qualifying.
     order_flow_eligible = (
         eligible
-        and depth_updates > 0
         and trades > 0
-        and session_dropped == 0
+        and dropped == 0
         and queue_overflow == 0
         and malformed == 0
         and rejected == 0
+        and out_of_order == 0
+        and duplicate == 0
         and missed_trades == 0
         and sequence_gaps == 0
     )
-    # A delayed feed is valid for offline analysis but NEVER for live decisions.
+
+    bridge_value = manifest.get("bridge_provenance", {})
+    bridge = cast(dict[str, object], bridge_value) if isinstance(bridge_value, dict) else {}
+    protocol_version = str(bridge.get("protocol_version") or "")
+    provider = str(bridge.get("provider") or "").strip()
+    declared_raw = bridge.get("declared_capabilities", [])
+    declared = {
+        str(capability).strip()
+        for capability in declared_raw
+        if str(capability).strip()
+    } if isinstance(declared_raw, list) else set()
+    observed_value = bridge.get("observed", {})
+    observed = cast(dict[str, object], observed_value) if isinstance(observed_value, dict) else {}
+    observed_aggressor = _as_int(observed.get("trades_with_aggressor_side")) or 0
+    required_capabilities = {"aggregated_depth", "trades", "aggressor_side", "source_timestamps"}
+
+    model_reasons = list(reasons)
+    if not order_flow_eligible and not model_reasons:
+        model_reasons.append("session did not pass the order-flow quality gate")
+    version_parts = protocol_version.split(".")
+    protocol_ok = (
+        len(version_parts) >= 2
+        and version_parts[0].isdigit()
+        and version_parts[1].isdigit()
+        and int(version_parts[0]) == 1
+        and int(version_parts[1]) >= 2
+    )
+    if not protocol_ok:
+        model_reasons.append("model training requires accepted bridge protocol 1.2 or newer")
+    if not bool(bridge.get("handshake_accepted", False)):
+        model_reasons.append("accepted bridge handshake provenance is missing")
+    if not provider:
+        model_reasons.append("bridge provider is missing")
+    missing_capabilities = sorted(required_capabilities - declared)
+    if missing_capabilities:
+        model_reasons.append(
+            "bridge did not declare required capabilities: " + ", ".join(missing_capabilities)
+        )
+    if trades > 0 and observed_aggressor != trades:
+        model_reasons.append(
+            f"aggressor-side coverage incomplete: {observed_aggressor}/{trades} trades"
+        )
+    storage_value = manifest.get("storage", {})
+    storage = cast(dict[str, object], storage_value) if isinstance(storage_value, dict) else {}
+    if not finalized or not storage:
+        model_reasons.append("closed storage provenance is missing")
+
+    model_eligible = order_flow_eligible and not model_reasons
     valid_live = provenance == PROVENANCE_REAL_REALTIME and eligible and not is_delayed
 
     return SessionEntry(
@@ -174,8 +215,10 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         utc_end=_as_str(utc_end),
         eligible_for_analysis=eligible,
         eligible_for_order_flow_replay=order_flow_eligible,
+        eligible_for_model_training=model_eligible,
         valid_for_live_decisions=valid_live,
         reasons=tuple(reasons),
+        model_training_reasons=tuple(dict.fromkeys(model_reasons)),
     )
 
 
@@ -208,8 +251,10 @@ def build_catalog(raw_root: Path) -> tuple[SessionEntry, ...]:
                     utc_end=None,
                     eligible_for_analysis=False,
                     eligible_for_order_flow_replay=False,
+                    eligible_for_model_training=False,
                     valid_for_live_decisions=False,
                     reasons=("manifest unreadable: active or truncated",),
+                    model_training_reasons=("manifest unreadable: active or truncated",),
                 ),
             )
             continue

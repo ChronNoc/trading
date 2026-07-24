@@ -16,28 +16,13 @@ import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
+from app.machine_learning.feature_contract import (
+    FEATURE_COLUMNS,
+    FEATURE_CONTRACT_VERSION,
+)
+
 ModelType: TypeAlias = Literal["logistic_regression", "xgboost"]
 LabeledRow: TypeAlias = Mapping[str, object]
-
-FEATURE_COLUMNS: tuple[str, ...] = (
-    "book_imbalance",
-    "recent_aggressive_buy_volume",
-    "recent_aggressive_sell_volume",
-    "liquidity_added",
-    "liquidity_cancelled",
-    "reload_count",
-    "distance_to_defended_level",
-    "price_velocity",
-    "trade_velocity",
-    "spread",
-    "short_term_volatility",
-    "time_of_day",
-    "distance_from_overnight_high_low",
-    "distance_from_prior_day_levels",
-    "direction",
-    "stop_distance",
-    "target_distance",
-)
 LABEL_COLUMN = "label"
 TIMESTAMP_COLUMN = "timestamp_ns"
 MODEL_FILENAME_TEMPLATE = "{model_type}_model_v{version}.joblib"
@@ -71,6 +56,8 @@ class ModelArtifactMetadata:
     model_type: ModelType
     version: str
     feature_columns: tuple[str, ...]
+    feature_contract_version: str
+    feature_contract_sha256: str
     training_period: dict[str, str]
     row_count: int
     positive_label_count: int
@@ -81,6 +68,8 @@ class ModelArtifactMetadata:
             "model_type": self.model_type,
             "version": self.version,
             "feature_columns": list(self.feature_columns),
+            "feature_contract_version": self.feature_contract_version,
+            "feature_contract_sha256": self.feature_contract_sha256,
             "training_period": dict(self.training_period),
             "row_count": self.row_count,
             "positive_label_count": self.positive_label_count,
@@ -112,6 +101,7 @@ def train_models(
     *,
     version: str,
     config: ModelTrainingConfig | None = None,
+    feature_contract_sha256: str,
 ) -> TrainingRunResult:
     """Train LogisticRegression and XGBoost classifiers and save versioned artifacts."""
     _validate_semver(version)
@@ -141,6 +131,7 @@ def train_models(
         output_dir=output_path,
         dataset=dataset,
         labels=labels,
+        feature_contract_sha256=feature_contract_sha256,
     )
     xgboost_artifact = save_model_artifact(
         model=xgboost_model,
@@ -149,6 +140,7 @@ def train_models(
         output_dir=output_path,
         dataset=dataset,
         labels=labels,
+        feature_contract_sha256=feature_contract_sha256,
     )
     return TrainingRunResult(
         logistic_regression=logistic_artifact,
@@ -201,6 +193,7 @@ def save_model_artifact(
     output_dir: str | Path,
     dataset: LabeledDataset,
     labels: np.ndarray,
+    feature_contract_sha256: str,
 ) -> TrainedModelArtifact:
     """Save one model artifact and sidecar JSON metadata."""
     _validate_semver(version)
@@ -213,6 +206,8 @@ def save_model_artifact(
         model_type=model_type,
         version=version,
         feature_columns=tuple(dataset.feature_columns),
+        feature_contract_version=FEATURE_CONTRACT_VERSION,
+        feature_contract_sha256=feature_contract_sha256,
         training_period=_training_period(dataset.rows),
         row_count=len(dataset.rows),
         positive_label_count=int(labels.sum()),
@@ -224,6 +219,8 @@ def save_model_artifact(
             "model_type": model_type,
             "version": version,
             "feature_columns": tuple(dataset.feature_columns),
+            "feature_contract_version": FEATURE_CONTRACT_VERSION,
+            "feature_contract_sha256": feature_contract_sha256,
         },
         model_path,
     )
@@ -263,6 +260,11 @@ def load_model_artifact(path: str | Path) -> dict[str, object]:
     feature_columns = payload.get("feature_columns")
     if tuple(feature_columns or ()) != FEATURE_COLUMNS:
         raise ValueError("model artifact feature columns do not match the current feature contract")
+    if payload.get("feature_contract_version") != FEATURE_CONTRACT_VERSION:
+        raise ValueError("model artifact feature contract version does not match")
+    feature_hash = payload.get("feature_contract_sha256")
+    if not isinstance(feature_hash, str) or not feature_hash:
+        raise ValueError("model artifact is missing feature contract SHA")
     return cast(dict[str, object], payload)
 
 

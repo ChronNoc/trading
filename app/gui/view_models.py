@@ -56,6 +56,39 @@ class ComponentHealth:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketHistoryPoint:
+    """One bounded, observed market sample for snapshot-driven charts."""
+
+    timestamp_ns: int
+    price: Decimal | None = None
+    cumulative_delta: Decimal | None = None
+    buy_volume: Decimal | None = None
+    sell_volume: Decimal | None = None
+    event_rate_per_second: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineStageRow:
+    """One evidence-pipeline stage rendered without GUI-side I/O."""
+
+    key: str
+    label: str
+    status: str
+    blocker: str = ""
+    next_action: str = ""
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineSnapshot:
+    """Nine-stage operating and learning evidence pipeline."""
+
+    stages: tuple[PipelineStageRow, ...] = ()
+    computed: bool = False
+    error: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class MarketSnapshot:
     """Coalesced market view (5–10 Hz), never per-event."""
 
@@ -66,13 +99,14 @@ class MarketSnapshot:
     best_ask: Decimal | None = None
     spread: Decimal | None = None
     mid_price: Decimal | None = None
-    cumulative_delta: Decimal = Decimal("0")
-    buy_volume: Decimal = Decimal("0")
-    sell_volume: Decimal = Decimal("0")
+    cumulative_delta: Decimal | None = None
+    buy_volume: Decimal | None = None
+    sell_volume: Decimal | None = None
     is_delayed: bool = True
     source_delay_minutes: int = 15
     processing_age_ms: int | None = None  # app lag, NOT the source delay
     event_rate_per_second: float = 0.0
+    history: tuple[MarketHistoryPoint, ...] = ()
 
     @property
     def provenance_text(self) -> str:
@@ -314,6 +348,39 @@ class ExecutionSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelSnapshot:
+    """Offline challenger truth; no field implies runtime model use."""
+
+    registry_state: str = "NOT_REGISTERED"
+    artifact_id: str = ""
+    artifact_sha256: str = ""
+    dataset_id: str = ""
+    model_type: str = ""
+    model_version: str = ""
+    eligible_sessions: int = 0
+    excluded_sessions: int = 0
+    validation_state: str = "NOT_EVALUATED"
+    validation_detail: str = "no registered challenger"
+    oos_predictions: int = 0
+    brier_score: float = 0.0
+    beats_baseline: bool = False
+    approval_state: str = "NOT_APPROVED"
+    approval_detail: str = "no exact artifact approval is configured"
+    feature_parity_state: str = "NO_REGISTERED_CONTRACT"
+    feature_observation_state: str = "UNAVAILABLE"
+    feature_observation_reason: str = "observe-only feature sink is not attached"
+    feature_observations: int = 0
+    feature_gap_resets: int = 0
+    feature_session_resets: int = 0
+    feature_skipped_events: int = 0
+    runtime_loaded: bool = False
+    shadow_predictions: int = 0
+    decision_impact: str = "none"
+    shadow_loader_state: str = "UNLOADED"
+    shadow_loader_reason: str = "observe-only model loader is not attached"
+
+
+@dataclass(frozen=True, slots=True)
 class AppSnapshot:
     """The single immutable object the GUI renders. Built off-thread."""
 
@@ -322,7 +389,9 @@ class AppSnapshot:
     capture: CaptureSnapshot = field(default_factory=CaptureSnapshot)
     paper: PaperSnapshot = field(default_factory=PaperSnapshot)
     research: ResearchSnapshot = field(default_factory=ResearchSnapshot)
+    model: ModelSnapshot = field(default_factory=ModelSnapshot)
     profitability: ProfitabilitySnapshot = field(default_factory=ProfitabilitySnapshot)
+    pipeline: PipelineSnapshot = field(default_factory=PipelineSnapshot)
     execution: ExecutionSnapshot = field(default_factory=ExecutionSnapshot)
     components: tuple[ComponentHealth, ...] = ()
     capabilities: tuple[tuple[str, Capability, str], ...] = ()

@@ -19,9 +19,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-# The protocol version this receiver understands. A bridge advertising a
-# different MAJOR version is refused; a newer MINOR is accepted (additive).
+# The minimum wire protocol this receiver can consume safely. Protocol 1.2
+# introduced event batches and global stream sequences; accepting 1.0/1.1 in a
+# production capture silently loses the attribution required to prove continuity.
 SUPPORTED_PROTOCOL_MAJOR = 1
+MINIMUM_PROTOCOL_MINOR = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,13 +73,20 @@ def parse_handshake(event: Mapping[str, object]) -> BridgeHandshake:
 def _check_compatibility(version: str) -> tuple[bool, str]:
     if not version:
         return False, "bridge sent no protocol_version (pre-handshake build)"
-    major = version.split(".", 1)[0]
-    if not major.isdigit():
+    parts = version.split(".")
+    if not parts[0].isdigit() or (len(parts) > 1 and not parts[1].isdigit()):
         return False, f"unparseable protocol_version {version!r}"
-    if int(major) != SUPPORTED_PROTOCOL_MAJOR:
+    major = int(parts[0])
+    minor = int(parts[1]) if len(parts) > 1 else 0
+    if major != SUPPORTED_PROTOCOL_MAJOR:
         return False, (
             f"bridge protocol {version} is incompatible with receiver "
             f"major {SUPPORTED_PROTOCOL_MAJOR}"
+        )
+    if minor < MINIMUM_PROTOCOL_MINOR:
+        return False, (
+            f"bridge protocol {version} is too old; receiver requires at least "
+            f"{SUPPORTED_PROTOCOL_MAJOR}.{MINIMUM_PROTOCOL_MINOR} for batched, sequenced capture"
         )
     return True, f"protocol {version} accepted"
 

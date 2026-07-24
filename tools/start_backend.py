@@ -46,6 +46,7 @@ def run_backend(
     processed_root: Path | None = None,
     labels_root: Path | None = None,
     research_state_root: Path | None = None,
+    models_root: Path | None = None,
     config_fingerprint: str = "",
     max_seconds: float | None = None,
     delayed_data_minutes: int = 0,
@@ -86,7 +87,7 @@ def run_backend(
 
     explicit_roots = any(value is not None for value in (
         report_root, session_config, paper_ledger_path, log_dir,
-        processed_root, labels_root, research_state_root,
+        processed_root, labels_root, research_state_root, models_root,
     ))
     if output_root is not None and not explicit_roots:
         # A non-default output root sandboxes EVERY writable tree beside it,
@@ -113,6 +114,7 @@ def run_backend(
                 Path("data/research_state")
                 if research_state_root is None else research_state_root
             ),
+            models_root=Path("data/models") if models_root is None else models_root,
             gui=False,
             delayed_data_minutes=delayed_data_minutes,
             runtime_dir=runtime_dir,
@@ -146,10 +148,13 @@ def run_backend(
     feed = AnalysisFeed(
         pressure_check=lambda: pipeline_holder.worst_queue_occupancy_fraction() > 0.25,
     )
+    from app.machine_learning.feature_contract import ObserveOnlyFeatureSink
+
+    feature_sink = ObserveOnlyFeatureSink()
     receiver = threading.Thread(
         target=_run_receiver_thread,
         args=(config, controller, status_holder, research_service, pipeline_holder,
-              paper_engine, shutdown, feed),
+              paper_engine, shutdown, feed, feature_sink),
         name="mnq-backend-receiver", daemon=True,
     )
     receiver.start()
@@ -176,7 +181,8 @@ def run_backend(
         controller=controller, pipeline_holder=pipeline_holder,
         research_service=research_service, receiver_status=status_holder.snapshot,
         market_state=get_current_market_state, paper_engine=paper_engine,
-        analysis_feed=feed, demo_service=demo_service,
+        analysis_feed=feed, feature_sink=feature_sink, demo_service=demo_service,
+        models_root=config.models_root,
     )
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)
@@ -318,6 +324,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--processed-root", type=Path, default=None)
     parser.add_argument("--labels-root", type=Path, default=None)
     parser.add_argument("--research-state-root", type=Path, default=None)
+    parser.add_argument("--models-root", type=Path, default=None)
     parser.add_argument("--config-fingerprint", default="")
     parser.add_argument("--max-seconds", type=float, default=None,
                         help="exit after this long (integration tests only)")
@@ -335,6 +342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         processed_root=args.processed_root,
         labels_root=args.labels_root,
         research_state_root=args.research_state_root,
+        models_root=args.models_root,
         config_fingerprint=args.config_fingerprint,
         max_seconds=args.max_seconds,
         delayed_data_minutes=args.delayed_data_minutes,

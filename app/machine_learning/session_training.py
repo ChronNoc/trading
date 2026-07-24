@@ -23,40 +23,20 @@ any other session, and no profitability is asserted anywhere.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Sequence
-from zoneinfo import ZoneInfo
 
-from app.market.features import compute_market_features
+from app.machine_learning.feature_contract import (
+    FEATURE_COLUMNS,
+    FEATURE_CONTRACT_VERSION,
+    CausalFeaturePipeline,
+    feature_contract_sha256,
+)
 from app.market.state import MarketState
 from app.research.replay_loader import stream_session_events
-from app.strategy.order_flow import OrderFlowThresholds, _reference_price
+from app.strategy.order_flow import _reference_price
 
-NEW_YORK = ZoneInfo("America/New_York")
 _NS_PER_SECOND = 1_000_000_000
-
-# The exact contract train.py expects (features + label + timestamp_ns).
-FEATURE_COLUMNS: tuple[str, ...] = (
-    "book_imbalance",
-    "recent_aggressive_buy_volume",
-    "recent_aggressive_sell_volume",
-    "liquidity_added",
-    "liquidity_cancelled",
-    "reload_count",
-    "distance_to_defended_level",
-    "price_velocity",
-    "trade_velocity",
-    "spread",
-    "short_term_volatility",
-    "time_of_day",
-    "distance_from_overnight_high_low",
-    "distance_from_prior_day_levels",
-    "direction",
-    "stop_distance",
-    "target_distance",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,15 +95,14 @@ def build_session_training_rows(
     level_tracker: object | None = None,
 ) -> tuple[list[dict[str, object]], SessionDatasetSummary]:
     """Return (rows, summary) of causal-feature/forward-label training rows."""
-    from app.research.causal_context import CausalLevelTracker
-    from app.strategy.causal_window import CausalWindow
-
     cfg = config or SessionTrainingConfig()
     cfg.validate()
-    tracker = level_tracker or CausalLevelTracker()
-    window = CausalWindow(span_seconds=cfg.window_span_seconds,
-                          sample_interval_ms=cfg.sample_interval_ms)
-    thresholds = OrderFlowThresholds(tick_size=cfg.tick_size)
+    features = CausalFeaturePipeline(
+        window_span_seconds=cfg.window_span_seconds,
+        sample_interval_ms=cfg.sample_interval_ms,
+        tick_size=cfg.tick_size,
+        level_tracker=level_tracker,
+    )
 
     state = MarketState()
     pendings: list[_Pending] = []
@@ -140,9 +119,8 @@ def build_session_training_rows(
         except Exception:  # noqa: BLE001 - a malformed event must not kill the build
             continue
         event_index += 1
-        window.observe(state, event_index=event_index)
+        features.observe(state, event_index=event_index)
         ref = _reference_price(state)
-        tracker.observe(event.timestamp_ns, ref)
 
         price = _trade_price(event)
         resolve_price = price if price is not None else ref
@@ -155,20 +133,24 @@ def build_session_training_rows(
                     continue
                 row = dict(pending.features)
                 row["label"] = label
+                row["label_resolved_timestamp_ns"] = event.timestamp_ns
                 rows.append(row)
                 summary.wins += label
                 summary.losses += 1 - label
             pendings = survivors
 
-        if (window.span_seconds >= cfg.warmup_seconds and ref is not None
+        if (features.span_seconds >= cfg.warmup_seconds and ref is not None
                 and event.timestamp_ns - last_sample_ns >= sample_ns):
             last_sample_ns = event.timestamp_ns
-            snapshots = window.view()
             for direction in cfg.directions:
-                features = _extract_features(snapshots, state, tracker, direction, cfg, thresholds)
-                features["timestamp_ns"] = event.timestamp_ns
+                row = features.feature_vector(
+                    direction=direction,
+                    stop_distance=cfg.stop_ticks,
+                    target_distance=cfg.target_ticks,
+                ).as_record()
+                row["timestamp_ns"] = event.timestamp_ns
                 target, stop = _barriers(ref, direction, cfg)
-                pendings.append(_Pending(features, direction, ref, target, stop,
+                pendings.append(_Pending(row, direction, ref, target, stop,
                                          event.timestamp_ns + horizon_ns))
 
     summary.dropped_incomplete = len(pendings)  # horizon never completed - dropped, never guessed
@@ -204,6 +186,11 @@ def train_session_model(
     session_out = Path(output_root) / summary.session_id
     session_out.mkdir(parents=True, exist_ok=True)
 
+    contract_hash = feature_contract_sha256(
+        window_span_seconds=cfg.window_span_seconds,
+        sample_interval_ms=cfg.sample_interval_ms,
+        tick_size=cfg.tick_size,
+    )
     report: dict[str, object] = {
         "session_id": summary.session_id,
         "labeling": "causal-feature triple-barrier",
@@ -211,6 +198,8 @@ def train_session_model(
         "stop_ticks": str(cfg.stop_ticks),
         "horizon_seconds": cfg.horizon_seconds,
         "sample_interval_seconds": cfg.sample_interval_seconds,
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
+        "feature_contract_sha256": contract_hash,
         "rows": summary.rows,
         "wins": summary.wins,
         "losses": summary.losses,
@@ -233,7 +222,12 @@ def train_session_model(
         for row in rows:
             handle.write(json.dumps(row) + "\n")
 
-    result = train_models(dataset_path, session_out, version=version)
+    result = train_models(
+        dataset_path,
+        session_out,
+        version=version,
+        feature_contract_sha256=contract_hash,
+    )
     report["trained"] = True
     report["dataset"] = dataset_path.name
     report["models"] = {
@@ -251,16 +245,27 @@ def train_session_model(
 
 
 def _temporal_holdout(rows: list[dict[str, object]]) -> dict[str, object]:
-    """Train on the session's past, score its future; compare to the base rate."""
+    """Train on causally available session history and score its later rows."""
     from app.machine_learning.train import build_feature_matrix, build_label_array
 
-    ordered = sorted(rows, key=lambda row: int(row["timestamp_ns"]))
+    ordered = sorted(rows, key=lambda row: int(str(row["timestamp_ns"])))
     split = int(len(ordered) * 0.7)
-    train_rows, test_rows = ordered[:split], ordered[split:]
-    train_labels = {int(row["label"]) for row in train_rows}
+    candidate_train_rows, test_rows = ordered[:split], ordered[split:]
+    validation_start_ns = int(str(test_rows[0]["timestamp_ns"])) if test_rows else 0
+    train_rows = [
+        row for row in candidate_train_rows
+        if int(str(row["label_resolved_timestamp_ns"])) < validation_start_ns
+    ]
+    purged_rows = len(candidate_train_rows) - len(train_rows)
+    train_labels = {int(str(row["label"])) for row in train_rows}
     if len(train_rows) < 2 or train_labels != {0, 1} or not test_rows:
-        return {"evaluated": False,
-                "note": "insufficient or one-class temporal split; no out-of-sample estimate"}
+        return {
+            "evaluated": False,
+            "train_rows": len(train_rows),
+            "purged_train_rows": purged_rows,
+            "test_rows": len(test_rows),
+            "note": "insufficient or one-class purged temporal split; no out-of-sample estimate",
+        }
 
     from sklearn.linear_model import LogisticRegression
 
@@ -272,14 +277,16 @@ def _temporal_holdout(rows: list[dict[str, object]]) -> dict[str, object]:
     model.fit(x_train, y_train)
     accuracy = float((model.predict(x_test) == y_test).mean())
     positive_rate = float(y_test.mean())
-    base_rate = max(positive_rate, 1.0 - positive_rate)  # naive majority-class guess
+    base_rate = max(positive_rate, 1.0 - positive_rate)
     return {
         "evaluated": True,
+        "train_rows": len(train_rows),
+        "purged_train_rows": purged_rows,
         "test_rows": len(test_rows),
         "accuracy": round(accuracy, 3),
         "base_rate": round(base_rate, 3),
         "beats_base_rate": bool(accuracy > base_rate),
-        "note": "logistic-regression temporal holdout (first 70% train / last 30% test); "
+        "note": "logistic-regression purged temporal holdout (first 70% candidates / last 30% test); "
                 "small samples make this noisy - not a profitability claim",
     }
 
@@ -327,89 +334,3 @@ def _trade_price(event: object) -> Decimal | None:
         return Decimal(str(raw))
     except Exception:  # noqa: BLE001
         return None
-
-
-def _extract_features(
-    snapshots: Sequence[MarketState],
-    state: MarketState,
-    tracker: object,
-    direction: str,
-    cfg: SessionTrainingConfig,
-    thresholds: OrderFlowThresholds,
-) -> dict[str, object]:
-    """Compute the FEATURE_COLUMNS causally from the window and level context."""
-    tick = cfg.tick_size
-    features = compute_market_features(list(snapshots))
-    first, last = snapshots[0], snapshots[-1]
-    buy = last.executed_buy_volume - first.executed_buy_volume
-    sell = last.executed_sell_volume - first.executed_sell_volume
-
-    ref = _reference_price(state) or Decimal("0")
-    spread_ticks = (state.spread / tick) if state.spread is not None else Decimal("0")
-    volatility_ticks = features.short_term_volatility / tick
-
-    levels = tracker.levels_at(last.timestamp_ns)  # type: ignore[attr-defined]
-    overnight = _nearest_distance_ticks(ref, (levels.overnight_high, levels.overnight_low), tick)
-    prior_day = _nearest_distance_ticks(ref, (levels.prior_day_high, levels.prior_day_low), tick)
-
-    return {
-        "book_imbalance": _text(features.book_imbalance),
-        "recent_aggressive_buy_volume": _text(buy),
-        "recent_aggressive_sell_volume": _text(sell),
-        "liquidity_added": _text(features.liquidity_added),
-        "liquidity_cancelled": _text(features.liquidity_cancelled),
-        "reload_count": str(int(features.bid_reload_count)),
-        "distance_to_defended_level": _text(_defended_distance_ticks(state, direction, tick)),
-        "price_velocity": _text(_price_velocity_ticks(snapshots, tick)),
-        "trade_velocity": _text(features.trade_velocity),
-        "spread": _text(spread_ticks),
-        "short_term_volatility": _text(volatility_ticks),
-        "time_of_day": _time_of_day(last.timestamp_ns),
-        "distance_from_overnight_high_low": _text(overnight),
-        "distance_from_prior_day_levels": _text(prior_day),
-        "direction": direction,
-        "stop_distance": _text(cfg.stop_ticks),
-        "target_distance": _text(cfg.target_ticks),
-    }
-
-
-def _nearest_distance_ticks(
-    ref: Decimal, levels: tuple[Decimal | None, ...], tick: Decimal,
-) -> Decimal:
-    present = [level for level in levels if level is not None]
-    if ref <= 0 or not present:
-        return Decimal("0")
-    return min(abs(ref - level) for level in present) / tick
-
-
-def _defended_distance_ticks(state: MarketState, direction: str, tick: Decimal) -> Decimal:
-    depth = state.bid_depth if direction == "long" else state.ask_depth
-    ref = _reference_price(state)
-    if not depth or ref is None:
-        return Decimal("0")
-    largest = max(depth, key=lambda level: level.size)
-    return abs(ref - largest.price) / tick
-
-
-def _price_velocity_ticks(snapshots: Sequence[MarketState], tick: Decimal) -> Decimal:
-    if len(snapshots) < 2:
-        return Decimal("0")
-    first_price = _reference_price(snapshots[0])
-    last_price = _reference_price(snapshots[-1])
-    if first_price is None or last_price is None:
-        return Decimal("0")
-    elapsed_ns = snapshots[-1].timestamp_ns - snapshots[0].timestamp_ns
-    if elapsed_ns <= 0:
-        return Decimal("0")
-    seconds = Decimal(elapsed_ns) / Decimal(_NS_PER_SECOND)
-    return abs(last_price - first_price) / tick / seconds
-
-
-def _time_of_day(timestamp_ns: int) -> str:
-    seconds = timestamp_ns // _NS_PER_SECOND
-    dt = datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone(NEW_YORK)
-    return dt.strftime("%H:%M:%S")
-
-
-def _text(value: Decimal) -> str:
-    return format(value, "f")

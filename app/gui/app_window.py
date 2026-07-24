@@ -31,7 +31,9 @@ from PySide6.QtWidgets import (
 
 from app.gui.screens import SCREEN_ORDER, build_screens
 from app.gui.snapshot_worker import SnapshotWorker
+from app.gui.theme import DASHBOARD_THEMES
 from app.gui.view_models import AppSnapshot, Health
+from app.gui.widgets import StatusBadge
 
 SnapshotProvider = Callable[[], AppSnapshot]
 
@@ -77,7 +79,7 @@ QProgressBar::chunk { background: #2f855a; border-radius: 3px; }
 QStatusBar { background: #eceff3; color: #5b6472; }
 """
 
-THEMES = {"dark": _DARK, "light": _LIGHT}
+THEMES = DASHBOARD_THEMES
 
 
 class AppWindow(QMainWindow):
@@ -95,15 +97,15 @@ class AppWindow(QMainWindow):
         """Create the window; ``snapshot_provider`` is owned by a background worker."""
         super().__init__()
         self.setWindowTitle("MNQ Order-Flow Assistant")
-        # Comfortable at 1366x768 (the smallest supported display).
         self.resize(1280, 720)
-        self.setMinimumSize(1100, 640)
+        self.setMinimumSize(900, 640)
         self._snapshot_provider = snapshot_provider
         self._execution_commander = execution_commander
         self._snapshot_worker: SnapshotWorker | None = None
         self._snapshot = AppSnapshot()
         self._theme = theme
         self._gui_scale = gui_scale
+        self._compact_navigation = False
 
         root = QWidget()
         root.setObjectName("root")
@@ -113,20 +115,35 @@ class AppWindow(QMainWindow):
 
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(210)
+        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sidebar.setFixedWidth(208)
         for name in SCREEN_ORDER:
-            QListWidgetItem(name, self.sidebar)
+            item = QListWidgetItem(name, self.sidebar)
+            item.setToolTip(name)
+        self.sidebar.setAccessibleName("Application sections")
         self.sidebar.currentRowChanged.connect(self._on_navigate)
         layout.addWidget(self.sidebar)
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(14, 12, 14, 8)
+        body_layout.setContentsMargins(14, 10, 14, 8)
+        body_layout.setSpacing(8)
+        self.trust_strip = QWidget()
+        trust_layout = QHBoxLayout(self.trust_strip)
+        trust_layout.setContentsMargins(0, 0, 0, 0)
+        self._source_badge = StatusBadge("SOURCE UNKNOWN", "trust_source", "neutral")
+        self._integrity_badge = StatusBadge("CAPTURE IDLE", "trust_integrity", "neutral")
+        self._drops_badge = StatusBadge("SESSION DROPS 0", "trust_drops", "ok")
+        self._live_badge = StatusBadge("LIVE LOCKED", "trust_live", "locked")
+        for badge in (self._source_badge, self._integrity_badge, self._drops_badge):
+            trust_layout.addWidget(badge)
+        trust_layout.addStretch(1)
+        trust_layout.addWidget(self._live_badge)
+        body_layout.addWidget(self.trust_strip)
+
         self.stack = QStackedWidget()
         self.stack.setObjectName("screen_stack")
         self._screens = build_screens()
-        # Isolated-GUI mode: the Execution screen drives the backend's DEMO
-        # service through the bounded command file (worker-thread writes).
         execution = self._screens.get("Execution")
         if execution is not None and hasattr(execution, "set_commander"):
             execution.set_commander(self._execution_commander)
@@ -145,6 +162,7 @@ class AppWindow(QMainWindow):
         self.apply_theme(theme)
         self.set_gui_scale(gui_scale)
         self.sidebar.setCurrentRow(0)
+        self._update_responsive_layout()
 
         if start_timer and snapshot_provider is not None:
             self._snapshot_worker = SnapshotWorker(
@@ -172,6 +190,23 @@ class AppWindow(QMainWindow):
         return SCREEN_ORDER[self.stack.currentIndex()]
 
     # -- rendering ----------------------------------------------------------------
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """Switch navigation density at stable logical-pixel breakpoints."""
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        self._update_responsive_layout()
+
+    def _update_responsive_layout(self) -> None:
+        compact = self.width() < 1180
+        if compact == self._compact_navigation and self.sidebar.width() in (72, 208):
+            return
+        self._compact_navigation = compact
+        self.sidebar.setFixedWidth(72 if compact else 208)
+        for index, name in enumerate(SCREEN_ORDER):
+            item = self.sidebar.item(index)
+            item.setText(name[:2].upper() if compact else name)
+            item.setToolTip(name)
+            item.setData(Qt.ItemDataRole.AccessibleTextRole, name)
 
     def refresh_from_snapshot(self) -> None:
         """Repaint from the latest immutable snapshot.
@@ -209,20 +244,25 @@ class AppWindow(QMainWindow):
 
     def _render_status_bar(self) -> None:
         snap = self._snapshot
-        capture, market, research = snap.capture, snap.market, snap.research
-        health = capture.health
-        drops = capture.current_session_drops
+        capture, market = snap.capture, snap.market
+        source_state = "warn" if market.is_delayed else "ok"
+        self._source_badge.set_status(market.provenance_text, source_state)
+        integrity_state = (
+            "fail" if capture.current_session_drops
+            else "ok" if capture.recording
+            else "neutral"
+        )
+        self._integrity_badge.set_status(
+            f"CAPTURE {capture.health.value.upper()}", integrity_state,
+        )
+        self._drops_badge.set_status(
+            f"SESSION DROPS {capture.current_session_drops:,}",
+            "fail" if capture.current_session_drops else "ok",
+        )
+        message = snap.blocker or snap.next_action or "Awaiting backend state"
         self._status_label.setText(
-            f"{snap.plain_state}  |  Receiver: {'listening' if capture.receiver_listening else 'down'}"
-            f"  |  Bookmap: {'connected' if capture.bookmap_connected else 'waiting'}"
-            f"  |  Recorder: {health.value.upper()}"
-            f"  |  Paper: {snap.paper.mode}"
-            f"  |  Research: {research.active_workers} workers"
-            f"  |  {market.provenance_text}"
-            f"  |  Event age: {'—' if market.processing_age_ms is None else str(market.processing_age_ms) + ' ms'}"
-            f"  |  Queue: {capture.queue_pressure:.0%}"
-            f"  |  Session drops: {drops:,}"
-            f"  |  LIVE LOCKED",
+            f"{snap.plain_state}  ·  {message}  ·  Session drops: "
+            f"{capture.current_session_drops:,}  ·  LIVE LOCKED",
         )
 
     # -- appearance ---------------------------------------------------------------
@@ -238,23 +278,13 @@ class AppWindow(QMainWindow):
         return self._theme
 
     def set_gui_scale(self, scale: float) -> None:
-        """Scale fonts for Windows display scaling.
-
-        An explicit family is requested because the offscreen QPA platform used by
-        tests has no default font and would otherwise render every glyph as a
-        tofu box, making review screenshots useless.
-        """
-        from PySide6.QtGui import QFont
+        """Apply bounded accessibility zoom using an installed system font."""
+        from PySide6.QtGui import QFontDatabase
 
         scale = max(0.8, min(2.0, scale))
         self._gui_scale = scale
-        font = QFont(self.font())
-        for family in ("Segoe UI", "Arial", "DejaVu Sans", "Helvetica"):
-            candidate = QFont(family)
-            if candidate.exactMatch() or family == "Helvetica":
-                font = candidate
-                break
-        font.setPointSizeF(9.0 * scale)
+        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+        font.setPointSizeF(max(8.0, font.pointSizeF()) * scale)
         self.setFont(font)
 
     @property

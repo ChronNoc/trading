@@ -137,7 +137,13 @@ async def start_receiver_websocket_server(
                 if handshake.compatible:
                     boundary = connection_tracker.observe(handshake)
                     event["connection_boundary"] = boundary
+                    event["handshake_accepted"] = True
                     handshake_accepted = True
+            if str(event.get("type", "")) == "data_gap" and "receiver_intake_lost" in event:
+                recorder.receiver_intake_lost_count = max(
+                    recorder.receiver_intake_lost_count,
+                    int(str(event["receiver_intake_lost"])),
+                )
             if feed_guard is not None:
                 feed_guard.handle_control_event(event)
             if on_control_event is not None:

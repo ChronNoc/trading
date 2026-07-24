@@ -36,8 +36,10 @@ def _session(idx: int, *, clean: bool = True, eligible: bool = True) -> SessionE
         utc_end="2026-07-15T01:00:00+00:00",
         eligible_for_analysis=True,
         eligible_for_order_flow_replay=eligible,
+        eligible_for_model_training=eligible,
         valid_for_live_decisions=False,
         reasons=(),
+        model_training_reasons=(),
     )
 
 

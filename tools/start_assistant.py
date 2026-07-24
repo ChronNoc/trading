@@ -40,6 +40,32 @@ class AssistantStartupError(RuntimeError):
     """User-facing startup failure."""
 
 
+def _build_feature_and_model_sinks(config: "AssistantConfig") -> tuple[object, object]:
+    """Build the observe-only feature sink and its attached shadow model loader.
+
+    The loader is inert until a human approves an exact artifact ID+SHA in
+    ``config/model_approval.yaml`` (see
+    ``app.machine_learning.shadow_predictor.ObserveOnlyModelLoader``); until
+    then it stays in ``NOT_APPROVED``/``INVALID`` and never scores. Building it
+    unconditionally keeps this the single place both the headless and GUI
+    startup paths construct these two objects, so they cannot drift apart.
+    """
+    from app.machine_learning.feature_contract import ObserveOnlyFeatureSink
+    from app.machine_learning.shadow_predictor import (
+        ObserveOnlyModelLoader,
+        PredictionJournal,
+    )
+
+    journal = PredictionJournal(config.models_root / "shadow_predictions.jsonl")
+    loader = ObserveOnlyModelLoader(
+        models_root=config.models_root,
+        model_approval_path=Path("config/model_approval.yaml"),
+        journal=journal,
+    )
+    feature_sink = ObserveOnlyFeatureSink(prediction_sink=loader)
+    return feature_sink, loader
+
+
 @dataclass(frozen=True, slots=True)
 class AssistantConfig:
     """Configuration for the automatic assistant launcher."""
@@ -64,6 +90,7 @@ class AssistantConfig:
     processed_root: Path = Path("data/processed")
     labels_root: Path = Path("data/labels")
     research_state_root: Path = Path("data/research_state")
+    models_root: Path = Path("data/models")
 
     @staticmethod
     def sandboxed(output_root: Path, **overrides: object) -> "AssistantConfig":
@@ -77,6 +104,7 @@ class AssistantConfig:
         overrides.setdefault("processed_root", base / "processed")
         overrides.setdefault("labels_root", base / "labels")
         overrides.setdefault("research_state_root", base / "research_state")
+        overrides.setdefault("models_root", base / "models")
         overrides.setdefault("report_root", base / "reports")
         overrides.setdefault("paper_ledger_path", base / "paper/ledger.jsonl")
         overrides.setdefault("log_dir", base / "logs")
@@ -171,6 +199,7 @@ async def run_headless_assistant(
     paper_engine_holder: object | None = None,
     shutdown: object | None = None,
     analysis_feed: object | None = None,
+    feature_sink: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -231,6 +260,9 @@ async def run_headless_assistant(
             controller.handle_prebuilt_state(event, state)
 
     feed.add_sink(_controller_sink)
+    if feature_sink is not None:
+        feed.add_sink(feature_sink.ingest)
+        feed.add_gap_sink(feature_sink.notify_causality_gap)
     if paper_engine is not None:
         feed.add_sink(lambda event, state: paper_engine.ingest(event, state))
         feed.add_gap_sink(paper_engine.notify_causality_gap)
@@ -247,10 +279,18 @@ async def run_headless_assistant(
         # paper engine, the ledger, and the logs never show "unknown".
         if paper_engine is not None:
             paper_engine.bind_session(recorder.session_id, recorder.symbol or "MNQ")
+        if feature_sink is not None:
+            feature_sink.bind_session(recorder.session_id)
         # events_prevalidated: everything reaching this pipeline came out of
         # parse_stream_message; re-validating per event in the writer thread
         # (a JSON round-trip each) made the writer the throughput ceiling.
         return RecorderPipeline(recorder, events_prevalidated=True)
+
+    def _analysis_damage(skipped: int) -> None:
+        if paper_engine is not None:
+            paper_engine.notify_causality_gap(skipped)
+        if feature_sink is not None:
+            feature_sink.notify_causality_gap(skipped)
 
     def _pipelined_recorder() -> MarketSessionRecorder:
         # A session invalidated by data loss must not keep swallowing clean
@@ -268,7 +308,11 @@ async def run_headless_assistant(
                 controller, config, old, research_service, paper_engine,
                 daily_learning_background=True,
             ),
-            on_damage=(paper_engine.notify_causality_gap if paper_engine is not None else None),
+            on_damage=(
+                _analysis_damage
+                if paper_engine is not None or feature_sink is not None
+                else None
+            ),
         )
 
     server = await start_receiver_websocket_server(
@@ -435,6 +479,7 @@ def run_assistant(config: AssistantConfig) -> int:
             processed_root=str(config.processed_root),
             labels_root=str(config.labels_root),
             research_state_root=str(config.research_state_root),
+            models_root=str(config.models_root),
         )
         if not ensure_supervisor(config.runtime_dir, spec=backend_spec):
             print(
@@ -500,11 +545,12 @@ def run_assistant(config: AssistantConfig) -> int:
     research_service = _build_research_service(config, controller, pipeline_holder)
 
     if not config.gui:
+        feature_sink, _model_loader = _build_feature_and_model_sinks(config)
         try:
             asyncio.run(run_headless_assistant(
                 config, controller, status_holder=status_holder,
                 research_service=research_service, pipeline_holder=pipeline_holder,
-                paper_engine_holder=paper_engine,
+                paper_engine_holder=paper_engine, feature_sink=feature_sink,
             ))
         except KeyboardInterrupt:
             controller.stop()
@@ -522,17 +568,21 @@ def run_assistant(config: AssistantConfig) -> int:
             pipeline_holder.worst_queue_occupancy_fraction() > 0.25
         ),
     )
+    feature_sink, model_loader = _build_feature_and_model_sinks(config)
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
         args=(config, controller, status_holder, research_service, pipeline_holder,
-              paper_engine, shutdown, analysis_feed),
+              paper_engine, shutdown, analysis_feed, feature_sink),
         name="mnq-assistant-receiver",
         daemon=True,
     )
     receiver_thread.start()
     try:
-        return _run_gui(controller, status_holder, research_service, pipeline_holder,
-                        paper_engine, analysis_feed)
+        return _run_gui(
+            controller, status_holder, research_service, pipeline_holder,
+            paper_engine, analysis_feed, feature_sink=feature_sink,
+            models_root=config.models_root, model_loader=model_loader,
+        )
     finally:
         # The window is gone; drain capture instead of letting process exit kill
         # the daemon thread mid-write.
@@ -618,13 +668,14 @@ def _run_receiver_thread(
     paper_engine: object | None = None,
     shutdown: object | None = None,
     analysis_feed: object | None = None,
+    feature_sink: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
             config, controller, status_holder=status_holder,
             research_service=research_service, pipeline_holder=pipeline_holder,
             paper_engine_holder=paper_engine, shutdown=shutdown,
-            analysis_feed=analysis_feed,
+            analysis_feed=analysis_feed, feature_sink=feature_sink,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
@@ -640,8 +691,11 @@ def _run_gui(
     pipeline_holder: object | None = None,
     paper_engine: object | None = None,
     analysis_feed: object | None = None,
+    feature_sink: object | None = None,
     provider: object | None = None,
     execution_commander: object | None = None,
+    models_root: Path = Path("data/models"),
+    model_loader: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -666,6 +720,9 @@ def _run_gui(
             market_state=get_current_market_state,
             paper_engine=paper_engine,
             analysis_feed=analysis_feed,
+            feature_sink=feature_sink,
+            models_root=models_root,
+            model_loader=model_loader,
         ),
         execution_commander=execution_commander,
     )

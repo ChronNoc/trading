@@ -223,6 +223,10 @@ async def _server_persists_quality_failures(tmp_path: Path) -> None:
     assert quality["out_of_order_events"] == 1
     assert quality["trade_sequence_gaps"] == 1
     assert quality["missed_trade_events"] == 2
+    assert quality["malformed_event_reasons"]
+    assert sum(quality["malformed_event_reasons"].values()) == 1
+    assert sum(quality["rejected_event_reasons"].values()) == 1
+    assert next(iter(quality["rejected_event_reasons"])).startswith("out-of-order depth update")
     assert manifest["valid_for_order_flow_replay"] is False
 
 

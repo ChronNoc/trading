@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -228,12 +228,22 @@ class FeedGuard:
         self.out_of_order_events = 0
         self.clock_drift_alerts = 0
         self._clock_drift_active = False
-        self._rejection_log: list[str] = []
+        # Keep diagnostics bounded: a malformed burst previously retained one
+        # Python string per failure (504k in one real session), adding memory/GIL
+        # pressure while also discarding the only useful information: which
+        # schema reason dominated. Counts are unbounded; samples are not.
+        self._rejection_log: deque[str] = deque(maxlen=256)
+        self._malformed_reasons: Counter[str] = Counter()
 
     @property
     def rejections(self) -> tuple[str, ...]:
-        """Return every loud rejection reason recorded so far."""
+        """Return the newest bounded rejection samples."""
         return tuple(self._rejection_log)
+
+    @property
+    def malformed_reasons(self) -> dict[str, int]:
+        """Return exact malformed-schema reason counts for this guard lifetime."""
+        return dict(self._malformed_reasons)
 
     def handle_control_event(self, event: Mapping[str, object]) -> None:
         """Track connection state from receiver control events."""
@@ -311,9 +321,11 @@ class FeedGuard:
         return None
 
     def record_malformed(self, reason: str) -> None:
-        """Count a malformed message loudly instead of swallowing it."""
+        """Count a malformed message and retain bounded, attributable evidence."""
+        normalized = reason.strip() or "unspecified schema error"
         self.malformed_events += 1
-        self._rejection_log.append(f"malformed message: {reason}")
+        self._malformed_reasons[normalized] += 1
+        self._rejection_log.append(f"malformed message: {normalized}")
 
     def status(self) -> FeedGuardStatus:
         """Compute the current dual-flag health status."""

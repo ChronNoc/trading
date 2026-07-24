@@ -11,9 +11,12 @@ account for the whole session.
 
 from __future__ import annotations
 
+from collections import deque
 from decimal import Decimal
+from pathlib import Path
 from typing import Callable
 
+from app.machine_learning.feature_contract import FEATURE_PARITY_STATE
 from app.gui.view_models import (
     AppSnapshot,
     Capability,
@@ -21,8 +24,13 @@ from app.gui.view_models import (
     ComponentHealth,
     ExecutionSnapshot,
     Health,
+    MarketHistoryPoint,
     MarketSnapshot,
+    ModelSnapshot,
     PaperSnapshot,
+    PipelineSnapshot,
+    PipelineStageRow,
+    ProfitabilitySnapshot,
     ResearchSnapshot,
 )
 
@@ -64,9 +72,13 @@ class SnapshotSource:
         market_state: Callable[[], object] | None = None,
         paper_engine: object | None = None,
         analysis_feed: object | None = None,
+        feature_sink: object | None = None,
         demo_service: object | None = None,
+        models_root: Path = Path("data/models"),
+        model_approval_path: Path = Path("config/model_approval.yaml"),
+        model_loader: object | None = None,
     ) -> None:
-        """Bind the live components; all are optional for headless/GUI-only use."""
+        """Bind live components and the lightweight offline model-state source."""
         self._controller = controller
         self._pipeline = pipeline_holder
         self._research = research_service
@@ -74,7 +86,16 @@ class SnapshotSource:
         self._market_state = market_state
         self._paper_engine = paper_engine
         self._analysis_feed = analysis_feed
+        self._feature_sink = feature_sink
         self._demo_service = demo_service
+        self._models_root = models_root
+        self._model_loader = model_loader
+        self._model_approval_path = model_approval_path
+        self._model_cache_key: tuple[object, ...] | None = None
+        self._model_cache = ModelSnapshot()
+        self._market_history: deque[MarketHistoryPoint] = deque(maxlen=300)
+        self._history_session_id = ""
+        self._history_timestamp_ns = -1
         self._frame_cache: dict[str, object | None] | None = None
         from app.risk.account_profile import load_selected_profile
 
@@ -89,13 +110,21 @@ class SnapshotSource:
         """
         self._frame_cache = {}
         try:
+            market = self._market()
+            capture = self._capture()
+            paper = self._paper()
+            research = self._research_snapshot()
+            model = self._model_snapshot()
+            profitability = self._profitability_snapshot()
             return AppSnapshot(
                 lifecycle_state=self._lifecycle_state(),
-                market=self._market(),
-                capture=self._capture(),
-                paper=self._paper(),
-                research=self._research_snapshot(),
-                profitability=self._profitability_snapshot(),
+                market=market,
+                capture=capture,
+                paper=paper,
+                research=research,
+                model=model,
+                profitability=profitability,
+                pipeline=self._pipeline_snapshot(capture, paper, profitability),
                 execution=self._execution(),
                 components=self._components(),
                 capabilities=self._capabilities(),
@@ -164,21 +193,44 @@ class SnapshotSource:
                 state = None
         metrics = self._metrics()
         delay = int(getattr(runtime, "data_delay_minutes", 0) or 0) if runtime else 15
+        session_id = self._session_id()
+        if session_id != self._history_session_id:
+            self._market_history.clear()
+            self._history_session_id = session_id
+            self._history_timestamp_ns = -1
+
+        timestamp_ns = int(getattr(state, "timestamp_ns", 0) or 0) if state is not None else 0
+        price = getattr(state, "mid_price", None)
+        cvd = getattr(state, "cumulative_volume_delta", None)
+        buy_volume = getattr(state, "executed_buy_volume", None)
+        sell_volume = getattr(state, "executed_sell_volume", None)
+        event_rate = float(getattr(metrics, "ingress_events_per_second", 0.0)) if metrics else 0.0
+        if timestamp_ns > self._history_timestamp_ns and timestamp_ns > 0:
+            self._market_history.append(MarketHistoryPoint(
+                timestamp_ns=timestamp_ns,
+                price=price,
+                cumulative_delta=cvd,
+                buy_volume=buy_volume,
+                sell_volume=sell_volume,
+                event_rate_per_second=event_rate,
+            ))
+            self._history_timestamp_ns = timestamp_ns
+
         return MarketSnapshot(
             contract=self._contract(),
-            last_price=getattr(state, "mid_price", None),
+            last_price=price,
             best_bid=getattr(state, "best_bid", None),
             best_ask=getattr(state, "best_ask", None),
             spread=getattr(state, "spread", None),
-            mid_price=getattr(state, "mid_price", None),
-            cumulative_delta=getattr(state, "cumulative_volume_delta", Decimal("0")) or Decimal("0"),
-            buy_volume=getattr(state, "executed_buy_volume", Decimal("0")) or Decimal("0"),
-            sell_volume=getattr(state, "executed_sell_volume", Decimal("0")) or Decimal("0"),
+            mid_price=price,
+            cumulative_delta=cvd,
+            buy_volume=buy_volume,
+            sell_volume=sell_volume,
             is_delayed=delay > 0,
             source_delay_minutes=delay,
-            # Application processing age, NOT the source delay.
             processing_age_ms=int(getattr(metrics, "end_to_end_lag_ms", 0)) if metrics else None,
-            event_rate_per_second=float(getattr(metrics, "ingress_events_per_second", 0.0)) if metrics else 0.0,
+            event_rate_per_second=event_rate,
+            history=tuple(self._market_history),
         )
 
     def _contract(self) -> str:
@@ -428,6 +480,143 @@ class SnapshotSource:
             self._frame_cache["research"] = result
         return result
 
+
+    def _model_snapshot(self) -> ModelSnapshot:
+        """Return one revalidated registry/feature observation per snapshot frame."""
+        cached = self._cached("model", self._load_model_snapshot)
+        assert isinstance(cached, ModelSnapshot)
+        return cached
+
+
+    def _load_model_snapshot(self) -> ModelSnapshot:
+        """Read and revalidate registry/approval truth without loading a model."""
+        try:
+            from app.machine_learning.registry import (
+                read_model_approval,
+                read_registry,
+                validate_explicit_approval,
+            )
+
+            state = validate_explicit_approval(
+                read_registry(self._models_root),
+                read_model_approval(self._model_approval_path),
+            )
+            record = state.record
+            feature_state = (
+                self._feature_sink.snapshot()  # type: ignore[attr-defined]
+                if self._feature_sink is not None
+                else None
+            )
+            loader_state = (
+                self._model_loader.snapshot()  # type: ignore[attr-defined]
+                if self._model_loader is not None
+                else None
+            )
+            return ModelSnapshot(
+                registry_state=state.registry_state,
+                artifact_id=record.artifact_id if record else "",
+                artifact_sha256=record.artifact_sha256 if record else "",
+                dataset_id=record.dataset_id if record else "",
+                model_type=record.model_type if record else "",
+                model_version=record.model_version if record else "",
+                eligible_sessions=record.included_sessions if record else 0,
+                excluded_sessions=record.excluded_sessions if record else 0,
+                validation_state=record.validation_state if record else "NOT_EVALUATED",
+                validation_detail=record.validation_detail if record else state.detail,
+                oos_predictions=record.oos_predictions if record else 0,
+                brier_score=record.brier_score if record else 0.0,
+                beats_baseline=record.beats_baseline if record else False,
+                approval_state=state.approval_state,
+                approval_detail=state.detail,
+                feature_parity_state=(
+                    FEATURE_PARITY_STATE if record else "NO_REGISTERED_CONTRACT"
+                ),
+                feature_observation_state=(
+                    str(feature_state.state) if feature_state else "UNAVAILABLE"
+                ),
+                feature_observation_reason=(
+                    str(feature_state.reason)
+                    if feature_state else "observe-only feature sink is not attached"
+                ),
+                feature_observations=(
+                    int(feature_state.feature_observations) if feature_state else 0
+                ),
+                feature_gap_resets=int(feature_state.gap_resets) if feature_state else 0,
+                feature_session_resets=(
+                    int(feature_state.session_resets) if feature_state else 0
+                ),
+                feature_skipped_events=(
+                    int(feature_state.skipped_events) if feature_state else 0
+                ),
+                runtime_loaded=(
+                    bool(loader_state.state == "SCORING") if loader_state else False
+                ),
+                shadow_predictions=(
+                    int(loader_state.shadow_predictions) if loader_state else 0
+                ),
+                # Structural invariant, not conditional on loader state: this
+                # module never reaches strategy, paper, risk, or execution.
+                decision_impact="none",
+                shadow_loader_state=(
+                    str(loader_state.state) if loader_state else "UNLOADED"
+                ),
+                shadow_loader_reason=(
+                    str(loader_state.reason)
+                    if loader_state else "observe-only model loader is not attached"
+                ),
+            )
+        except Exception as error:  # noqa: BLE001 - surface corrupt registry truth
+            return ModelSnapshot(
+                registry_state="INVALID",
+                validation_state="INVALID",
+                validation_detail=f"{type(error).__name__}: {error}",
+                approval_state="INVALID",
+                approval_detail="registry or approval data is malformed",
+            )
+
+    def _pipeline_snapshot(
+        self,
+        capture: CaptureSnapshot,
+        paper: PaperSnapshot,
+        profitability: ProfitabilitySnapshot,
+    ) -> PipelineSnapshot:
+        """Build the pure nine-stage evidence pipeline from in-memory facts."""
+        try:
+            from app.research.pipeline_status import PipelineInputs, compute_pipeline
+
+            status = compute_pipeline(PipelineInputs(
+                receiver_listening=capture.receiver_listening,
+                bookmap_connected=capture.bookmap_connected,
+                recording=capture.recording,
+                data_stale=(
+                    capture.bookmap_connected
+                    and (self._market().processing_age_ms or 0) > 5_000
+                ),
+                current_session_drops=capture.current_session_drops,
+                evaluations=paper.evaluations,
+                accepted_setups=paper.candidates,
+                completed_outcomes=paper.trades,
+                validation_passed=profitability.claim_supported,
+                validation_stage_label=(
+                    profitability.headline
+                    if profitability.computed and profitability.headline
+                    else "insufficient evidence"
+                ),
+            ))
+            return PipelineSnapshot(
+                stages=tuple(PipelineStageRow(
+                    key=stage.key,
+                    label=stage.label,
+                    status=stage.status,
+                    blocker=stage.blocker,
+                    next_action=stage.next_action,
+                    detail=stage.detail,
+                ) for stage in status.stages),
+                computed=True,
+            )
+        except Exception as error:  # noqa: BLE001 - status must fail visibly
+            return PipelineSnapshot(error=f"{type(error).__name__}: {error}")
+
     def _execution(self) -> ExecutionSnapshot:
         from pathlib import Path
 
@@ -473,6 +662,17 @@ class SnapshotSource:
     def _components(self) -> tuple[ComponentHealth, ...]:
         capture = self._capture()
         research = self._research_snapshot()
+        model = self._model_snapshot()
+        model_health = (
+            Health.FAIL if model.registry_state == "INVALID"
+            else Health.IDLE if model.registry_state == "NOT_REGISTERED"
+            else Health.OK if model.validation_state == "PASSED"
+            else Health.WARN
+        )
+        model_detail = (
+            model.validation_detail if model.registry_state != "NOT_REGISTERED"
+            else "no offline challenger registered"
+        )
         if capture.current_session_drops:
             return (
                 ComponentHealth("capture", Health.INVALIDATED,
@@ -483,6 +683,7 @@ class SnapshotSource:
                                 "new entries blocked because causal input is incomplete"),
                 ComponentHealth("research", Health.PAUSED,
                                 "invalid active segment cannot enter canonical research"),
+                ComponentHealth("model", model_health, model_detail),
                 ComponentHealth("live", Health.LOCKED, "locked by the validation gate"),
             )
         recorder_health = Health.OK if capture.recording else Health.IDLE
@@ -504,6 +705,7 @@ class SnapshotSource:
                             f"{capture.persisted_per_second:,.0f} events/s persisted"),
             ComponentHealth("paper", paper_health, paper_detail),
             ComponentHealth("research", research_health, research_detail),
+            ComponentHealth("model", model_health, model_detail),
             ComponentHealth("live", Health.LOCKED, "locked by the validation gate"),
         )
 

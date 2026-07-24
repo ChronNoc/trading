@@ -175,6 +175,12 @@ def test_session_recorder_writes_unique_session_manifest_events_and_parquet(tmp_
             "symbol": "MNQ",
             "source_mode": "historical",
             "addon_version": "0.1.0",
+            "protocol_version": "1.2",
+            "stream_id": "stream-test",
+            "connection_id": "connection-test",
+            "provider": "pytest",
+            "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+            "handshake_accepted": True,
             "dropped_message_count": 0,
         },
     )
@@ -223,6 +229,10 @@ def test_session_recorder_writes_unique_session_manifest_events_and_parquet(tmp_
     assert manifest["receive_order"]["last_sequence"] == 2
     assert manifest["storage"]["format"] == "closed_parquet_parts_v1"
     assert manifest["valid_for_order_flow_replay"] is True
+    assert manifest["bridge_provenance"]["protocol_version"] == "1.2"
+    assert manifest["bridge_provenance"]["provider"] == "pytest"
+    assert manifest["bridge_provenance"]["connection_ids"] == ["connection-test"]
+    assert manifest["bridge_provenance"]["observed"]["trades_with_aggressor_side"] == 1
 
 
 def test_session_recorder_marks_data_gap_session_invalid(tmp_path: Path) -> None:
@@ -439,6 +449,8 @@ def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None
     quality = manifest["data_quality"]
     assert quality["malformed_events"] == 1
     assert quality["rejected_events"] == 1
+    assert quality["malformed_event_reasons"] == {"bad json": 1}
+    assert quality["rejected_event_reasons"] == {"out-of-order depth update": 1}
     assert quality["trade_sequence_gaps"] == 2
     assert quality["missed_trade_events"] == 7
     assert quality["stream_sequence_gaps"] == 2
@@ -447,3 +459,49 @@ def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None
     assert quality["ok"] is False
     assert manifest["valid_for_order_flow_replay"] is False
     assert not recorder.manifest_path.with_suffix(".json.tmp").exists()
+
+
+def test_session_manifest_separates_bridge_lifetime_drops_from_session_damage(tmp_path: Path) -> None:
+    """A fresh connection starts from the bridge's process-lifetime drop baseline."""
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 15, 1, 0, tzinfo=UTC),
+    )
+    recorder.record_control_event({
+        "type": "connected",
+        "timestamp_ns": 1,
+        "dropped_message_count": 100,
+        "connection_boundary": "initial",
+    })
+    recorder.record_control_event({
+        "type": "heartbeat",
+        "timestamp_ns": 2,
+        "dropped_message_count": 101,
+    })
+    recorder.finalize(clean_shutdown=True)
+
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["dropped_message_count"] == 101
+    assert manifest["data_quality"]["bridge_dropped_messages"] == 101
+    assert manifest["data_quality"]["session_dropped_messages"] == 1
+    assert manifest["data_quality"]["ok"] is False
+    assert manifest["transport"] == {"connections": 1, "reconnects": 0}
+
+
+def test_receiver_intake_loss_is_manifest_visible_and_invalidating(tmp_path: Path) -> None:
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 15, 1, 1, tzinfo=UTC),
+    )
+    recorder.record_control_event({
+        "type": "data_gap",
+        "timestamp_ns": 1,
+        "reason": "receiver intake queue overflow",
+        "receiver_intake_lost": 12,
+    })
+    recorder.finalize(clean_shutdown=False)
+
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["data_quality"]["receiver_intake_lost"] == 12
+    assert manifest["data_quality"]["ok"] is False
+    assert manifest["valid_for_analysis"] is False

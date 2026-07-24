@@ -20,6 +20,7 @@ def _row(day: int, index: int, *, imbalance: float, label: int) -> dict[str, obj
     values["target_distance"] = "12"
     values["label"] = label
     values["timestamp_ns"] = _BASE_NS + day * _DAY_NS + index * 1_000_000
+    values["label_resolved_timestamp_ns"] = values["timestamp_ns"]
     return values
 
 
@@ -37,6 +38,49 @@ def test_a_learnable_signal_is_found_and_traded() -> None:
     assert result.taken_trades > 0
     assert result.taken_win_rate > 0.9, "the perfect signal should be learned out-of-sample"
     assert result.beats_baseline is True
+
+
+def test_evening_and_following_day_share_one_futures_trading_day() -> None:
+    """CME trading days roll at 18:00 New York, not at midnight."""
+    from datetime import datetime, timezone
+
+    from app.research.causal_context import trading_day_for_timestamp
+
+    sunday_evening = int(datetime(2026, 7, 19, 22, 30, tzinfo=timezone.utc).timestamp() * 1e9)
+    monday_day = int(datetime(2026, 7, 20, 14, 30, tzinfo=timezone.utc).timestamp() * 1e9)
+
+    assert trading_day_for_timestamp(sunday_evening) == "2026-07-20"
+    assert trading_day_for_timestamp(monday_day) == "2026-07-20"
+
+
+def test_walk_forward_purges_labels_resolved_in_the_test_period() -> None:
+    from datetime import datetime, timezone
+
+    rows: list[dict[str, object]] = []
+    for day in range(5):
+        rows.extend([
+            _row(day, 0, imbalance=-1.0, label=0),
+            _row(day, 1, imbalance=1.0, label=1),
+        ])
+
+    validation_morning = int(
+        datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc).timestamp() * 1e9
+    )
+    first_validation_row = int(
+        datetime(2026, 7, 17, 14, 30, tzinfo=timezone.utc).timestamp() * 1e9
+    )
+    # Rebase day 3/4 rows to explicit futures days. The candidate label resolves
+    # during the validation trading day but before its first sampled row.
+    for offset, row in enumerate(rows[6:8]):
+        row["timestamp_ns"] = first_validation_row + offset * 1_000_000
+        row["label_resolved_timestamp_ns"] = row["timestamp_ns"]
+    rows[4]["label_resolved_timestamp_ns"] = validation_morning
+
+    result = walk_forward_evaluate(rows, min_train_days=3)
+
+    assert result.fold_boundaries
+    assert result.fold_boundaries[0]["purged_train_rows"] == 1
+    assert result.fold_boundaries[0]["train_rows"] == 5
 
 
 def test_no_signal_is_reported_honestly() -> None:

@@ -237,7 +237,7 @@ def _handshake(connection: str, stream_sequence: int) -> dict[str, object]:
         "alias": "MNQU6",
         "symbol": "MNQ",
         "addon_version": "0.1.0",
-        "protocol_version": "1.1",
+        "protocol_version": "1.2",
         "stream_id": "pytest-learning-stream",
         "connection_id": f"pytest-learning-{connection}",
         "session_id": f"pytest-session-{connection}",

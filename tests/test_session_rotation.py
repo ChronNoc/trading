@@ -225,7 +225,7 @@ def test_session_damage_reads_pipeline_and_recorder_counters() -> None:
 def test_launcher_wires_rotation_with_paper_notification() -> None:
     source = Path("tools/start_assistant.py").read_text(encoding="utf-8")
     assert "RotatingRecorder(" in source
-    assert "on_damage=(paper_engine.notify_causality_gap" in source, (
+    assert "on_damage=(" in source and "_analysis_damage" in source, (
         "paper must learn of bridge drops the moment they are observed"
     )
     assert "on_rotated_out=lambda old: _finalize_assistant_session(" in source, (

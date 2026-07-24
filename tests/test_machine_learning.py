@@ -37,6 +37,7 @@ def test_train_models_saves_versioned_artifacts_and_sidecars(tmp_path: Path) -> 
         tmp_path / "models",
         version="1.2.3",
         config=ModelTrainingConfig(xgboost_estimators=5),
+        feature_contract_sha256="test-contract-sha",
     )
 
     assert result.logistic_regression.model_path.name == "logistic_regression_model_v1.2.3.joblib"
@@ -48,6 +49,8 @@ def test_train_models_saves_versioned_artifacts_and_sidecars(tmp_path: Path) -> 
     assert logistic_metadata["row_count"] == 16
     assert xgboost_metadata["row_count"] == 16
     assert logistic_metadata["feature_columns"] == list(FEATURE_COLUMNS)
+    assert logistic_metadata["feature_contract_version"] == "shared-causal-market-features-v2"
+    assert logistic_metadata["feature_contract_sha256"] == "test-contract-sha"
     assert logistic_metadata["training_period"]["start"].startswith("2026-07-01")
     assert logistic_metadata["training_period"]["end"].startswith("2026-07-04")
 
@@ -60,6 +63,7 @@ def test_prediction_requires_accepted_task_six_result(tmp_path: Path) -> None:
         tmp_path / "models",
         version="1.0.0",
         config=ModelTrainingConfig(xgboost_estimators=5),
+        feature_contract_sha256="test-contract-sha",
     )
     features = dict(_synthetic_rows(day_count=1)[0])
     features.pop("label")
@@ -148,7 +152,12 @@ def test_training_rejects_non_semver_versions(tmp_path: Path) -> None:
     dataset_path = _write_dataset(tmp_path / "labeled_setups.csv", _synthetic_rows(day_count=2))
 
     with pytest.raises(ValueError, match="semantic version"):
-        train_models(dataset_path, tmp_path / "models", version="latest")
+        train_models(
+            dataset_path,
+            tmp_path / "models",
+            version="latest",
+            feature_contract_sha256="test-contract-sha",
+        )
 
 
 def _accepted_setup_result() -> SetupEvaluationResult:

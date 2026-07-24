@@ -235,7 +235,7 @@ def test_gui_restart_cannot_interrupt_the_real_backend(tmp_path: Path) -> None:
                 await ws.send(json.dumps({
                     "type": "connected", "timestamp_ns": 1,
                     "alias": "MNQU6", "symbol": "MNQ", "addon_version": "0.1.0",
-                    "protocol_version": "1.1", "stream_id": "pytest-stream",
+                    "protocol_version": "1.2", "stream_id": "pytest-stream",
                     "connection_id": f"pytest-connection-{start}",
                     "session_id": f"pytest-session-{start}",
                     "provider": "pytest", "capabilities": "aggregated_depth",
@@ -305,8 +305,21 @@ def test_gui_restart_cannot_interrupt_the_real_backend(tmp_path: Path) -> None:
             process.kill()
 
 
+def _tail(path: Path, lines: int = 25) -> str:
+    if not path.is_file():
+        return f"<{path.name} missing>"
+    return "\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
+
+
 def test_supervisor_restarts_a_crashed_backend_and_then_stops_cleanly(tmp_path: Path) -> None:
-    """A healthy backend crash must never hide inside a startup grace window."""
+    """A healthy backend crash must never hide inside a startup grace window.
+
+    Every phase synchronizes on the runtime files (lock identity + status
+    heartbeat) under a generous deadline rather than assuming how long a real
+    subprocess takes on a CPU-contended machine.  What it verifies is
+    unchanged: the supervisor replaces a crashed backend, and an intentional
+    stop drains everything cleanly.
+    """
     runtime = tmp_path / "runtime"
     command = [
         sys.executable, "-m", "tools.backend_supervisor",
@@ -320,48 +333,93 @@ def test_supervisor_restarts_a_crashed_backend_and_then_stops_cleanly(tmp_path: 
         "--labels-root", str(tmp_path / "labels"),
         "--research-state-root", str(tmp_path / "research"),
     ]
-    supervisor = subprocess.Popen(
-        command,
-        cwd=str(REPO),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    # An unread PIPE can fill and block the child; a file never can, and it
+    # doubles as the post-mortem transcript on failure.
+    console_path = tmp_path / "supervisor_console.log"
+    with console_path.open("wb") as console:
+        supervisor = subprocess.Popen(
+            command, cwd=str(REPO), stdout=console, stderr=subprocess.STDOUT,
+        )
     backend_lock = SingletonLock(runtime)
     status = StatusFile(runtime)
+
+    def diagnostics() -> str:
+        return (
+            f"supervisor returncode={supervisor.poll()}\n"
+            f"--- supervisor console ---\n{_tail(console_path)}\n"
+            f"--- supervisor.log ---\n{_tail(runtime / 'supervisor.log')}\n"
+            f"--- backend.out ---\n{_tail(runtime / 'backend.out')}"
+        )
+
+    def wait_for(condition, deadline_seconds: float, description: str):  # noqa: ANN001, ANN202
+        """Poll until truthy; fail fast (with logs) if the supervisor dies."""
+        deadline = time.monotonic() + deadline_seconds
+        while time.monotonic() < deadline and supervisor.poll() is None:
+            value = condition()
+            if value:
+                return value
+            time.sleep(0.25)
+        value = condition()  # one last look after deadline/supervisor exit
+        if value:
+            return value
+        raise AssertionError(f"{description}\n{diagnostics()}")
+
     try:
-        deadline = time.monotonic() + 35
-        first = None
-        while time.monotonic() < deadline:
+        def healthy_identity():  # noqa: ANN202
             candidate = backend_lock.read_identity()
             if candidate is not None and status.backend_alive():
-                first = candidate
-                break
-            time.sleep(0.2)
-        assert first is not None, "supervisor must establish a healthy backend"
+                return candidate
+            return None
+
+        first = wait_for(healthy_identity, 120.0, "supervisor must establish a healthy backend")
 
         os.kill(first.pid, signal.SIGTERM)
-        deadline = time.monotonic() + 35
-        replacement = None
-        while time.monotonic() < deadline:
+
+        def replacement_identity():  # noqa: ANN202
             candidate = backend_lock.read_identity()
             if candidate is not None and candidate.pid != first.pid and status.backend_alive():
-                replacement = candidate
-                break
-            time.sleep(0.25)
-        assert replacement is not None, "supervisor must replace the crashed backend"
+                return candidate
+            return None
+
+        replacement = wait_for(
+            replacement_identity, 180.0, "supervisor must replace the crashed backend",
+        )
+        assert replacement.pid != first.pid
 
         StopRequest(runtime).request("supervisor regression complete", requester="pytest")
-        supervisor.wait(timeout=40)
-        assert supervisor.returncode == 0
+        supervisor.wait(timeout=120)
+        assert supervisor.returncode == 0, diagnostics()
+
+        # The backend drains detached from the supervisor, so the supervisor
+        # exiting first is normal: poll for the backend's own completion.
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            document = status.read()
+            stopped = document is not None and str(document.get("state", "")).startswith("STOPPED")
+            if stopped and backend_lock.read_identity() is None:
+                break
+            time.sleep(0.25)
         final = status.read()
         assert final is not None
-        assert str(final["state"]).startswith("STOPPED")
-        assert backend_lock.read_identity() is None
+        assert str(final["state"]).startswith("STOPPED"), diagnostics()
+        assert backend_lock.read_identity() is None, diagnostics()
     finally:
         if supervisor.poll() is None:
             StopRequest(runtime).request("pytest cleanup", requester="pytest")
             try:
-                supervisor.wait(timeout=15)
+                supervisor.wait(timeout=30)
             except subprocess.TimeoutExpired:
                 supervisor.kill()
+                supervisor.wait(timeout=10)
+        # Never leak a detached backend past the test, even on failure.
+        leftover = backend_lock.read_identity()
+        if leftover is not None and leftover.alive:
+            StopRequest(runtime).request("pytest cleanup", requester="pytest")
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline and leftover.alive:
+                time.sleep(0.25)
+            if leftover.alive:
+                try:
+                    os.kill(leftover.pid, signal.SIGTERM)
+                except OSError:
+                    pass

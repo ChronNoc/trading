@@ -1,0 +1,7 @@
+# Human-controlled exact model approval. Generated code never edits this file.
+# This cycle creates offline challengers only; runtime loading and scoring remain disabled.
+schema_version: 1
+approved_artifact_id: null
+approved_sha256: null
+runtime_loading_enabled: false
+shadow_scoring_enabled: false

@@ -18,7 +18,14 @@ from typing import Sequence
 
 
 def _discover_sessions(raw_root: Path) -> list[Path]:
-    return sorted({p.parent for p in raw_root.rglob("trades.parquet")})
+    """Return only finalized sessions that pass the strict ML provenance gate."""
+    from app.research.session_catalog import build_catalog
+
+    return [
+        entry.manifest_path.parent
+        for entry in build_catalog(raw_root)
+        if entry.eligible_for_model_training
+    ]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -49,7 +56,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         horizon_seconds=args.horizon_seconds,
     )
 
-    sessions = [args.session] if args.session else _discover_sessions(args.raw_root)
+    if args.session:
+        from app.research.session_catalog import classify_manifest
+        import json
+
+        manifest_path = args.session / "session_manifest.json"
+        if not manifest_path.is_file():
+            print(f"session manifest missing: {manifest_path}", file=sys.stderr)
+            return 1
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        entry = classify_manifest(payload, manifest_path)
+        if not entry.eligible_for_model_training:
+            print(
+                f"session is not eligible for model training: {'; '.join(entry.model_training_reasons)}",
+                file=sys.stderr,
+            )
+            return 1
+        sessions = [args.session]
+    else:
+        sessions = _discover_sessions(args.raw_root)
     if not sessions:
         print("no sessions found", file=sys.stderr)
         return 1

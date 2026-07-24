@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import threading
 
 os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -29,7 +31,9 @@ from app.gui.view_models import (
     SetupCheck,
 )
 
-SCREENSHOT_DIR = Path("reports/screenshots")
+# Geometry screenshots are test artifacts, not visual-review evidence. Native-font
+# review captures are produced by tools.capture_gui_screenshots.
+SCREENSHOT_DIR = Path(tempfile.gettempdir()) / "mnq-gui-test-screenshots"
 
 
 def _rich_snapshot() -> AppSnapshot:
@@ -173,6 +177,48 @@ def test_research_screen_separates_canonical_from_experimental(window: AppWindow
     assert "CANONICAL trades: 0" in body
     assert "never merged into canonical" in body
     assert "GPU not used" in body
+
+
+def test_research_screen_shows_honest_offline_model_state(window) -> None:
+    from app.gui.view_models import ModelSnapshot
+
+    window.submit_snapshot(replace(_rich_snapshot(), model=ModelSnapshot(
+        registry_state="CHALLENGER", artifact_id="challenger-abc", dataset_id="dataset-abc",
+        model_type="logistic_regression", model_version="0.1.0",
+        eligible_sessions=4, excluded_sessions=2, validation_state="PASSED",
+        validation_detail="walk-forward gate passed", oos_predictions=120,
+        brier_score=0.21, beats_baseline=True,
+        feature_parity_state="SHARED_BUILDER_RUNTIME_DISCONNECTED",
+        feature_observation_state="OBSERVING",
+        feature_observation_reason="feature vectors observed in memory; no model loaded or scored",
+        feature_observations=14, feature_gap_resets=2,
+        feature_session_resets=3, feature_skipped_events=19,
+    )))
+    window.navigate_to("Research and Model Health")
+    body = window.stack.currentWidget().body.text()
+    assert "OFFLINE MODEL EVIDENCE" in body
+    assert "challenger-abc" in body
+    assert "Feature parity: SHARED_BUILDER_RUNTIME_DISCONNECTED" in body
+    assert "Feature observer: OBSERVING" in body
+    assert "Feature observations: 14" in body
+    assert "Gap resets: 2" in body
+    assert "Runtime loaded: False" in body
+    assert "Shadow predictions: 0" in body
+    assert "no effect on strategy, paper, risk, or execution" in body
+
+
+def test_snapshot_source_reports_malformed_registry_as_invalid(tmp_path: Path) -> None:
+    from app.gui.snapshot_source import SnapshotSource
+
+    models = tmp_path / "models"
+    registry = models / "registry"
+    registry.mkdir(parents=True)
+    (registry / "broken.json").write_text("{not-json", encoding="utf-8")
+    source = SnapshotSource(models_root=models, model_approval_path=tmp_path / "approval.yaml")
+    snapshot = source()
+    assert snapshot.model.registry_state == "INVALID"
+    assert snapshot.model.runtime_loaded is False
+    assert snapshot.model.decision_impact == "none"
 
 
 def test_execution_screen_lists_exact_live_blockers(window: AppWindow) -> None:
@@ -359,6 +405,47 @@ def test_snapshot_source_builds_a_snapshot_without_a_backend() -> None:
     assert snapshot.paper.starting_balance == Decimal("25000")  # selected profile, not $100k
     assert snapshot.execution.live_blockers  # LIVE always reports why it is locked
     assert snapshot.next_action  # never a blank panel
+
+
+def test_snapshot_source_reports_observe_only_feature_sink_truth() -> None:
+    from app.gui.snapshot_source import SnapshotSource
+    from app.machine_learning.feature_contract import ObserveOnlyFeatureSink
+    from app.machine_learning.session_training import SessionTrainingConfig
+
+    sink = ObserveOnlyFeatureSink(config=SessionTrainingConfig(warmup_seconds=1.0))
+    sink.bind_session("session-gui")
+
+    snapshot = SnapshotSource(feature_sink=sink)()
+
+    assert snapshot.model.feature_observation_state == "WARMING"
+    assert "warmup" in snapshot.model.feature_observation_reason
+    assert snapshot.model.feature_observations == 0
+    assert snapshot.model.runtime_loaded is False
+    assert snapshot.model.shadow_predictions == 0
+    assert snapshot.model.decision_impact == "none"
+
+
+def test_feature_sink_is_sampled_once_per_published_frame() -> None:
+    from app.gui.snapshot_source import SnapshotSource
+    from app.machine_learning.feature_contract import (
+        FeatureObservationSnapshot,
+    )
+
+    class CountingSink:
+        calls = 0
+
+        def snapshot(self) -> FeatureObservationSnapshot:
+            self.calls += 1
+            return FeatureObservationSnapshot(
+                state="WARMING", reason="warming", session_id="session-one",
+                observed_events=0, feature_observations=0,
+                last_feature_timestamp_ns=None, gap_resets=0,
+                session_resets=1, skipped_events=0,
+            )
+
+    sink = CountingSink()
+    SnapshotSource(feature_sink=sink)()
+    assert sink.calls == 1
 
 
 def test_snapshot_source_samples_runtime_once_and_cannot_contradict_itself() -> None:
