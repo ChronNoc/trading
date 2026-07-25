@@ -55,3 +55,9 @@ data/processed/*.buildstatus.json
 # Local Telegram alert launcher (contains your bot token/chat id - NEVER commit).
 /start_with_alerts.ps1
 v/
+
+# Oversized per-session decision logs (8.8MB/106MB) regenerable via
+# `python -m tools.build_real_episodes`; committing them would bloat repo
+# history far beyond the ~65KB precedent for this file type.
+data/processed/session_20260721T131608Z.decisions.jsonl
+data/processed/session_20260723T134503Z.decisions.jsonl
