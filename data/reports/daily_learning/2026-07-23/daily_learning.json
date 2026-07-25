@@ -1,0 +1,98 @@
+{
+  "auto_retraining_enabled": false,
+  "blockers": [
+    "1 session(s) were not analysis-clean.",
+    "1 delayed/free-data session(s) cannot be used for live decisions.",
+    "No completed quality-gated real strategy outcomes exist for this trading day."
+  ],
+  "data_quality": {
+    "delayed_sessions": 1,
+    "depth_updates": 23787693,
+    "quality_clean": false,
+    "total_sessions": 1,
+    "trades": 123241,
+    "valid_sessions": 0
+  },
+  "delayed_session_count": 1,
+  "generated_at_utc": "2026-07-24T19:08:10.998550+00:00",
+  "live_decision_ready": false,
+  "market_observations": {
+    "descriptive_score": "20.00",
+    "is_performance_metric": false,
+    "recurring_patterns": [
+      "Possible short absorption appeared in 1 session(s).",
+      "Reload behavior appeared in 1 session(s)."
+    ]
+  },
+  "mode": "observe_only",
+  "recurring_patterns": [
+    "Possible short absorption appeared in 1 session(s).",
+    "Reload behavior appeared in 1 session(s)."
+  ],
+  "safety_notes": [
+    "Observe-only learning report. It records data quality and market behavior, but it does not retrain a live model or authorize trading.",
+    "Bookmap delayed/free data is valid for review and threshold research only.",
+    "Manual labels or replay outcomes are required before any supervised model training."
+  ],
+  "session_count": 1,
+  "sessions": [
+    {
+      "aggressive_buy_volume": "64298",
+      "aggressive_sell_volume": "62904",
+      "analysis_scope": "delayed_market_data",
+      "ask_reload_count": 160,
+      "bid_reload_count": 136,
+      "book_imbalance": "-0.006493506493506493506493506494",
+      "cvd_delta": "1394",
+      "cvd_direction": "up",
+      "data_quality_ok": false,
+      "depth_updates": 23787693,
+      "dominant_side": "balanced",
+      "end_timestamp_ns": 1784837098279589299,
+      "finalized": true,
+      "first_price": "28682.875",
+      "high_price": "28882.875",
+      "large_ask_blocks": 118,
+      "large_bid_blocks": 91,
+      "last_price": "28497.50",
+      "liquidity_added": "16091965",
+      "liquidity_cancelled": "14944070",
+      "low_price": "28433",
+      "missed_trade_events": 2744995,
+      "notes": [
+        "delayed data: review only",
+        "not analysis-clean",
+        "price/CVD divergence",
+        "reload behavior observed",
+        "trade sequence indicates 2744995 missing event(s)"
+      ],
+      "ordering_mode": "receive_sequence",
+      "possible_long_absorption": false,
+      "possible_short_absorption": true,
+      "price_cvd_aligned": false,
+      "price_direction": "down",
+      "provenance": "REAL_DELAYED",
+      "same_timestamp_collisions": 1,
+      "session_label": "2026-07-23/session_20260723T134503Z",
+      "short_term_volatility": "91.94190448028500744865212178",
+      "source_mode": "delayed",
+      "start_timestamp_ns": 1784814309599649100,
+      "trade_sequence_gaps": 82414,
+      "trade_velocity": "5.581806420284000904809034051",
+      "trades": 123241,
+      "valid_for_analysis": false,
+      "valid_for_live_decisions": false,
+      "valid_for_real_training": false
+    }
+  ],
+  "strategy_performance": {
+    "completed_outcomes": 0,
+    "ledger_eligible_outcomes": 0,
+    "profitability_claim_available": false,
+    "status": "not_available_no_completed_real_outcomes"
+  },
+  "total_depth_updates": 23787693,
+  "total_trades": 123241,
+  "trading_date": "2026-07-23",
+  "valid_session_count": 0
+}
