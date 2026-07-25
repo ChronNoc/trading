@@ -31,9 +31,22 @@ data/paper/
 # Test temp trees must never be tracked (regression-guarded in tests)
 pytest-clean-*/
 .pytest-tmp/
+.pytest-tmp2/
+
+# Temporary work directories
+.tmp/
+
+# Claude Code and Serena tool directories
+.claude/
+.serena/
 
 # Rendered GUI screenshots (regenerate: python -m tools.capture_gui_screenshots)
 reports/screenshots/
+
+# Ephemeral per-session build-status logs (timestamp/traceback churn on every
+# rebuild; the meaningful outputs - *.build.json, *.decisions.jsonl,
+# *.episodes.jsonl, data/labels/*.labels.jsonl - are tracked, this log is not).
+data/processed/*.buildstatus.json
 
 # Process-isolation runtime files (PID lock, heartbeats, stop requests).
 # Anchored to the repo root: app/runtime/ is source code and must stay tracked.
@@ -41,3 +54,4 @@ reports/screenshots/
 
 # Local Telegram alert launcher (contains your bot token/chat id - NEVER commit).
 /start_with_alerts.ps1
+v/
