@@ -1,0 +1,72 @@
+{
+  "accepted_decisions": 0,
+  "broker_execution_data": null,
+  "current_session_bridge_queue_drops": 0,
+  "data_delay_minutes": null,
+  "data_gaps": [],
+  "decisions_allowed": false,
+  "dropped_message_count": 0,
+  "execution_data_included": false,
+  "final_state": "DATA_STALE",
+  "historical_sample_count": 0,
+  "lifetime_bridge_queue_drops": 0,
+  "profile_fallback": "fell back to the global profile",
+  "profile_validation": "unavailable",
+  "recorder_manifest": {
+    "addon_version": "0.1.0",
+    "alias": "MNQU6",
+    "analysis_scope": "real_or_replay",
+    "clean_shutdown": false,
+    "continuity_status": "websocket_closed",
+    "data_delay_minutes": null,
+    "data_quality": {
+      "bridge_dropped_messages": 0,
+      "clock_drift_alerts": 1,
+      "malformed_events": 0,
+      "missed_trade_events": 0,
+      "ok": false,
+      "out_of_order_events": 0,
+      "rejected_events": 0,
+      "trade_sequence_gaps": 0
+    },
+    "dropped_message_count": 0,
+    "event_counts": {
+      "connection_events": 1,
+      "depth_updates": 300,
+      "trades": 0
+    },
+    "is_delayed": false,
+    "playback_speed": null,
+    "provenance": "UNKNOWN",
+    "receive_order": {
+      "available": true,
+      "field": "receive_sequence",
+      "last_sequence": 300,
+      "scope": "validated market events within this receiver session"
+    },
+    "receiver_version": "0.1.0",
+    "scenario_version": null,
+    "seed": null,
+    "source_mode": "unknown",
+    "storage": {
+      "depth_parts": 1,
+      "finalized_single_files": true,
+      "format": "closed_parquet_parts_v1",
+      "trade_parts": 0
+    },
+    "symbol": "MNQ",
+    "synthetic": false,
+    "utc_end": "2026-07-18T13:23:43.666964+00:00",
+    "utc_start": "2026-07-18T13:23:42.980958+00:00",
+    "valid_for_analysis": false,
+    "valid_for_live_decisions": false,
+    "valid_for_order_flow_replay": false,
+    "valid_for_real_training": false
+  },
+  "rejected_decisions": 0,
+  "runtime_mode": "SHADOW",
+  "selected_profile": "global_observe_only",
+  "session_date": "2026-07-18",
+  "session_id": "session_20260718T132342Z",
+  "source_mode": "unknown"
+}

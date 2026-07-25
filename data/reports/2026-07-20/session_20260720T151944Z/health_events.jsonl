@@ -1,0 +1,7 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-20T15:19:44.398248+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T15:19:44.398308+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T15:19:44.715024+00:00"}
+{"component":"bookmap","message":"bridge queue drops (lifetime): 14903; this connection: 0","status":"data_gap","timestamp_utc":"2026-07-20T15:19:44.718021+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-20T15:19:44.718036+00:00"}
+{"component":"bookmap","message":"bounded queue overflow","status":"data_gap","timestamp_utc":"2026-07-20T15:19:44.721169+00:00"}
+{"component":"bookmap","message":"Bookmap session ended","status":"session_ended","timestamp_utc":"2026-07-20T16:23:22.815041+00:00"}

@@ -1,0 +1,8 @@
+{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-17T10:56:22.947269+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-17T10:56:22.947382+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-17T10:56:36.667668+00:00"}
+{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-17T10:56:36.674515+00:00"}
+{"component":"bookmap","message":"Bookmap delayed entitlement entered replay playback","status":"replay_started","timestamp_utc":"2026-07-17T10:56:36.676274+00:00"}
+{"component":"bookmap","message":"Bookmap stream detected as delayed","status":"realtime_started","timestamp_utc":"2026-07-17T10:56:37.807489+00:00"}
+{"component":"learning","message":"daily learning summary written: data\\reports\\daily_learning\\2026-07-17\\daily_learning.md","status":"daily_summary","timestamp_utc":"2026-07-17T10:56:45.445956+00:00"}
+{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-17T10:56:45.510502+00:00"}

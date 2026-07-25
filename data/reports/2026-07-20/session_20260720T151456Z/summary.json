@@ -1,0 +1,78 @@
+{
+  "accepted_decisions": 0,
+  "broker_execution_data": null,
+  "current_session_bridge_queue_drops": 0,
+  "data_delay_minutes": 15,
+  "data_gaps": [
+    "bridge queue drops (lifetime): 6186; this connection: 0"
+  ],
+  "decisions_allowed": false,
+  "dropped_message_count": 6186,
+  "execution_data_included": false,
+  "final_state": "STOPPED",
+  "historical_sample_count": 40,
+  "lifetime_bridge_queue_drops": 6186,
+  "profile_fallback": "fell back to the session default profile",
+  "profile_validation": "provisional",
+  "recorder_manifest": {
+    "addon_version": "0.1.0",
+    "alias": "MNQU6.CME@BMD",
+    "analysis_scope": "delayed_market_data",
+    "clean_shutdown": false,
+    "continuity_status": "websocket_closed",
+    "data_delay_minutes": 15,
+    "data_quality": {
+      "bridge_dropped_messages": 6186,
+      "clock_drift_alerts": 0,
+      "duplicate_stream_events": 0,
+      "malformed_events": 13002,
+      "missed_stream_events": 367947,
+      "missed_trade_events": 367947,
+      "ok": false,
+      "out_of_order_events": 0,
+      "rejected_events": 0,
+      "stream_sequence_gaps": 8425,
+      "trade_sequence_gaps": 8425
+    },
+    "dropped_message_count": 6186,
+    "event_counts": {
+      "connection_events": 123,
+      "depth_updates": 379863,
+      "trades": 1535
+    },
+    "is_delayed": true,
+    "playback_speed": null,
+    "provenance": "REAL_DELAYED",
+    "receive_order": {
+      "available": true,
+      "field": "receive_sequence",
+      "last_sequence": 381398,
+      "scope": "validated market events within this receiver session"
+    },
+    "receiver_version": "0.1.0",
+    "scenario_version": null,
+    "seed": null,
+    "source_mode": "delayed",
+    "storage": {
+      "compaction_deferred": true,
+      "depth_parts": 760,
+      "finalized_single_files": false,
+      "format": "closed_parquet_parts_v1",
+      "trade_parts": 4
+    },
+    "symbol": "MNQU6",
+    "synthetic": false,
+    "utc_end": "2026-07-20T15:19:41.418740+00:00",
+    "utc_start": "2026-07-20T15:14:56.330329+00:00",
+    "valid_for_analysis": false,
+    "valid_for_live_decisions": false,
+    "valid_for_order_flow_replay": false,
+    "valid_for_real_training": false
+  },
+  "rejected_decisions": 0,
+  "runtime_mode": "SHADOW",
+  "selected_profile": "ny_open_default",
+  "session_date": "2026-07-20",
+  "session_id": "session_20260720T151456Z",
+  "source_mode": "delayed"
+}
