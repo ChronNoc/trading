@@ -1,0 +1,34 @@
+{
+  "accepted_candidates": 0,
+  "ambiguous": 0,
+  "builder_version": "real-episodes-v2",
+  "completed": 0,
+  "data_quality_ok": true,
+  "duplicate_candidates": 0,
+  "entry_rejections": 0,
+  "evaluations": 0,
+  "events": 1861,
+  "ledger_eligible": 0,
+  "ordering_ambiguous": false,
+  "provenance": "REAL_DELAYED",
+  "rejected_condition_tally": {},
+  "replay_quality": {
+    "continuity_ok": true,
+    "missed_receive_events": 0,
+    "missed_trade_events": 0,
+    "nonmonotonic_receive_sequences": 0,
+    "nonmonotonic_trade_sequences": 0,
+    "ordering_mode": "timestamp_fallback",
+    "receive_order_available": false,
+    "receive_sequence_gaps": 0,
+    "same_timestamp_collisions": 0,
+    "timestamp_regressions": 0,
+    "trade_sequence_gaps": 0
+  },
+  "session_id": "session_20260712T165200Z",
+  "source_file_hashes": {
+    "depth.parquet": "5f581551ff57f6a983a9116de3fd7ad115763bde6606ccf2f127c1b983f4f198"
+  },
+  "strategy_version": "order-flow-plan-v1",
+  "unfinished": 0
+}

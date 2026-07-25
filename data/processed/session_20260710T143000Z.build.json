@@ -1,0 +1,35 @@
+{
+  "accepted_candidates": 0,
+  "ambiguous": 0,
+  "builder_version": "real-episodes-v2",
+  "completed": 0,
+  "data_quality_ok": true,
+  "duplicate_candidates": 0,
+  "entry_rejections": 0,
+  "evaluations": 0,
+  "events": 2,
+  "ledger_eligible": 0,
+  "ordering_ambiguous": false,
+  "provenance": "REAL_DELAYED",
+  "rejected_condition_tally": {},
+  "replay_quality": {
+    "continuity_ok": true,
+    "missed_receive_events": 0,
+    "missed_trade_events": 0,
+    "nonmonotonic_receive_sequences": 0,
+    "nonmonotonic_trade_sequences": 0,
+    "ordering_mode": "receive_sequence",
+    "receive_order_available": true,
+    "receive_sequence_gaps": 0,
+    "same_timestamp_collisions": 0,
+    "timestamp_regressions": 0,
+    "trade_sequence_gaps": 0
+  },
+  "session_id": "session_20260710T143000Z",
+  "source_file_hashes": {
+    "depth.parquet": "e468d594624a33978e87dfd816deb92117da9f63d26218cd8b103993df6ad703",
+    "trades.parquet": "48d551a2266b3faf6e1b3b492e03b0f7cfa0511a149c4dec4a41e83c86f2edb7"
+  },
+  "strategy_version": "order-flow-plan-v1",
+  "unfinished": 0
+}
