@@ -1,0 +1,40 @@
+{
+  "accepted_setups": 382,
+  "candidates": 382,
+  "close_reasons": [
+    {
+      "count": 52,
+      "net_pnl": "151.02",
+      "reason": "target"
+    },
+    {
+      "count": 14,
+      "net_pnl": "-51.60",
+      "reason": "stop"
+    },
+    {
+      "count": 1,
+      "net_pnl": "-32.74",
+      "reason": "data_gap"
+    }
+  ],
+  "damaged_tail": false,
+  "ending_balance": "25025.90",
+  "evaluations": 20660,
+  "expectancy": "1.00",
+  "gross_pnl": "151.00",
+  "losses": 17,
+  "max_consecutive_losses": 2,
+  "max_drawdown": "-147.24",
+  "notes": [],
+  "real_trades": 67,
+  "realized_pnl": "66.68",
+  "report_date": "2026-07-24",
+  "risk_rejected": 367,
+  "scratches": 0,
+  "starting_balance": "25000",
+  "synthetic_rows_excluded": 0,
+  "total_commission": "84.32",
+  "win_rate": "0.7463",
+  "wins": 50
+}
