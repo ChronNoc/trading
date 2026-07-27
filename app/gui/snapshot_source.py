@@ -77,6 +77,7 @@ class SnapshotSource:
         models_root: Path = Path("data/models"),
         model_approval_path: Path = Path("config/model_approval.yaml"),
         model_loader: object | None = None,
+        outcome_tracker: object | None = None,
     ) -> None:
         """Bind live components and the lightweight offline model-state source."""
         self._controller = controller
@@ -90,6 +91,7 @@ class SnapshotSource:
         self._demo_service = demo_service
         self._models_root = models_root
         self._model_loader = model_loader
+        self._outcome_tracker = outcome_tracker
         self._model_approval_path = model_approval_path
         self._model_cache_key: tuple[object, ...] | None = None
         self._model_cache = ModelSnapshot()
@@ -512,6 +514,11 @@ class SnapshotSource:
                 if self._model_loader is not None
                 else None
             )
+            outcome_state = (
+                self._outcome_tracker.snapshot()  # type: ignore[attr-defined]
+                if self._outcome_tracker is not None
+                else None
+            )
             return ModelSnapshot(
                 registry_state=state.registry_state,
                 artifact_id=record.artifact_id if record else "",
@@ -564,6 +571,32 @@ class SnapshotSource:
                     str(loader_state.reason)
                     if loader_state else "observe-only model loader is not attached"
                 ),
+                outcome_tracker_state=(
+                    "TRACKING" if outcome_state is not None else "UNAVAILABLE"
+                ),
+                outcome_predictions_registered=(
+                    int(outcome_state.predictions_registered) if outcome_state else 0
+                ),
+                outcome_resolved=int(outcome_state.resolved) if outcome_state else 0,
+                outcome_resolved_target=(
+                    int(outcome_state.resolved_target) if outcome_state else 0
+                ),
+                outcome_resolved_stop=(
+                    int(outcome_state.resolved_stop) if outcome_state else 0
+                ),
+                outcome_resolved_timeout=(
+                    int(outcome_state.resolved_timeout) if outcome_state else 0
+                ),
+                outcome_dropped_unresolved=(
+                    int(outcome_state.dropped_unresolved) if outcome_state else 0
+                ),
+                outcome_dropped_overflow=(
+                    int(outcome_state.dropped_overflow) if outcome_state else 0
+                ),
+                outcome_gap_tainted_resolutions=(
+                    int(outcome_state.gap_tainted_resolutions) if outcome_state else 0
+                ),
+                outcome_pending=int(outcome_state.pending) if outcome_state else 0,
             )
         except Exception as error:  # noqa: BLE001 - surface corrupt registry truth
             return ModelSnapshot(

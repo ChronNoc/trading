@@ -16,6 +16,7 @@ from app.paper.execution import (
     REASON_POSITION_OPEN,
     REASON_RISK_ZERO_SIZE,
     REASON_STALE_BOOK,
+    REASON_STOP_TOO_WIDE,
     ExecutionConfig,
     MarketTick,
     PaperExecutor,
@@ -317,6 +318,64 @@ def test_zero_size_is_rejected_not_rounded_up() -> None:
                            max_contracts=20, commission_per_contract=Decimal("1.24"))
     assert decision.approved is False
     assert decision.reason_code == REASON_RISK_ZERO_SIZE
+
+
+def _narrow_stop_long(setup_id: str = "s1", index: int = 10) -> PaperOrderIntent:
+    # 8-point stop (32 ticks): risk_per_contract = 32*0.50 + 1.24 + 0.50 = 17.74,
+    # so 4 contracts = $70.96 - under the $80 fixed-size cap.
+    return PaperOrderIntent(direction=Direction.LONG, entry_reference=Decimal("29500.00"),
+                            stop=Decimal("29492.00"), target=Decimal("29516.00"),
+                            provenance=_prov(setup_id, index))
+
+
+def test_fixed_size_approves_exactly_four_contracts_when_stop_is_narrow_enough() -> None:
+    # Narrow enough natural stop: never invented or resized, just measured against
+    # the fixed-size cap.
+    decision = size_intent(_narrow_stop_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=20, commission_per_contract=Decimal("1.24"),
+                           fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
+    assert decision.approved is True
+    assert decision.contracts == 4
+    assert decision.reason_code == REASON_APPROVED
+
+
+@pytest.mark.parametrize("invalid_cap", [Decimal("Infinity"), Decimal("NaN")])
+def test_execution_config_rejects_non_finite_fixed_risk_caps(invalid_cap: Decimal) -> None:
+    with pytest.raises(ValueError):
+        ExecutionConfig(fixed_contracts=4, max_risk_per_trade_usd=invalid_cap)
+
+
+def test_fixed_size_rejects_when_the_real_stop_is_too_wide_for_the_cap() -> None:
+    # _long() has a 10-point (40-tick) stop: risk_per_contract = 40*0.50 + 1.24 + 0.50
+    # = 21.74, so 4 contracts = $86.96 - above the $80 cap. The trade must be
+    # rejected outright, never resized or forced onto an artificial stop.
+    decision = size_intent(_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=20, commission_per_contract=Decimal("1.24"),
+                           fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
+    assert decision.approved is False
+    assert decision.reason_code == REASON_STOP_TOO_WIDE
+    assert decision.contracts == 0
+
+
+def test_fixed_size_disabled_by_default_leaves_dynamic_sizing_untouched() -> None:
+    # fixed_contracts defaults to 0 - the exact same call as the pre-existing
+    # dynamic-sizing regression test above, confirming the new parameters are
+    # fully backward compatible when omitted.
+    decision = size_intent(_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=20, commission_per_contract=Decimal("1.24"))
+    assert decision.approved is True
+    assert 0 < decision.contracts <= 20
+    assert decision.reason_code == REASON_APPROVED
+
+
+def test_fixed_size_still_respects_the_account_contract_ceiling() -> None:
+    # Even when fixed_contracts asks for more than the account allows, the hard
+    # max_contracts ceiling still wins.
+    decision = size_intent(_narrow_stop_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=2, commission_per_contract=Decimal("1.24"),
+                           fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
+    assert decision.approved is True
+    assert decision.contracts == 2
 
 
 # --- liquidation & isolation ---------------------------------------------------

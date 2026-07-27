@@ -45,3 +45,9 @@ include = ["app*", "bookmap_addon*", "tools*", "video_analysis*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# The OS-wide per-user temp dir (%TEMP%\pytest-of-<user>) can end up with an
+# ACL pytest's own account can't read (seen as WinError 5 Access is denied on
+# this machine, and not fixable via icacls/takeown from here). Keep pytest's
+# tmp_path/tmpdir fixtures inside the repo instead, where permissions are
+# always sane; .pytest-tmp/ is gitignored.
+addopts = "--basetemp=.pytest-tmp"

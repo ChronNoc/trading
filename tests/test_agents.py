@@ -214,3 +214,36 @@ def test_agents_never_reference_execution_modules() -> None:
     agents_dir = Path(__file__).resolve().parents[1] / "app" / "agents"
     for module in agents_dir.glob("*.py"):
         assert "app.execution" not in module.read_text(encoding="utf-8"), module.name
+
+
+def test_shadow_ml_decision_modules_never_import_execution_package() -> None:
+    """The shadow-ML policy must remain structurally outside live execution."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    guarded_modules = tuple(
+        path.relative_to(root).as_posix()
+        for path in sorted((root / "app" / "machine_learning").glob("*.py"))
+    ) + (
+        "app/paper/options.py",
+        "app/paper/streaming_engine.py",
+        "app/research/episode_builder.py",
+        "app/runtime/controller.py",
+    )
+    for relative_path in guarded_modules:
+        source = (root / relative_path).read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=relative_path)
+        imports = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for alias in (
+                node.names
+                if isinstance(node, ast.Import)
+                else [ast.alias(name=node.module or "")]
+            )
+        }
+        assert not any(
+            name == "app.execution" or name.startswith("app.execution.")
+            for name in imports
+        ), relative_path

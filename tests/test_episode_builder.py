@@ -84,6 +84,27 @@ def test_dedupe_bucket_uses_tick_size_not_tick_value() -> None:
 
 
 @pytest.mark.parametrize(
+    "overrides",
+    [
+        {"fixed_contracts": -1},
+        {"max_risk_per_trade_usd": Decimal("-0.01")},
+        {"max_risk_per_trade_usd": Decimal("Infinity")},
+        {"max_risk_per_trade_usd": Decimal("NaN")},
+        {"fixed_contracts": 4, "max_risk_per_trade_usd": Decimal("0")},
+    ],
+)
+def test_fixed_sizing_config_rejects_invalid_values(overrides: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        EpisodeConfig(**overrides)
+
+
+def test_fixed_sizing_config_accepts_four_contracts_with_positive_cap() -> None:
+    config = EpisodeConfig(fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
+    assert config.fixed_contracts == 4
+    assert config.max_risk_per_trade_usd == Decimal("80")
+
+
+@pytest.mark.parametrize(
     ("direction", "outcome", "expected"),
     [
         ("long", "target", "target_first"),

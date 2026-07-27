@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 CHECKS: list[tuple[str, bool, str]] = []
@@ -242,6 +243,151 @@ def main() -> int:
     check("no_credentials_tracked", not secret_like, "; ".join(secret_like) or "none")
     check("no_raw_files_tracked_or_staged", not raw_tracked and not raw_staged,
           "; ".join(raw_tracked + raw_staged) or "none")
+
+    # 18. ML registry records are content-addressed and integrity-bound. There
+    # may honestly be no PASSED challenger yet; the schema and validator must
+    # still bind every future record to exact artifact/dataset/feature hashes.
+    from dataclasses import fields
+
+    from app.machine_learning.registry import ModelRegistryRecord
+
+    registry_fields = {field.name for field in fields(ModelRegistryRecord)}
+    required_registry_fields = {
+        "artifact_id", "artifact_sha256", "dataset_id", "dataset_sha256",
+        "feature_contract_sha256", "validation_state", "artifact_path",
+    }
+    check("ml_registry_integrity_schema",
+          required_registry_fields <= registry_fields,
+          "registry binds artifact, dataset, feature contract, validation state, and path")
+
+    # 19. The production loader is constructible against the current explicit
+    # approval file without loading or scoring an unapproved artifact.
+    from app.machine_learning.shadow_predictor import ObserveOnlyModelLoader, PredictionJournal, ShadowPrediction
+
+    with tempfile.TemporaryDirectory() as journal_dir:
+        journal = PredictionJournal(Path(journal_dir) / "acceptance_predictions.jsonl", fsync=False)
+        loader = ObserveOnlyModelLoader(
+            models_root=Path("data/models"),
+            model_approval_path=Path("config/model_approval.yaml"),
+            journal=journal,
+            refresh_interval_seconds=3600.0,
+        )
+        loader_state = loader.snapshot()
+    check("ml_loader_fails_closed_without_approval",
+          loader_state.state == "NOT_APPROVED" and not loader_state.artifact_id,
+          f"state={loader_state.state}; artifact={loader_state.artifact_id or 'none'}")
+
+    # 19b. Runtime staleness is a behavioral fail-closed gate, not merely a
+    # registry helper. Build internally consistent temporary evidence, approve
+    # its exact ID+SHA, then prove 31-day-old immutable evaluation evidence is
+    # unloaded and cannot produce a journal record.
+    from datetime import date
+
+    from app.machine_learning.registry import register_challenger
+    from tests.test_shadow_predictor import _fitted_evidence
+
+    with tempfile.TemporaryDirectory() as stale_dir:
+        stale_root = Path(stale_dir)
+        stale_record = _fitted_evidence(stale_root)
+        register_challenger(stale_root, stale_record)
+        stale_approval = stale_root / "model_approval.yaml"
+        stale_approval.write_text(
+            "schema_version: 1\n"
+            f"approved_artifact_id: {stale_record.artifact_id}\n"
+            f"approved_sha256: {stale_record.artifact_sha256}\n"
+            "runtime_loading_enabled: false\n"
+            "shadow_scoring_enabled: false\n",
+            encoding="utf-8",
+        )
+        stale_journal = PredictionJournal(
+            stale_root / "stale_predictions.jsonl", fsync=False,
+        )
+        stale_loader = ObserveOnlyModelLoader(
+            models_root=stale_root,
+            model_approval_path=stale_approval,
+            journal=stale_journal,
+            current_date_provider=lambda: date(2026, 8, 24),
+        )
+        stale_snapshot = stale_loader.snapshot()
+        stale_loader.score(
+            object(),  # type: ignore[arg-type]  # STALE short-circuits first
+            session_id="stale-acceptance-session",
+            timestamp_ns=1,
+            direction="long",
+        )
+        stale_journal_count = stale_journal.count
+    check(
+        "ml_runtime_rejects_stale_artifact",
+        stale_snapshot.state == "STALE"
+        and not stale_snapshot.artifact_id
+        and not stale_snapshot.artifact_sha256
+        and stale_journal_count == 0,
+        f"state={stale_snapshot.state}; loaded_identity="
+        f"{stale_snapshot.artifact_id or 'none'}; journal_records={stale_journal_count}",
+    )
+
+    # 20. Authoritative paper decisions retain exact ML provenance. Team 7's
+    # integration test exercises the fields with a genuinely trained synthetic
+    # artifact and matches the exact on-disk prediction identity.
+    from app.paper.streaming_engine import EvaluationRecord
+
+    evaluation_fields = {field.name for field in fields(EvaluationRecord)}
+    required_evaluation_fields = {
+        "decision_source", "confidence", "raw_model_output", "model_version",
+        "model_prediction_id", "model_artifact_sha256", "fallback_reason", "policy_version",
+    }
+    integration_test = Path("tests/test_end_to_end_ml_integration.py")
+    integration_source = integration_test.read_text(encoding="utf-8") if integration_test.is_file() else ""
+    check("ml_decision_provenance_and_integration",
+          required_evaluation_fields <= evaluation_fields
+          and "build_validated_challenger(" in integration_source
+          and "PredictionJournal.recover(" in integration_source
+          and "DECISION_SOURCE_BLENDED" in integration_source
+          and "DECISION_SOURCE_ML" in integration_source,
+          "EvaluationRecord has full provenance; genuine trained-artifact identity test is present")
+
+    # 21. A real on-disk PredictionJournal round-trip must preserve evidence.
+    with tempfile.TemporaryDirectory() as journal_dir:
+        journal_path = Path(journal_dir) / "acceptance_predictions.jsonl"
+        journal = PredictionJournal(journal_path, fsync=False)
+        journal.append(ShadowPrediction(
+            prediction_id="acceptance-probe",
+            artifact_id="probe",
+            artifact_sha256="0" * 64,
+            session_id="acceptance-session",
+            timestamp_ns=1,
+            direction="long",
+            feature_vector_sha256="1" * 64,
+            success_probability=0.5,
+        ))
+        recovered = PredictionJournal.recover(journal_path)
+    check("prediction_journal_round_trip",
+          not recovered.damaged_tail and len(recovered.records) == 1
+          and recovered.records[0].get("prediction_id") == "acceptance-probe",
+          "one real JSONL entry written and recovered with exact prediction identity")
+
+    # 22. ML/paper/runtime policy modules must remain structurally isolated
+    # from broker execution. Comments mentioning the prohibition do not count;
+    # imports are inspected through the AST.
+    ml_policy_modules = list(Path("app/machine_learning").glob("*.py")) + [
+        Path("app/paper/streaming_engine.py"),
+        Path("app/paper/options.py"),
+        Path("app/runtime/controller.py"),
+    ]
+    ml_execution_imports: list[str] = []
+    for module in ml_policy_modules:
+        for name in _imports_of(str(module)):
+            if name == "app.execution" or name.startswith("app.execution."):
+                ml_execution_imports.append(f"{module}:{name}")
+    check("ml_policy_isolated_from_execution",
+          not ml_execution_imports,
+          "; ".join(ml_execution_imports) or "no app.execution imports")
+
+    # 23. The committed production configuration remains paper/shadow only.
+    production_config = _read("config/production_config.yaml")
+    check("live_mode_false",
+          "live_enabled: false" in production_config and "live_mode: false" in production_config,
+          "live_enabled=false and live_mode=false")
 
     failures = [name for name, passed, _ in CHECKS if not passed]
     width = max(len(name) for name, _, _ in CHECKS)

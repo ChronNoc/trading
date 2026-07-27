@@ -115,6 +115,39 @@ def test_incomplete_horizons_are_dropped_not_guessed(tmp_path: Path) -> None:
     assert summary.rows == len(rows)
 
 
+def test_rows_with_missing_two_sided_book_are_dropped_not_zero_filled(tmp_path: Path) -> None:
+    """A one-sided book has no spread and emits no zero-imputed rows."""
+    raw = tmp_path / "raw"
+    rec = MarketSessionRecorder(
+        root_dir=raw,
+        session_start_utc=datetime(2026, 7, 15, 14, 30, tzinfo=UTC),
+    )
+    base = int(datetime(2026, 7, 15, 14, 30, tzinfo=UTC).timestamp() * 1e9)
+    for i in range(80):
+        ts = base + i * 500_000_000
+        price = Decimal("29500.00") + Decimal(i % 8) * Decimal("0.25")
+        rec.record({
+            "type": "depth_update", "timestamp": ts, "symbol": "MNQ",
+            "side": "bid", "price": str(price), "previous_size": "0", "new_size": "10",
+        })
+        rec.record({
+            "timestamp_ns": ts + 1, "price": str(price), "size": "1",
+            "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": i + 1,
+        })
+    rec.finalize(clean_shutdown=True)
+    session = next(raw.rglob("session_manifest.json")).parent
+    cfg = SessionTrainingConfig(
+        target_ticks=Decimal("2"), stop_ticks=Decimal("2"),
+        horizon_seconds=5.0, sample_interval_seconds=1.0, warmup_seconds=1.0,
+    )
+
+    rows, summary = build_session_training_rows(session, config=cfg)
+
+    assert rows == []
+    assert summary.dropped_invalid_features > 0
+    assert summary.rows == 0
+
+
 def test_train_session_writes_models_and_honest_report(tmp_path: Path) -> None:
     session = _oscillating_session(tmp_path / "raw")
     out = tmp_path / "models"

@@ -91,7 +91,7 @@ def _evidence(models_root: Path) -> ModelRegistryRecord:
         "model_sha256": model_sha,
         "model_type": "logistic_regression",
         "model_version": "0.1.0",
-        "feature_contract_version": "shared-causal-market-features-v2",
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "feature_contract_sha256": "c" * 64,
         "validation": validation,
         "runtime_loaded": False,

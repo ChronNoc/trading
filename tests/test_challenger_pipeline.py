@@ -11,6 +11,7 @@ from app.machine_learning.challenger_pipeline import (
     DatasetBuildConfig,
     build_challenger_dataset,
 )
+from app.machine_learning.feature_contract import FEATURE_CONTRACT_VERSION
 from app.machine_learning.session_training import SessionTrainingConfig
 
 import pytest
@@ -96,7 +97,31 @@ def test_unchanged_inputs_rebuild_to_identical_dataset_id(tmp_path: Path) -> Non
     assert first.manifest["rows_sha256"] == second.manifest["rows_sha256"]
     assert first.dataset_path == second.dataset_path
     assert first.dataset_path is not None and first.dataset_path.is_file()
+    first_bytes = first.dataset_path.read_bytes()
+    assert first.manifest["row_count"] > 0
+    assert second.dataset_path is not None
+    assert second.dataset_path.read_bytes() == first_bytes
     assert first.manifest_path is not None and first.manifest_path.is_file()
+
+
+def test_dataset_fingerprint_changes_when_a_source_manifest_changes(tmp_path: Path) -> None:
+    """Input content hashes, not only feature rows, define the dataset ID."""
+    raw = tmp_path / "raw"
+    session = _session(raw, 15)
+
+    first = build_challenger_dataset(raw, config=_config())
+    manifest_path = session / "session_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["audit_marker"] = "changed-input-content"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    second = build_challenger_dataset(raw, config=_config())
+
+    assert first.manifest["rows_sha256"] == second.manifest["rows_sha256"]
+    assert first.dataset_id != second.dataset_id
+    assert (
+        first.manifest["included_sessions"][0]["manifest_sha256"]
+        != second.manifest["included_sessions"][0]["manifest_sha256"]
+    )
 
 
 def test_dataset_id_is_independent_of_raw_root_location(tmp_path: Path) -> None:
@@ -135,7 +160,7 @@ def test_dataset_manifest_contains_reproducibility_contract(tmp_path: Path) -> N
     manifest = result.manifest
 
     assert manifest["schema_version"] == 1
-    assert manifest["feature_contract_version"] == "shared-causal-market-features-v2"
+    assert manifest["feature_contract_version"] == FEATURE_CONTRACT_VERSION
     assert manifest["feature_contract"]["columns"] == manifest["feature_columns"]
     assert manifest["feature_contract"]["runtime_effect"] == "none; feature construction only"
     assert manifest["feature_contract_sha256"]

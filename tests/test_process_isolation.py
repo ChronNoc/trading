@@ -193,6 +193,24 @@ def test_provider_reads_a_fresh_backend_snapshot_verbatim(tmp_path: Path) -> Non
 # --- THE integration proof: real backend process, real events, GUI restarts ------
 
 
+def test_detached_backend_wires_one_shared_ml_runtime_graph() -> None:
+    """Detached GUI mode must share scoring, policy, outcomes, and status objects."""
+    source = (REPO / "tools" / "start_backend.py").read_text(encoding="utf-8")
+
+    build = "feature_sink, model_loader, outcome_tracker = _build_feature_and_model_sinks(config)"
+    engine = "model_loader=model_loader"
+    receiver = (
+        "paper_engine, shutdown, feed, feature_sink, outcome_tracker)"
+    )
+    snapshot = "model_loader=model_loader, outcome_tracker=outcome_tracker"
+
+    assert source.count(build) == 1
+    assert source.count(engine) >= 2  # paper engine plus SnapshotSource
+    assert receiver in source
+    assert snapshot in source
+    assert "ml_decision_policy_enabled=read_ml_decision_policy_enabled(" in source
+
+
 def test_gui_restart_cannot_interrupt_the_real_backend(tmp_path: Path) -> None:
     """Spawn the actual backend process; capture must be untouched by GUI churn."""
     import asyncio

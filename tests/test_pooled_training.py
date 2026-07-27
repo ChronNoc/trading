@@ -11,6 +11,48 @@ _DAY_NS = 24 * 3600 * 1_000_000_000
 _BASE_NS = 1_752_000_000 * 1_000_000_000
 
 
+def test_load_pooled_rows_rejects_legacy_rows_without_resolution_timestamp(
+    tmp_path,
+) -> None:
+    """Legacy labels cannot be safely assigned to walk-forward train folds."""
+    import json
+
+    import pytest
+
+    from app.machine_learning.pooled_training import load_pooled_rows
+
+    session_dir = tmp_path / "session_legacy"
+    session_dir.mkdir()
+    legacy = {"timestamp_ns": 100, "label": 1}
+    (session_dir / "dataset.jsonl").write_text(
+        json.dumps(legacy) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="rebuild from raw session events"):
+        load_pooled_rows(tmp_path)
+
+
+def test_load_pooled_rows_accepts_causally_complete_current_rows(tmp_path) -> None:
+    import json
+
+    from app.machine_learning.pooled_training import load_pooled_rows
+
+    session_dir = tmp_path / "session_current"
+    session_dir.mkdir()
+    current = {
+        "timestamp_ns": 100,
+        "label_resolved_timestamp_ns": 200,
+        "label": 1,
+    }
+    (session_dir / "dataset.jsonl").write_text(
+        json.dumps(current) + "\n",
+        encoding="utf-8",
+    )
+
+    assert load_pooled_rows(tmp_path) == [current]
+
+
 def _row(day: int, index: int, *, imbalance: float, label: int) -> dict[str, object]:
     values: dict[str, object] = {col: "0" for col in FEATURE_COLUMNS}
     values["book_imbalance"] = f"{imbalance}"

@@ -63,6 +63,11 @@ def test_server_injects_initial_delayed_mode_control_event(tmp_path: Path) -> No
     asyncio.run(_server_injects_delayed_mode(tmp_path))
 
 
+def test_initial_connected_event_persists_accepted_handshake(tmp_path: Path) -> None:
+    """Initial handshakes are enriched before immutable provenance is recorded."""
+    asyncio.run(_server_persists_initial_handshake(tmp_path))
+
+
 def test_server_persists_feed_quality_failures(tmp_path: Path) -> None:
     """Malformed, rejected, and sequence-gap counters reach the session manifest."""
     asyncio.run(_server_persists_quality_failures(tmp_path))
@@ -182,6 +187,48 @@ async def _server_injects_delayed_mode(tmp_path: Path) -> None:
     assert manifest["source_mode"] == "delayed"
     assert manifest["data_delay_minutes"] == 15
     assert manifest["valid_for_live_decisions"] is False
+
+
+async def _server_persists_initial_handshake(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+        initial_control_events=(
+            {
+                "type": "connected",
+                "timestamp_ns": timestamp_ns,
+                "protocol_version": "1.2",
+                "stream_id": "initial-stream",
+                "connection_id": "initial-connection",
+                "session_id": "initial-session",
+                "provider": "pytest",
+                "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+            },
+        ),
+        require_protocol_handshake=True,
+    )
+
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send(json.dumps({
+                "type": "session_ended",
+                "timestamp_ns": timestamp_ns + 1,
+            }))
+        session_dir = await _wait_for_session_dir(tmp_path)
+    finally:
+        await server.close()
+
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    provenance = manifest["bridge_provenance"]
+    assert provenance["protocol_version"] == "1.2"
+    assert provenance["provider"] == "pytest"
+    assert provenance["handshake_accepted"] is True
+    assert provenance["declared_capabilities"] == [
+        "aggregated_depth",
+        "aggressor_side",
+        "source_timestamps",
+        "trades",
+    ]
 
 
 async def _server_persists_quality_failures(tmp_path: Path) -> None:

@@ -268,7 +268,11 @@ class AppWindow(QMainWindow):
     # -- appearance ---------------------------------------------------------------
 
     def apply_theme(self, theme: str) -> None:
-        """Apply the dark or light palette."""
+        """Apply the dark or light palette.
+        
+        NOTE: Premium token-based styling is applied per-widget in widgets.py.
+        This global stylesheet provides base colors and system widget defaults.
+        """
         self._theme = theme if theme in THEMES else "dark"
         self.setStyleSheet(THEMES[self._theme])
 

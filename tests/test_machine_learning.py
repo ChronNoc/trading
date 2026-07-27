@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from app.machine_learning.feature_contract import FEATURE_CONTRACT_VERSION
 from app.machine_learning.predict import predict_model_version, predict_success_probability
 from app.machine_learning.train import (
     FEATURE_COLUMNS,
@@ -49,7 +50,7 @@ def test_train_models_saves_versioned_artifacts_and_sidecars(tmp_path: Path) -> 
     assert logistic_metadata["row_count"] == 16
     assert xgboost_metadata["row_count"] == 16
     assert logistic_metadata["feature_columns"] == list(FEATURE_COLUMNS)
-    assert logistic_metadata["feature_contract_version"] == "shared-causal-market-features-v2"
+    assert logistic_metadata["feature_contract_version"] == FEATURE_CONTRACT_VERSION
     assert logistic_metadata["feature_contract_sha256"] == "test-contract-sha"
     assert logistic_metadata["training_period"]["start"].startswith("2026-07-01")
     assert logistic_metadata["training_period"]["end"].startswith("2026-07-04")

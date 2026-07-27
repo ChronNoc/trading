@@ -40,30 +40,44 @@ class AssistantStartupError(RuntimeError):
     """User-facing startup failure."""
 
 
-def _build_feature_and_model_sinks(config: "AssistantConfig") -> tuple[object, object]:
-    """Build the observe-only feature sink and its attached shadow model loader.
+def _build_feature_and_model_sinks(config: "AssistantConfig") -> tuple[object, object, object]:
+    """Build the observe-only feature sink, shadow model loader, and outcome tracker.
 
     The loader is inert until a human approves an exact artifact ID+SHA in
     ``config/model_approval.yaml`` (see
     ``app.machine_learning.shadow_predictor.ObserveOnlyModelLoader``); until
     then it stays in ``NOT_APPROVED``/``INVALID`` and never scores. Building it
     unconditionally keeps this the single place both the headless and GUI
-    startup paths construct these two objects, so they cannot drift apart.
+    startup paths construct these three objects, so they cannot drift apart.
+
+    The outcome tracker (ML-004) causally resolves each scored prediction
+    against the same triple-barrier rule offline training uses; the caller
+    must also wire its ``observe_market``/``notify_causality_gap`` methods
+    into the analysis feed for it to see prices (see
+    ``run_headless_assistant``).
     """
     from app.machine_learning.feature_contract import ObserveOnlyFeatureSink
+    from app.machine_learning.outcome_journal import OutcomeJournal, PendingOutcomeTracker
+    from app.machine_learning.session_training import SessionTrainingConfig
     from app.machine_learning.shadow_predictor import (
         ObserveOnlyModelLoader,
         PredictionJournal,
     )
 
     journal = PredictionJournal(config.models_root / "shadow_predictions.jsonl")
+    outcome_journal = OutcomeJournal(config.models_root / "shadow_outcomes.jsonl")
+    outcome_tracker = PendingOutcomeTracker(
+        journal=outcome_journal,
+        horizon_seconds=SessionTrainingConfig().horizon_seconds,
+    )
     loader = ObserveOnlyModelLoader(
         models_root=config.models_root,
         model_approval_path=Path("config/model_approval.yaml"),
         journal=journal,
+        outcome_tracker=outcome_tracker,
     )
     feature_sink = ObserveOnlyFeatureSink(prediction_sink=loader)
-    return feature_sink, loader
+    return feature_sink, loader, outcome_tracker
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +214,7 @@ async def run_headless_assistant(
     shutdown: object | None = None,
     analysis_feed: object | None = None,
     feature_sink: object | None = None,
+    outcome_tracker: object | None = None,
 ) -> None:
     """Run the receiver/recorder/controller service until interrupted.
 
@@ -263,6 +278,12 @@ async def run_headless_assistant(
     if feature_sink is not None:
         feed.add_sink(feature_sink.ingest)
         feed.add_gap_sink(feature_sink.notify_causality_gap)
+    if outcome_tracker is not None:
+        # Every subsequent event's price is checked for resolution - not just
+        # the sparser feature-sampling cadence - so outcomes resolve at the
+        # same fidelity offline training labels use.
+        feed.add_sink(outcome_tracker.observe_market)
+        feed.add_gap_sink(outcome_tracker.notify_causality_gap)
     if paper_engine is not None:
         feed.add_sink(lambda event, state: paper_engine.ingest(event, state))
         feed.add_gap_sink(paper_engine.notify_causality_gap)
@@ -281,6 +302,11 @@ async def run_headless_assistant(
             paper_engine.bind_session(recorder.session_id, recorder.symbol or "MNQ")
         if feature_sink is not None:
             feature_sink.bind_session(recorder.session_id)
+        if outcome_tracker is not None:
+            # Any prediction still open from the prior session is flushed as
+            # session_end_unresolved (dropped, never guessed) rather than
+            # resolved against a new session's unrelated prices.
+            outcome_tracker.bind_session(recorder.session_id)
         # events_prevalidated: everything reaching this pipeline came out of
         # parse_stream_message; re-validating per event in the writer thread
         # (a JSON round-trip each) made the writer the throughput ceiling.
@@ -291,6 +317,8 @@ async def run_headless_assistant(
             paper_engine.notify_causality_gap(skipped)
         if feature_sink is not None:
             feature_sink.notify_causality_gap(skipped)
+        if outcome_tracker is not None:
+            outcome_tracker.notify_causality_gap(skipped)
 
     def _pipelined_recorder() -> MarketSessionRecorder:
         # A session invalidated by data loss must not keep swallowing clean
@@ -310,7 +338,7 @@ async def run_headless_assistant(
             ),
             on_damage=(
                 _analysis_damage
-                if paper_engine is not None or feature_sink is not None
+                if paper_engine is not None or feature_sink is not None or outcome_tracker is not None
                 else None
             ),
         )
@@ -519,8 +547,14 @@ def run_assistant(config: AssistantConfig) -> int:
     from app.paper.streaming_engine import DelayedPaperEngine
     from app.paper.options import (read_momentum_enabled, read_strategy_profile,
                                     read_instrument, read_stop_settings,
-                                    read_daily_limits)
+                                    read_daily_limits, read_ml_decision_policy_enabled,
+                                    read_fixed_sizing)
     from app.research.episode_builder import EpisodeConfig
+
+    # Built BEFORE the paper engine so the engine can be given a reference to
+    # the same model loader whose shadow scores it may (if the policy is
+    # enabled) consult - see DelayedPaperEngine's model_loader parameter.
+    feature_sink, model_loader, outcome_tracker = _build_feature_and_model_sinks(config)
 
     # Automatic by construction: the engine is created at startup and fed by the
     # receiver. No button, no finalized session, no user action required.
@@ -529,9 +563,14 @@ def run_assistant(config: AssistantConfig) -> int:
             momentum_enabled=read_momentum_enabled(Path("config/production_config.yaml")),
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
             instrument=read_instrument(Path("config/production_config.yaml")),
+            ml_decision_policy_enabled=read_ml_decision_policy_enabled(
+                Path("config/production_config.yaml"),
+            ),
             **read_stop_settings(Path("config/production_config.yaml")),
             **read_daily_limits(Path("config/production_config.yaml")),
+            **read_fixed_sizing(Path("config/production_config.yaml")),
         ),
+        model_loader=model_loader,
     )
     # Every closed simulated trade is appended to the durable ledger. Opening an
     # existing ledger continues it - a prior run's trades are never overwritten.
@@ -545,12 +584,12 @@ def run_assistant(config: AssistantConfig) -> int:
     research_service = _build_research_service(config, controller, pipeline_holder)
 
     if not config.gui:
-        feature_sink, _model_loader = _build_feature_and_model_sinks(config)
         try:
             asyncio.run(run_headless_assistant(
                 config, controller, status_holder=status_holder,
                 research_service=research_service, pipeline_holder=pipeline_holder,
                 paper_engine_holder=paper_engine, feature_sink=feature_sink,
+                outcome_tracker=outcome_tracker,
             ))
         except KeyboardInterrupt:
             controller.stop()
@@ -568,11 +607,10 @@ def run_assistant(config: AssistantConfig) -> int:
             pipeline_holder.worst_queue_occupancy_fraction() > 0.25
         ),
     )
-    feature_sink, model_loader = _build_feature_and_model_sinks(config)
     receiver_thread = threading.Thread(
         target=_run_receiver_thread,
         args=(config, controller, status_holder, research_service, pipeline_holder,
-              paper_engine, shutdown, analysis_feed, feature_sink),
+              paper_engine, shutdown, analysis_feed, feature_sink, outcome_tracker),
         name="mnq-assistant-receiver",
         daemon=True,
     )
@@ -582,6 +620,7 @@ def run_assistant(config: AssistantConfig) -> int:
             controller, status_holder, research_service, pipeline_holder,
             paper_engine, analysis_feed, feature_sink=feature_sink,
             models_root=config.models_root, model_loader=model_loader,
+            outcome_tracker=outcome_tracker,
         )
     finally:
         # The window is gone; drain capture instead of letting process exit kill
@@ -669,6 +708,7 @@ def _run_receiver_thread(
     shutdown: object | None = None,
     analysis_feed: object | None = None,
     feature_sink: object | None = None,
+    outcome_tracker: object | None = None,
 ) -> None:
     try:
         asyncio.run(run_headless_assistant(
@@ -676,6 +716,7 @@ def _run_receiver_thread(
             research_service=research_service, pipeline_holder=pipeline_holder,
             paper_engine_holder=paper_engine, shutdown=shutdown,
             analysis_feed=analysis_feed, feature_sink=feature_sink,
+            outcome_tracker=outcome_tracker,
         ))
     except Exception as error:  # pragma: no cover - defensive service boundary
         controller.health.record_event("receiver", "failed", str(error))
@@ -696,6 +737,7 @@ def _run_gui(
     execution_commander: object | None = None,
     models_root: Path = Path("data/models"),
     model_loader: object | None = None,
+    outcome_tracker: object | None = None,
 ) -> int:
     try:
         from PySide6.QtWidgets import QApplication
@@ -723,6 +765,7 @@ def _run_gui(
             feature_sink=feature_sink,
             models_root=models_root,
             model_loader=model_loader,
+            outcome_tracker=outcome_tracker,
         ),
         execution_commander=execution_commander,
     )

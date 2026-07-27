@@ -3,6 +3,10 @@
 One QSS string applied to the main window. Colors follow a slate/blue
 terminal palette: dark panels, cyan group titles, blue primary buttons,
 green/red reserved strictly for accepted/rejected decision states.
+
+NOTE: This module is being migrated to design_tokens.py for the new premium
+glass morphism aesthetic. DASHBOARD_DARK and DASHBOARD_LIGHT themes are the
+current active stylesheets; APP_STYLESHEET is legacy.
 """
 
 APP_STYLESHEET = """

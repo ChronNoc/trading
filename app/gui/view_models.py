@@ -378,6 +378,40 @@ class ModelSnapshot:
     decision_impact: str = "none"
     shadow_loader_state: str = "UNLOADED"
     shadow_loader_reason: str = "observe-only model loader is not attached"
+    # ML-004: outcome journal coverage — real prediction->outcome join state,
+    # not a forecast. UNAVAILABLE means no outcome tracker is attached at all.
+    outcome_tracker_state: str = "UNAVAILABLE"
+    outcome_predictions_registered: int = 0
+    outcome_resolved: int = 0
+    outcome_resolved_target: int = 0
+    outcome_resolved_stop: int = 0
+    outcome_resolved_timeout: int = 0
+    outcome_dropped_unresolved: int = 0
+    outcome_dropped_overflow: int = 0
+    outcome_gap_tainted_resolutions: int = 0
+    outcome_pending: int = 0
+
+    @property
+    def outcome_coverage_fraction(self) -> float:
+        """Resolved-or-dropped fraction of every registered prediction. 0 with none registered."""
+        if self.outcome_predictions_registered <= 0:
+            return 0.0
+        settled = self.outcome_resolved + self.outcome_dropped_unresolved + self.outcome_dropped_overflow
+        return min(1.0, settled / self.outcome_predictions_registered)
+
+    @property
+    def abstention_rate(self) -> float:
+        """Share of settled outcomes dropped unresolved rather than causally labeled.
+
+        A real abstention-quality signal: a loader stuck NOT_APPROVED/INVALID
+        never predicts at all (zero registered, zero abstention by this
+        measure) which is a DIFFERENT failure mode from a loader that scores
+        constantly but whose predictions never resolve before session end.
+        """
+        settled = self.outcome_resolved + self.outcome_dropped_unresolved + self.outcome_dropped_overflow
+        if settled <= 0:
+            return 0.0
+        return (self.outcome_dropped_unresolved + self.outcome_dropped_overflow) / settled
 
 
 @dataclass(frozen=True, slots=True)

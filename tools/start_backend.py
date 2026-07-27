@@ -60,9 +60,15 @@ def run_backend(
     from app.market.receiver import get_current_market_state
     from app.paper.ledger import PaperLedger
     from app.paper.streaming_engine import DelayedPaperEngine
-    from app.paper.options import (read_momentum_enabled, read_strategy_profile,
-                                    read_instrument, read_stop_settings,
-                                    read_daily_limits)
+    from app.paper.options import (
+        read_daily_limits,
+        read_fixed_sizing,
+        read_instrument,
+        read_ml_decision_policy_enabled,
+        read_momentum_enabled,
+        read_stop_settings,
+        read_strategy_profile,
+    )
     from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
@@ -71,6 +77,7 @@ def run_backend(
     from app.runtime.shutdown import ShutdownSignal
     from tools.start_assistant import (
         AssistantConfig,
+        _build_feature_and_model_sinks,
         _build_research_service,
         _run_receiver_thread,
         _shutdown_receiver,
@@ -127,14 +134,23 @@ def run_backend(
     )
     status_holder = ReceiverStatusHolder()
     pipeline_holder = PipelineStateHolder()
+    # Detached/default GUI mode must use the exact same shared loader graph as
+    # in-process startup: feature scoring, paper veto policy, outcomes, and GUI
+    # status all observe one instance rather than disconnected stand-ins.
+    feature_sink, model_loader, outcome_tracker = _build_feature_and_model_sinks(config)
     paper_engine = DelayedPaperEngine(
         config=EpisodeConfig(
             momentum_enabled=read_momentum_enabled(Path("config/production_config.yaml")),
+            ml_decision_policy_enabled=read_ml_decision_policy_enabled(
+                Path("config/production_config.yaml"),
+            ),
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
             instrument=read_instrument(Path("config/production_config.yaml")),
             **read_stop_settings(Path("config/production_config.yaml")),
             **read_daily_limits(Path("config/production_config.yaml")),
+            **read_fixed_sizing(Path("config/production_config.yaml")),
         ),
+        model_loader=model_loader,
     )
     paper_ledger = PaperLedger(config.paper_ledger_path)
     paper_engine.on_trade_closed(paper_ledger.append)
@@ -148,13 +164,10 @@ def run_backend(
     feed = AnalysisFeed(
         pressure_check=lambda: pipeline_holder.worst_queue_occupancy_fraction() > 0.25,
     )
-    from app.machine_learning.feature_contract import ObserveOnlyFeatureSink
-
-    feature_sink = ObserveOnlyFeatureSink()
     receiver = threading.Thread(
         target=_run_receiver_thread,
         args=(config, controller, status_holder, research_service, pipeline_holder,
-              paper_engine, shutdown, feed, feature_sink),
+              paper_engine, shutdown, feed, feature_sink, outcome_tracker),
         name="mnq-backend-receiver", daemon=True,
     )
     receiver.start()
@@ -183,6 +196,7 @@ def run_backend(
         market_state=get_current_market_state, paper_engine=paper_engine,
         analysis_feed=feed, feature_sink=feature_sink, demo_service=demo_service,
         models_root=config.models_root,
+        model_loader=model_loader, outcome_tracker=outcome_tracker,
     )
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)

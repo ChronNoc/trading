@@ -174,8 +174,10 @@ async def start_receiver_websocket_server(
         try:
             for control_event in initial_control_events:
                 event = _fresh_control_event(control_event)
-                recorder.record_control_event(event)
+                # Enrich and validate connected handshakes before persistence so
+                # the immutable manifest records the accepted provenance.
                 _guarded_control_event(event)
+                recorder.record_control_event(event)
             await consume_market_stream(
                 intake,
                 recorder=recorder,

@@ -314,6 +314,57 @@ def test_receiver_records_java_control_events_without_market_state_mutation(tmp_
     assert recorder.dropped_message_count == 1
 
 
+def test_control_event_callback_can_enrich_event_before_recorder_persists_it(
+    tmp_path: Path,
+) -> None:
+    """A handshake-validation callback mutating a control event must reach the recorder.
+
+    ``tools/start_receiver.py`` validates the Java bridge handshake inside its
+    ``on_control_event`` callback and stamps ``handshake_accepted``/
+    ``connection_boundary`` onto the event dict in place *after* deciding the
+    bridge is compatible. If the recorder observed the event before that
+    callback ran, every real session would be recorded with
+    ``handshake_accepted=False`` regardless of what the callback approved -
+    the exact bug this test guards against.
+    """
+    timestamp_ns = 1_783_689_600 * 1_000_000_000
+    messages = [
+        json_payload(
+            {
+                "type": "connected",
+                "timestamp_ns": timestamp_ns,
+                "session_id": "session_test",
+                "protocol_version": "1.2",
+                "provider": "bookmap",
+                "stream_id": "stream-test",
+                "connection_id": "connection-test",
+                "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+            },
+        ),
+    ]
+
+    from app.database.recorder import MarketSessionRecorder
+
+    recorder = MarketSessionRecorder(root_dir=tmp_path)
+
+    def _enrich(event: dict[str, object]) -> None:
+        # Simulate the real handshake-acceptance callback: it decides the
+        # bridge is compatible only after inspecting the event, then mutates
+        # the same dict in place before recording happens.
+        event["handshake_accepted"] = True
+        event["connection_boundary"] = "initial"
+
+    asyncio.run(
+        consume_market_stream(
+            MockWebSocketClient(messages),
+            recorder=recorder,
+            on_control_event=_enrich,
+        ),
+    )
+
+    assert recorder.handshake_accepted is True
+
+
 def test_receiver_invokes_market_and_control_callbacks() -> None:
     """The receiver can feed the automatic runtime while preserving normal recording behavior."""
     messages = [

@@ -18,6 +18,67 @@ from app.database.recorder import (
 from bookmap_addon.events import format_depth_update, format_trade
 
 
+def test_accepted_handshake_evidence_is_monotonic_within_session(
+    tmp_path: Path,
+) -> None:
+    """An incomplete reconnect cannot erase an earlier accepted handshake."""
+    recorder = MarketSessionRecorder(root_dir=tmp_path)
+    recorder.record_control_event({
+        "type": "connected",
+        "timestamp_ns": 1,
+        "protocol_version": "1.2",
+        "provider": "pytest",
+        "stream_id": "stream-one",
+        "connection_id": "connection-one",
+        "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+        "handshake_accepted": True,
+    })
+    recorder.record_control_event({
+        "type": "connected",
+        "timestamp_ns": 2,
+        "connection_boundary": "reconnect",
+        "connection_id": "connection-two",
+    })
+
+    assert recorder.handshake_accepted is True
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    provenance = manifest["bridge_provenance"]
+    assert provenance["handshake_accepted"] is True
+    assert provenance["protocol_version"] == "1.2"
+    assert provenance["provider"] == "pytest"
+    assert provenance["declared_capabilities"] == [
+        "aggregated_depth",
+        "aggressor_side",
+        "source_timestamps",
+        "trades",
+    ]
+
+
+def test_missing_handshake_evidence_remains_unaccepted(tmp_path: Path) -> None:
+    """Connected events without explicit acceptance never fabricate evidence."""
+    recorder = MarketSessionRecorder(root_dir=tmp_path)
+    recorder.record_control_event({
+        "type": "connected",
+        "timestamp_ns": 1,
+        "connection_id": "connection-one",
+    })
+    recorder.record_control_event({
+        "type": "connected",
+        "timestamp_ns": 2,
+        "connection_boundary": "reconnect",
+        "connection_id": "connection-two",
+        "handshake_accepted": False,
+    })
+
+    assert recorder.handshake_accepted is False
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    provenance = manifest["bridge_provenance"]
+    assert provenance["handshake_accepted"] is False
+    assert provenance["protocol_version"] is None
+    assert provenance["provider"] is None
+    assert provenance["declared_capabilities"] == []
+
+
 def test_recorder_writes_trades_and_depth_to_date_partitions(tmp_path: Path) -> None:
     """Raw trades and depth updates are written to their date-partitioned Parquet files."""
     timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)

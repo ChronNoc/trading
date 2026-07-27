@@ -1,4 +1,4 @@
-"""Observe-only shadow model loader safety contract (ML-003).
+"""Exact-approval shadow model loader safety contract (ML-003).
 
 Mirrors tests/test_feature_observer.py in structure: activation is gated
 strictly on exact ID+SHA approval, scoring never propagates an exception,
@@ -12,6 +12,8 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from app.machine_learning.feature_contract import (
     CausalFeaturePipeline,
@@ -30,7 +32,11 @@ from app.machine_learning.registry import ModelRegistryRecord
 from tests.test_model_registry import _evidence, _record
 
 
-def _fitted_evidence(models_root: Path) -> ModelRegistryRecord:
+def _fitted_evidence(
+    models_root: Path,
+    *,
+    include_fold_boundaries: bool = True,
+) -> ModelRegistryRecord:
     """Like tests.test_model_registry._evidence, but the model is actually fit.
 
     The registry fixture's model is a bare, unfitted LogisticRegression()
@@ -91,13 +97,15 @@ def _fitted_evidence(models_root: Path) -> ModelRegistryRecord:
         "brier_score": 0.21,
         "beats_baseline": True,
     }
+    if include_fold_boundaries:
+        validation["fold_boundaries"] = [{"test_day": "2026-07-24"}]
     bundle_core: dict[str, object] = {
         "dataset_id": dataset_id,
         "dataset_sha256": dataset_sha,
         "model_sha256": model_sha,
         "model_type": "logistic_regression",
         "model_version": "0.1.0",
-        "feature_contract_version": "shared-causal-market-features-v2",
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "feature_contract_sha256": "c" * 64,
         "validation": validation,
         "runtime_loaded": False,
@@ -214,11 +222,14 @@ def test_registered_but_unapproved_challenger_never_scores(tmp_path: Path) -> No
     assert loader.snapshot().shadow_predictions == 0
 
 
-def test_exact_approval_activates_scoring_and_journals_with_no_decision_impact(tmp_path: Path) -> None:
+def test_exact_approval_scores_and_preserves_legacy_direct_impact_marker(tmp_path: Path) -> None:
     artifact_id, artifact_sha = _approved(tmp_path)
     journal = PredictionJournal(tmp_path / "journal.jsonl")
     loader = ObserveOnlyModelLoader(
-        models_root=tmp_path, model_approval_path=tmp_path / "model_approval.yaml", journal=journal,
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 7, 24, tzinfo=UTC).date(),
     )
     snapshot = loader.snapshot()
     assert snapshot.state == "SCORING"
@@ -240,6 +251,110 @@ def test_exact_approval_activates_scoring_and_journals_with_no_decision_impact(t
     assert records["direction"] == "long"
     assert records["decision_impact"] == "none"
     assert isinstance(records["success_probability"], float)
+
+
+def test_stale_exact_approval_unloads_and_never_scores(tmp_path: Path) -> None:
+    artifact_id, artifact_sha = _approved(tmp_path)
+    journal = PredictionJournal(tmp_path / "journal.jsonl")
+    loader = ObserveOnlyModelLoader(
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 8, 24, tzinfo=UTC).date(),
+    )
+
+    snapshot = loader.snapshot()
+    assert snapshot.state == "STALE"
+    assert snapshot.artifact_id == ""
+    assert snapshot.artifact_sha256 == ""
+    assert "30 days" in snapshot.reason
+    assert artifact_id not in snapshot.reason
+    assert artifact_sha not in snapshot.reason
+
+    loader.score(
+        _one_feature_vector(),
+        session_id="session-one",
+        timestamp_ns=123,
+        direction="long",
+    )
+    assert journal.count == 0
+
+
+def test_refresh_unloads_artifact_when_immutable_evidence_becomes_stale(tmp_path: Path) -> None:
+    artifact_id, _ = _approved(tmp_path)
+    as_of = datetime(2026, 8, 23, tzinfo=UTC).date()
+    loader = ObserveOnlyModelLoader(
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=PredictionJournal(tmp_path / "journal.jsonl"),
+        current_date_provider=lambda: as_of,
+    )
+    assert loader.snapshot().state == "SCORING"
+    assert loader.snapshot().artifact_id == artifact_id
+
+    as_of = datetime(2026, 8, 24, tzinfo=UTC).date()
+    loader.refresh()
+
+    snapshot = loader.snapshot()
+    assert snapshot.state == "STALE"
+    assert snapshot.artifact_id == ""
+    assert loader.last_probability("long") is None
+
+
+def test_missing_staleness_evidence_is_invalid_and_never_scores(tmp_path: Path) -> None:
+    record = _fitted_evidence(tmp_path, include_fold_boundaries=False)
+    register_challenger(tmp_path, record)
+    approval_path = tmp_path / "model_approval.yaml"
+    approval_path.write_text(
+        "schema_version: 1\n"
+        f"approved_artifact_id: {record.artifact_id}\n"
+        f"approved_sha256: {record.artifact_sha256}\n"
+        "runtime_loading_enabled: false\n"
+        "shadow_scoring_enabled: false\n",
+        encoding="utf-8",
+    )
+    journal = PredictionJournal(tmp_path / "journal.jsonl")
+    loader = ObserveOnlyModelLoader(
+        models_root=tmp_path,
+        model_approval_path=approval_path,
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 7, 24, tzinfo=UTC).date(),
+    )
+
+    snapshot = loader.snapshot()
+    assert snapshot.state == "INVALID"
+    assert "fold boundaries" in snapshot.reason
+    loader.score(
+        _one_feature_vector(),
+        session_id="session-one",
+        timestamp_ns=123,
+        direction="long",
+    )
+    assert journal.count == 0
+
+
+def test_negative_maximum_artifact_age_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        ObserveOnlyModelLoader(
+            models_root=tmp_path,
+            model_approval_path=tmp_path / "missing.yaml",
+            journal=PredictionJournal(tmp_path / "journal.jsonl"),
+            max_artifact_age_days=-1,
+        )
+
+
+def test_invalid_current_date_provider_fails_closed(tmp_path: Path) -> None:
+    _approved(tmp_path)
+    loader = ObserveOnlyModelLoader(
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=PredictionJournal(tmp_path / "journal.jsonl"),
+        current_date_provider=lambda: "2026-07-24",  # type: ignore[return-value]
+    )
+
+    snapshot = loader.snapshot()
+    assert snapshot.state == "INVALID"
+    assert "current_date_provider must return datetime.date" in snapshot.reason
 
 
 def test_runtime_loading_and_shadow_scoring_flags_remain_rejected(tmp_path: Path) -> None:
@@ -269,7 +384,10 @@ def test_tampered_artifact_bytes_report_load_failed_and_never_raise(tmp_path: Pa
 
     journal = PredictionJournal(tmp_path / "journal.jsonl")
     loader = ObserveOnlyModelLoader(
-        models_root=tmp_path, model_approval_path=tmp_path / "model_approval.yaml", journal=journal,
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 7, 24, tzinfo=UTC).date(),
     )
     snapshot = loader.snapshot()
     assert snapshot.state in {"LOAD_FAILED", "INVALID"}
@@ -283,7 +401,10 @@ def test_scoring_exception_is_caught_counted_and_never_propagates(tmp_path: Path
     _approved(tmp_path)
     journal = PredictionJournal(tmp_path / "journal.jsonl")
     loader = ObserveOnlyModelLoader(
-        models_root=tmp_path, model_approval_path=tmp_path / "model_approval.yaml", journal=journal,
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 7, 24, tzinfo=UTC).date(),
     )
     assert loader.snapshot().state == "SCORING"
 
@@ -339,7 +460,10 @@ def test_feature_sink_forwards_vectors_to_attached_loader(tmp_path: Path) -> Non
     _approved(tmp_path)
     journal = PredictionJournal(tmp_path / "journal.jsonl")
     loader = ObserveOnlyModelLoader(
-        models_root=tmp_path, model_approval_path=tmp_path / "model_approval.yaml", journal=journal,
+        models_root=tmp_path,
+        model_approval_path=tmp_path / "model_approval.yaml",
+        journal=journal,
+        current_date_provider=lambda: datetime(2026, 7, 24, tzinfo=UTC).date(),
     )
     sink = ObserveOnlyFeatureSink(config=_config(), prediction_sink=loader)
     sink.bind_session("session-one")

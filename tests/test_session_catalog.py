@@ -65,6 +65,29 @@ def test_active_session_is_skipped_never_opened(tmp_path: Path) -> None:
     assert any("active recording" in r for r in entry.reasons)
 
 
+def test_malformed_and_non_object_manifests_remain_visible_and_fail_closed(tmp_path: Path) -> None:
+    """Every discovered manifest is counted even when its JSON is unusable."""
+    malformed = tmp_path / "2026-07-15" / "session_malformed" / "session_manifest.json"
+    non_object = tmp_path / "2026-07-15" / "session_list" / "session_manifest.json"
+    malformed.parent.mkdir(parents=True)
+    non_object.parent.mkdir(parents=True)
+    malformed.write_text("{truncated", encoding="utf-8")
+    non_object.write_text("[]", encoding="utf-8")
+
+    entries = build_catalog(tmp_path)
+
+    assert len(entries) == 2
+    by_id = {entry.session_id: entry for entry in entries}
+    assert by_id["session_malformed"].model_training_reasons == (
+        "manifest unreadable: active or truncated",
+    )
+    assert by_id["session_list"].model_training_reasons == (
+        "manifest invalid: top-level JSON value must be an object",
+    )
+    assert all(not entry.eligible_for_analysis for entry in entries)
+    assert all(not entry.eligible_for_model_training for entry in entries)
+
+
 def test_build_catalog_and_report_over_a_tree(tmp_path: Path) -> None:
     """build_catalog scans manifests and the report summarizes eligibility."""
     _write(tmp_path / "2026-07-15" / "session_a", {
@@ -85,6 +108,37 @@ def test_build_catalog_and_report_over_a_tree(tmp_path: Path) -> None:
     assert report["synthetic"] == 1
     assert report["eligible_for_analysis"] == 1
     assert report["valid_for_live_decisions"] == 0
+
+
+def test_eligibility_report_includes_deterministic_model_training_exclusions() -> None:
+    """Model-training observability is stable and does not weaken eligibility."""
+    clean = classify_manifest(
+        _manifest(session_id="session_clean"),
+        Path("session_clean/session_manifest.json"),
+    )
+    legacy = classify_manifest(
+        _manifest(session_id="session_legacy", bridge_provenance={}, storage={}),
+        Path("session_legacy/session_manifest.json"),
+    )
+    active = classify_manifest(
+        _manifest(session_id="session_active", utc_end=None),
+        Path("session_active/session_manifest.json"),
+    )
+
+    forward = eligibility_report((clean, legacy, active))
+    reverse = eligibility_report((active, legacy, clean))
+
+    assert forward == reverse
+    assert forward["eligible_for_model_training"] == 1
+    assert forward["model_training_exclusion_reasons"] == dict(sorted(
+        forward["model_training_exclusion_reasons"].items(),
+    ))
+    exclusions = forward["model_training_exclusion_reasons"]
+    assert exclusions["accepted bridge handshake provenance is missing"] == 1
+    assert exclusions["active recording: skip until finalized"] == 1
+    assert exclusions["closed storage provenance is missing"] == 2
+    assert legacy.eligible_for_model_training is False
+    assert active.eligible_for_model_training is False
 
 
 def test_feed_quality_gap_blocks_strategy_replay_but_remains_catalogued(tmp_path: Path) -> None:
@@ -143,6 +197,22 @@ def test_clean_protocol_12_manifest_is_model_training_eligible(tmp_path: Path) -
     entry = classify_manifest(_manifest(), tmp_path / "session_manifest.json")
     assert entry.eligible_for_model_training is True
     assert entry.model_training_reasons == ()
+
+
+def test_legacy_manifest_stays_model_training_ineligible_after_reporting_upgrade() -> None:
+    """Observability cannot retrofit missing historical provenance."""
+    entry = classify_manifest(
+        _manifest(bridge_provenance={}, storage={}),
+        Path("legacy/session_manifest.json"),
+    )
+
+    report = eligibility_report((entry,))
+
+    assert entry.eligible_for_model_training is False
+    assert report["eligible_for_model_training"] == 0
+    assert report["model_training_exclusion_reasons"][
+        "accepted bridge handshake provenance is missing"
+    ] == 1
 
 
 def test_old_protocol_and_missing_provider_fail_closed_for_model_training(tmp_path: Path) -> None:
