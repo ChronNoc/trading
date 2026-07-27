@@ -61,3 +61,7 @@ v/
 # history far beyond the ~65KB precedent for this file type.
 data/processed/session_20260721T131608Z.decisions.jsonl
 data/processed/session_20260723T134503Z.decisions.jsonl
+
+
+# Graphify architecture graph cache and generated output (regenerate: graphify update .)
+graphify-out/
