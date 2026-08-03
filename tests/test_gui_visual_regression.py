@@ -62,7 +62,7 @@ def test_gui_baseline_inventory_is_exact() -> None:
     actual_names = {path.name for path in BASELINE_DIR.glob("*.png")}
 
     assert actual_names == EXPECTED_FIXTURE_NAMES
-    assert len(actual_names) == 24
+    assert len(actual_names) == 30  # 10 screens (8 original + 2 GOAL C) x 3 states
 
 
 @pytest.mark.parametrize(

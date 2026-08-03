@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -16,6 +16,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.autonomous_view import (
+    DEFAULT_REPORTS_ROOT,
+    DEFAULT_STORE_ROOT,
+    AutonomousSnapshot,
+    read_autonomous_snapshot,
+)
 from app.gui.charts import AggressorBar, ChartPanel, HistoryChart
 from app.gui.view_models import AppSnapshot, Capability, Health
 from app.gui.widgets import (
@@ -36,9 +42,12 @@ RESEARCH_HEALTH = "Research and Model Health"
 RISK_LUCID = "Risk and Lucid Account"
 EXECUTION = "Execution"
 DIAGNOSTICS = "Diagnostics and Settings"
+AUTONOMOUS = "Autonomous Intelligence"
+REPORTS = "Reports"
 SCREEN_ORDER = (
     OVERVIEW, LIVE_ORDER_FLOW, PAPER_TRADING, SESSIONS_REPLAY,
     RESEARCH_HEALTH, RISK_LUCID, EXECUTION, DIAGNOSTICS,
+    AUTONOMOUS, REPORTS,
 )
 
 _HEALTH_TEXT = {
@@ -499,6 +508,227 @@ class DiagnosticsScreen(DashboardScreen):
         self.set_summary([f"Lifecycle: {snapshot.lifecycle_state}", f"Intake queue: {capture.intake_occupancy}/{capture.intake_capacity}", f"Recorder queue: {capture.recorder_occupancy}/{capture.recorder_capacity}", f"Recorder flush latency: {capture.flush_latency_ms:.2f} ms", f"Persisted/s: {capture.persisted_per_second:,.0f}", "", "Analysis feed (conservation — every event accounted):", f"  offered {capture.analysis_offered:,}   processed {capture.analysis_processed:,}   skipped {capture.analysis_skipped:,} (paper-only)", f"  pipeline lag {lag} (excludes the intentional source delay)", "", "Components:", *[f"  • {component.name}: {_HEALTH_TEXT[component.health]} — {component.detail}" for component in snapshot.components]])
 
 
+class _AutonomousReader(QObject):
+    """Reads autonomous state + reports OFF the Qt thread and signals the view.
+
+    File I/O runs on a global thread-pool worker; the immutable
+    ``AutonomousSnapshot`` is delivered to the GUI thread via a queued signal.
+    Never blocks capture or the paint loop.
+    """
+
+    ready = Signal(object)
+
+    def __init__(self, store_root: object, reports_root: object) -> None:
+        super().__init__()
+        self._store_root = store_root
+        self._reports_root = reports_root
+        self._busy = False
+
+    def request(self) -> None:
+        """Schedule one off-thread read unless one is already running."""
+        if self._busy:
+            return
+        self._busy = True
+        QThreadPool.globalInstance().start(_ReadTask(self))
+
+
+class _ReadTask(QRunnable):
+    def __init__(self, reader: "_AutonomousReader") -> None:
+        super().__init__()
+        self._reader = reader
+        # Capture roots now: the reader QObject may be destroyed (screen closed)
+        # before or during this background run.
+        self._store_root = reader._store_root
+        self._reports_root = reader._reports_root
+
+    def run(self) -> None:  # executes on a worker thread
+        view: AutonomousSnapshot | None = None
+        try:
+            view = read_autonomous_snapshot(self._store_root, self._reports_root)
+        except Exception:  # noqa: BLE001 - a bad read must never crash the GUI
+            view = None
+        try:
+            self._reader._busy = False
+            if view is not None:
+                self._reader.ready.emit(view)
+        except RuntimeError:
+            # The reader (and its screen) was deleted while we ran; the queued
+            # signal has nowhere to go. Drop it silently - never crash the GUI.
+            return
+
+
+class AutonomousIntelligenceScreen(DashboardScreen):
+    """Real, read-only view of the governed shadow-only autonomous system."""
+
+    REFRESH_MS = 5000
+
+    def __init__(self, store_root: object = DEFAULT_STORE_ROOT,
+                 reports_root: object = DEFAULT_REPORTS_ROOT) -> None:
+        super().__init__(
+            "screen_autonomous", "Autonomous Intelligence",
+            "Governed, shadow-only candidate research. No autonomous change ever reaches "
+            "runtime, risk, or the broker; LIVE stays locked.")
+        status = Card("Autonomous system status", "autonomous_status_card")
+        self.service = StatTile("Service", "autonomous_service")
+        self.candidates_tile = StatTile("Candidates", "autonomous_candidates")
+        self.completed_tile = StatTile("Completed", "autonomous_completed")
+        self.disk_tile = StatTile("Store size", "autonomous_disk")
+        status.body.addLayout(stat_grid(
+            (self.service, self.candidates_tile, self.completed_tile, self.disk_tile), 4))
+        self.safety = StatusBadge("SHADOW-ONLY · LIVE LOCKED", "autonomous_safety", "locked")
+        status.body.addWidget(self.safety)
+        self.note = _value("autonomous_note")
+        self.note.setWordWrap(True)
+        status.body.addWidget(self.note)
+        self.content_layout.addWidget(status)
+
+        board = Card("Governed task board (candidate lifecycle)", "autonomous_board_card")
+        self.board_table = EvidenceTable(("Lifecycle state", "Candidates"), "autonomous_board_table")
+        board.body.addWidget(self.board_table)
+        self.content_layout.addWidget(board)
+
+        candidates = Card("Candidate proposals · shadow-only, no runtime effect",
+                          "autonomous_candidates_card")
+        self.candidates_table = EvidenceTable(
+            ("ID", "Kind", "State", "Hypothesis", "Attempts", "Last error"),
+            "autonomous_candidates_table")
+        candidates.body.addWidget(self.candidates_table)
+        self.content_layout.addWidget(candidates)
+
+        timeline = Card("Autonomous activity timeline", "autonomous_timeline_card")
+        self.timeline_table = EvidenceTable(("When", "Event", "Detail"), "autonomous_timeline_table")
+        timeline.body.addWidget(self.timeline_table)
+        self.content_layout.addWidget(timeline)
+
+        self._reader = _AutonomousReader(store_root, reports_root)
+        self._reader.ready.connect(self.apply_view)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._reader.request)
+        # Deterministic empty state on construction; the timer loads real data.
+        self.apply_view(AutonomousSnapshot(
+            False, False, 0, 0, note="Autonomous intelligence has not reported yet."))
+
+    def showEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)  # type: ignore[arg-type]
+        # Drive reads only from the timer (interval > 0). It cannot fire during a
+        # single synchronous processEvents(), so offscreen captures stay
+        # deterministic while the live app refreshes off-thread.
+        self._timer.start(self.REFRESH_MS)
+
+    def hideEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        self._timer.stop()
+        super().hideEvent(event)  # type: ignore[arg-type]
+
+    def render(self, snapshot: AppSnapshot) -> None:
+        """Autonomous content is loaded off-thread on a timer; nothing per-frame."""
+        return None
+
+    def apply_view(self, view: AutonomousSnapshot) -> None:
+        """Update widgets from an immutable autonomous snapshot (Qt thread, no I/O)."""
+        self.service.set_value("RUNNING" if view.service_running else "IDLE",
+                               "shadow-only orchestration" if view.service_running
+                               else "not running")
+        self.candidates_tile.set_value(str(view.candidate_count), "tracked")
+        self.completed_tile.set_value(str(view.completed_count), "checkpointed")
+        self.disk_tile.set_value(f"{view.disk_bytes / 1024:.0f} KB" if view.disk_bytes else "0 KB",
+                                 "append-only evidence")
+        self.note.setText(view.note)
+        self.board_table.set_rows(tuple(
+            (state, str(count)) for state, count in view.counts_by_state.items())
+            or (("no candidates proposed yet", "0"),))
+        self.candidates_table.set_rows(tuple(
+            (c.candidate_id, c.kind, c.state, c.hypothesis[:60], str(c.attempts), c.last_error[:40])
+            for c in view.candidates) or (("—", "—", "—", "no candidates yet", "—", "—"),))
+        self.timeline_table.set_rows(tuple(
+            (e.when, e.event, e.detail) for e in view.recent_activity)
+            or (("—", "no activity recorded", "—"),))
+        self.set_summary([
+            f"Autonomous service: {'RUNNING' if view.service_running else 'IDLE'}",
+            f"Candidates: {view.candidate_count}   Completed: {view.completed_count}",
+            "Shadow-only — no runtime authority; LIVE locked.",
+            view.note,
+            "",
+            "Task board:",
+            *[f"  {state}: {count}" for state, count in view.counts_by_state.items()],
+        ])
+
+
+class ReportsScreen(DashboardScreen):
+    """Live index of every generated report, with provenance and covered range."""
+
+    REFRESH_MS = 15000
+    MAX_ROWS = 120
+
+    def __init__(self, store_root: object = DEFAULT_STORE_ROOT,
+                 reports_root: object = DEFAULT_REPORTS_ROOT) -> None:
+        super().__init__(
+            "screen_reports", "Reports",
+            "Every generated report, read live from data/reports. Provenance is labelled; "
+            "reports never state that profitability has been proven.")
+        summary = Card("Report library", "reports_summary_card")
+        self.total_tile = StatTile("Total reports", "reports_total")
+        self.categories_tile = StatTile("Categories", "reports_categories")
+        self.delayed_tile = StatTile("Delayed", "reports_delayed")
+        self.synthetic_tile = StatTile("Synthetic", "reports_synthetic")
+        summary.body.addLayout(stat_grid(
+            (self.total_tile, self.categories_tile, self.delayed_tile, self.synthetic_tile), 4))
+        self.showing = _value("reports_showing")
+        summary.body.addWidget(self.showing)
+        self.content_layout.addWidget(summary)
+
+        table = Card("Reports (newest first)", "reports_table_card")
+        self.table = EvidenceTable(
+            ("Category", "Title", "Covered", "Provenance", "Modified", "Path"), "reports_table")
+        table.body.addWidget(self.table)
+        self.content_layout.addWidget(table)
+
+        self._reader = _AutonomousReader(store_root, reports_root)
+        self._reader.ready.connect(self.apply_view)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._reader.request)
+        # Deterministic empty state on construction; the timer loads real reports.
+        self.apply_view(AutonomousSnapshot(
+            False, False, 0, 0, note="Reports load shortly."))
+
+    def showEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)  # type: ignore[arg-type]
+        # Timer-only refresh keeps offscreen captures deterministic (see the
+        # Autonomous screen) while the live app reads reports off-thread.
+        self._timer.start(self.REFRESH_MS)
+
+    def hideEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        self._timer.stop()
+        super().hideEvent(event)  # type: ignore[arg-type]
+
+    def render(self, snapshot: AppSnapshot) -> None:
+        """Reports are loaded off-thread on a timer; nothing per-frame."""
+        return None
+
+    def apply_view(self, view: AutonomousSnapshot) -> None:
+        reports = view.reports
+        categories = {report.category for report in reports}
+        delayed = sum(1 for report in reports if report.provenance == "DELAYED")
+        synthetic = sum(1 for report in reports if report.provenance == "SYNTHETIC")
+        self.total_tile.set_value(str(len(reports)), "read live from disk")
+        self.categories_tile.set_value(str(len(categories)), "report types")
+        self.delayed_tile.set_value(str(delayed), "delayed-data provenance")
+        self.synthetic_tile.set_value(str(synthetic), "clearly synthetic")
+        shown = reports[:self.MAX_ROWS]
+        self.showing.setText(
+            f"Showing newest {len(shown)} of {len(reports)} reports."
+            if len(reports) > len(shown) else f"Showing all {len(reports)} reports.")
+        self.table.set_rows(tuple(
+            (r.category, r.title, r.covered, r.provenance, r.modified, r.path) for r in shown)
+            or (("—", "no reports found", "—", "—", "—", "—"),))
+        self.set_summary([
+            f"Reports: {len(reports)} across {len(categories)} categories",
+            f"Delayed provenance: {delayed}   Synthetic: {synthetic}",
+            "Reports never state that profitability has been proven.",
+            "",
+            *[f"  [{r.category}] {r.title} ({r.covered}, {r.provenance})" for r in shown[:40]],
+        ])
+
+
 def build_screens() -> dict[str, Screen]:
     """Construct every retained screen keyed by its navigation destination."""
     return {
@@ -506,4 +736,5 @@ def build_screens() -> dict[str, Screen]:
         PAPER_TRADING: PaperTradingScreen(), SESSIONS_REPLAY: SessionsReplayScreen(),
         RESEARCH_HEALTH: ResearchHealthScreen(), RISK_LUCID: RiskLucidScreen(),
         EXECUTION: ExecutionScreen(), DIAGNOSTICS: DiagnosticsScreen(),
+        AUTONOMOUS: AutonomousIntelligenceScreen(), REPORTS: ReportsScreen(),
     }

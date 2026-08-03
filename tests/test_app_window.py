@@ -108,16 +108,22 @@ def window(qtbot: object) -> AppWindow:
     return win
 
 
-def test_sidebar_has_exactly_the_eight_required_destinations(window: AppWindow) -> None:
-    """The redesign replaces 13 crowded tabs with 8 sidebar destinations."""
+def test_sidebar_preserves_the_eight_originals_and_adds_the_autonomy_pages(
+    window: AppWindow,
+) -> None:
+    """The 8 original destinations are preserved in order; GOAL C adds two pages."""
     sidebar = window.findChild(QListWidget, "sidebar")
     assert sidebar is not None
     names = [sidebar.item(i).text() for i in range(sidebar.count())]
-    assert names == [
+    original_eight = [
         "Overview", "Live Order Flow", "Paper Trading", "Sessions and Replay",
         "Research and Model Health", "Risk and Lucid Account", "Execution",
         "Diagnostics and Settings",
     ]
+    # Parity: every original screen still exists, in its original order.
+    assert names[:8] == original_eight
+    # GOAL C: the Autonomous Intelligence page and Reports tab are added.
+    assert names == original_eight + ["Autonomous Intelligence", "Reports"]
 
 
 def test_status_badges_use_consolidated_accessible_styles(window: AppWindow) -> None:
@@ -386,7 +392,9 @@ def test_themes_and_scale_and_reset_layout(window: AppWindow) -> None:
 def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     """Card surfaces and headings must not pin dark colors in light mode."""
     cards = window.findChildren(Card)
-    assert len(cards) == 31
+    # 31 original cards + 6 for the two GOAL C pages (Autonomous Intelligence: 4,
+    # Reports: 2). All built with the same Card widget, so they follow the theme.
+    assert len(cards) == 37
     assert all(card.styleSheet() == "" for card in cards)
     assert all(card.graphicsEffect() is not None for card in cards)
 
@@ -396,7 +404,7 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
         for label in card.findChildren(QLabel)
         if label.property("role") == "section_title"
     ]
-    assert len(headings) == 31
+    assert len(headings) == 37
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")
