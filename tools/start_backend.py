@@ -194,15 +194,16 @@ def run_backend(
 
             _t.sleep(5.0)  # let capture initialise first (capture priority)
             try:
-                from app.research.autonomous_proposer import run_proposer
+                from app.research.autonomous_proposer import run_autonomous_cycle
 
                 revision = __import__("subprocess").run(
                     ["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                     text=True, timeout=10, check=False).stdout.strip() or "unknown"
-                count = run_proposer(now_ns=time.time_ns(), software_revision=revision)
-                logger.info("autonomous proposer: %s new candidate(s) (revision %s)", count, revision)
+                result = run_autonomous_cycle(now_ns=time.time_ns(), software_revision=revision)
+                logger.info("autonomous cycle: %s proposed, %s data-validated (revision %s)",
+                            result["proposed"], result["data_validated"], revision)
             except Exception as error:  # noqa: BLE001 - optional work never crashes the backend
-                logger.warning("autonomous proposer skipped: %s", error)
+                logger.warning("autonomous cycle skipped: %s", error)
 
         threading.Thread(target=_propose_autonomous_candidates,
                          name="mnq-autonomous-proposer", daemon=True).start()

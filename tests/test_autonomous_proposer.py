@@ -86,7 +86,83 @@ def test_config_reader_defaults_false(tmp_path: Path) -> None:
 def test_backend_wires_the_proposer_gated_by_config_and_capture_priority() -> None:
     source = Path("tools/start_backend.py").read_text(encoding="utf-8")
     assert "read_autonomous_enabled" in source, "proposer must be config-gated"
-    assert "run_proposer" in source
+    assert "run_autonomous_cycle" in source
     assert "mnq-autonomous-proposer" in source and "daemon=True" in source
     # Capture priority: the proposer waits for capture to initialise first.
     assert "let capture initialise first" in source
+
+
+# -- DATA_VALIDATED gate -------------------------------------------------------------
+
+
+def _raw_with_sessions(root: Path, count: int) -> Path:
+    for i in range(count):
+        session = root / "2026-08-01" / f"session_{i}"
+        session.mkdir(parents=True)
+        (session / "trades.parquet").write_bytes(b"parquet")
+    return root
+
+
+def test_count_eligible_sessions(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import count_eligible_sessions
+
+    assert count_eligible_sessions(tmp_path / "missing") == 0
+    assert count_eligible_sessions(_raw_with_sessions(tmp_path / "raw", 3)) == 3
+
+
+def test_data_validation_advances_proposed_to_data_validated(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import (
+        advance_data_validation,
+        build_store,
+        run_proposer,
+    )
+
+    store_root = tmp_path / "autonomous"
+    raw = _raw_with_sessions(tmp_path / "raw", 2)
+    run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
+    store = build_store(store_root)
+
+    passed = advance_data_validation(store, raw_root=raw, now_ns=200)
+    assert passed == 3, "each proposed candidate passes data validation"
+    states = {c.state.value for c in store.list_candidates()}
+    assert states == {"DATA_VALIDATED"}
+    # Idempotent: re-running does not re-advance or fail already-validated candidates.
+    assert advance_data_validation(store, raw_root=raw, now_ns=300) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"DATA_VALIDATED"}
+
+
+def test_data_validation_never_touches_a_later_unwired_gate(tmp_path: Path) -> None:
+    """A DATA_VALIDATED candidate must NOT be failed at the unwired OFFLINE_TRAINED."""
+    from app.research.autonomous_proposer import advance_data_validation, build_store, run_proposer
+
+    store_root = tmp_path / "autonomous"
+    raw = _raw_with_sessions(tmp_path / "raw", 1)
+    run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
+    store = build_store(store_root)
+    advance_data_validation(store, raw_root=raw, now_ns=200)
+    advance_data_validation(store, raw_root=raw, now_ns=300)  # second pass
+
+    states = {c.state.value for c in store.list_candidates()}
+    assert "FAILED_REQUIRES_REWORK" not in states, "must not fail at an unwired later gate"
+    assert states == {"DATA_VALIDATED"}
+
+
+def test_data_validation_fails_closed_with_no_recorded_data(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_data_validation, build_store, run_proposer
+
+    store_root = tmp_path / "autonomous"
+    run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
+    store = build_store(store_root)
+    passed = advance_data_validation(store, raw_root=tmp_path / "empty_raw", now_ns=200)
+    assert passed == 0
+    # No usable data -> candidates honestly fail data validation (governed terminal).
+    assert {c.state.value for c in store.list_candidates()} == {"FAILED_REQUIRES_REWORK"}
+
+
+def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import RESEARCH_GRID, run_autonomous_cycle
+
+    result = run_autonomous_cycle(
+        store_root=tmp_path / "autonomous", raw_root=_raw_with_sessions(tmp_path / "raw", 2),
+        now_ns=100, software_revision="rev-a")
+    assert result == {"proposed": len(RESEARCH_GRID), "data_validated": len(RESEARCH_GRID)}

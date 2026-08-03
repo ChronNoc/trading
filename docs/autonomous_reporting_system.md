@@ -60,15 +60,22 @@ yet implemented:
   lists and labels; filtering is a follow-up).
 - Integrity **hashes** per report entry.
 
-The backend now **proposes** shadow-only autonomous candidates
-(`app/research/autonomous_proposer.py`, wired into `start_backend` behind
-`autonomous_enabled`), so the Autonomous Intelligence page shows real
-`PROPOSED` candidates and activity. What is still pending is **gate execution** —
-advancing candidates through the governed lifecycle needs a bounded gate runner
-per gate (data validation, offline training, walk-forward, stability, cost,
-shadow stages). Until those exist, candidates stay honestly in `PROPOSED`
-(the proposer never calls `run_once`, so it never fails them at an unwired
-gate). The Reports page reflects the reports the existing pipeline produces.
+The backend now **proposes** shadow-only autonomous candidates and runs the
+**first governed gate** (`app/research/autonomous_proposer.py`, wired into
+`start_backend` behind `autonomous_enabled`), so the Autonomous Intelligence page
+shows real candidates advancing `PROPOSED → DATA_VALIDATED`, with `gate_passed`
+activity. The `DATA_VALIDATED` gate uses the real gate primitives
+(`evaluate_requirements` + `apply_gate`) and a fenced store lease, checking the
+`eligible_sessions` metric against a preregistered minimum.
+
+Because the service is intentionally *fail-closed* (a candidate whose next gate
+has no runner is failed), gate advancement is done with a **scoped** helper
+(`advance_data_validation`) that only ever processes `PROPOSED` records — so it
+can never fail a candidate at an unwired later gate. The remaining gates
+(offline training, walk-forward, stability, cost, shadow stages) are still
+pending: the offline-training gate will reuse the existing challenger pipeline.
+Until they are wired, candidates rest honestly at `DATA_VALIDATED`. The Reports
+page reflects the reports the existing pipeline produces.
 
 ## Tests
 
