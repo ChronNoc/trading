@@ -270,15 +270,23 @@ def advance_offline_training(
                 gate=CandidateState.OFFLINE_TRAINED, recorded_at_ns=now_ns, metrics=metrics,
                 requirements=requirement,
                 evidence_refs=(f"offline_training:oos_{int(metrics.get('oos_predictions', 0))}",))
-            updated = apply_gate(record, evidence)
-            store.publish(updated, lease=lease)
-            store.append_activity({
-                "event": "gate_passed" if evidence.passed else "gate_failed",
-                "candidate_id": record.candidate_id,
-                "gate": CandidateState.OFFLINE_TRAINED.value,
-                "oos_predictions": int(metrics.get("oos_predictions", 0)),
-                "recorded_at_ns": now_ns})
-            passed += int(evidence.passed)
+            oos = int(metrics.get("oos_predictions", 0))
+            if evidence.passed:
+                store.publish(apply_gate(record, evidence), lease=lease)
+                store.append_activity({
+                    "event": "gate_passed", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.OFFLINE_TRAINED.value,
+                    "oos_predictions": oos, "recorded_at_ns": now_ns})
+                passed += 1
+            else:
+                # Too few out-of-sample predictions means not enough eligible data
+                # yet - NOT a bad candidate. Defer (stay DATA_VALIDATED) so it can
+                # pass once more sessions accumulate; do not fail it for rework.
+                store.append_activity({
+                    "event": "gate_deferred", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.OFFLINE_TRAINED.value,
+                    "reason": evidence.failure_reason, "oos_predictions": oos,
+                    "recorded_at_ns": now_ns})
         finally:
             try:
                 store.release(lease)

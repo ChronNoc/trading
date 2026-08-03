@@ -77,12 +77,28 @@ The **OFFLINE_TRAINED** gate (`advance_offline_training`) is now wired: it train
 a challenger at the candidate's target/stop geometry via the existing challenger
 pipeline (`build_validated_challenger`) and requires the model to have produced
 out-of-sample predictions (`oos_predictions >= 1`). It does NOT require beating
-the baseline — that belongs to a later gate. A training error leaves the
-candidate at `DATA_VALIDATED` to retry (never a false pass). Because training
-rebuilds datasets from raw and is heavy, it is **opt-in** (`autonomous_training_
-enabled`, default off) and bounded to one candidate per cycle so it never
-competes with live capture. The trainer is injected, so the gate logic is fully
-unit-tested without running ML.
+the baseline — that belongs to a later gate. Two conditions leave the candidate
+at `DATA_VALIDATED` to retry rather than failing it (never a false pass, never a
+false failure):
+
+- a **training error** (transient dataset/build problem), and
+- **too few out-of-sample predictions** — this means there is not yet enough
+  model-eligible recorded data to run even one walk-forward fold. That is a data
+  shortage, not a bad candidate, so the candidate is *deferred* (logged as
+  `gate_deferred`) and will pass automatically once enough eligible sessions
+  accumulate. It is never moved to `FAILED_REQUIRES_REWORK` for lack of data.
+
+Because training rebuilds datasets from raw and is heavy, it is **opt-in**
+(`autonomous_training_enabled`, default off) and bounded to one candidate per
+cycle so it never competes with live capture. The trainer is injected, so the
+gate logic is fully unit-tested without running ML.
+
+> **Observed on the current dataset:** with today's small pool of
+> model-eligible sessions, a real challenger train finishes in seconds and
+> yields **0** out-of-sample predictions, so the candidate is honestly
+> *deferred* at `DATA_VALIDATED`. This is the fail-*open*-on-missing-data,
+> fail-*closed*-on-bad-result design working as intended: the loop will not
+> fabricate a trained model it cannot actually evaluate.
 
 The remaining gates (walk-forward, stability, cost, shadow stages) are still
 pending. Until they are wired, candidates rest honestly at `OFFLINE_TRAINED`

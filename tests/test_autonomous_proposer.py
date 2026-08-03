@@ -194,13 +194,19 @@ def test_offline_training_advances_data_validated_to_offline_trained(tmp_path: P
     assert advance_offline_training(store, trainer=lambda c: {"oos_predictions": 120}, now_ns=400) == 0
 
 
-def test_offline_training_fails_closed_without_oos_predictions(tmp_path: Path) -> None:
+def test_offline_training_defers_without_oos_predictions(tmp_path: Path) -> None:
+    import json
+
     from app.research.autonomous_proposer import advance_offline_training
 
     store = _validated_store(tmp_path)
     passed = advance_offline_training(store, trainer=lambda c: {"oos_predictions": 0}, now_ns=300)
     assert passed == 0
-    assert {c.state.value for c in store.list_candidates()} == {"FAILED_REQUIRES_REWORK"}
+    # Insufficient eligible data is NOT a candidate failure - defer, stay DATA_VALIDATED.
+    assert {c.state.value for c in store.list_candidates()} == {"DATA_VALIDATED"}
+    events = {json.loads(line)["event"] for line in
+              (store.activity_path).read_text(encoding="utf-8").splitlines()}
+    assert "gate_deferred" in events and "gate_failed" not in events
 
 
 def test_offline_training_error_is_transient_not_terminal(tmp_path: Path) -> None:
