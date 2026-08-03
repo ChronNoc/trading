@@ -69,13 +69,25 @@ activity. The `DATA_VALIDATED` gate uses the real gate primitives
 `eligible_sessions` metric against a preregistered minimum.
 
 Because the service is intentionally *fail-closed* (a candidate whose next gate
-has no runner is failed), gate advancement is done with a **scoped** helper
-(`advance_data_validation`) that only ever processes `PROPOSED` records — so it
-can never fail a candidate at an unwired later gate. The remaining gates
-(offline training, walk-forward, stability, cost, shadow stages) are still
-pending: the offline-training gate will reuse the existing challenger pipeline.
-Until they are wired, candidates rest honestly at `DATA_VALIDATED`. The Reports
-page reflects the reports the existing pipeline produces.
+has no runner is failed), gate advancement is done with **scoped** helpers that
+only ever process the current gate's state — so they can never fail a candidate
+at an unwired later gate.
+
+The **OFFLINE_TRAINED** gate (`advance_offline_training`) is now wired: it trains
+a challenger at the candidate's target/stop geometry via the existing challenger
+pipeline (`build_validated_challenger`) and requires the model to have produced
+out-of-sample predictions (`oos_predictions >= 1`). It does NOT require beating
+the baseline — that belongs to a later gate. A training error leaves the
+candidate at `DATA_VALIDATED` to retry (never a false pass). Because training
+rebuilds datasets from raw and is heavy, it is **opt-in** (`autonomous_training_
+enabled`, default off) and bounded to one candidate per cycle so it never
+competes with live capture. The trainer is injected, so the gate logic is fully
+unit-tested without running ML.
+
+The remaining gates (walk-forward, stability, cost, shadow stages) are still
+pending. Until they are wired, candidates rest honestly at `OFFLINE_TRAINED`
+(or `DATA_VALIDATED` when training is disabled). The Reports page reflects the
+reports the existing pipeline produces.
 
 ## Tests
 

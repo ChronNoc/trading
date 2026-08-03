@@ -186,9 +186,11 @@ def run_backend(
     # (a fixed research grid, deduplicated across restarts); it never runs gates,
     # trades, or touches the broker. Runs in a daemon thread AFTER capture is
     # set up so market recording always has priority.
-    from app.paper.options import read_autonomous_enabled
+    from app.paper.options import read_autonomous_enabled, read_autonomous_training_enabled
 
     if read_autonomous_enabled(Path("config/production_config.yaml")):
+        _autonomous_train = read_autonomous_training_enabled(Path("config/production_config.yaml"))
+
         def _propose_autonomous_candidates() -> None:
             import time as _t
 
@@ -199,9 +201,11 @@ def run_backend(
                 revision = __import__("subprocess").run(
                     ["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                     text=True, timeout=10, check=False).stdout.strip() or "unknown"
-                result = run_autonomous_cycle(now_ns=time.time_ns(), software_revision=revision)
-                logger.info("autonomous cycle: %s proposed, %s data-validated (revision %s)",
-                            result["proposed"], result["data_validated"], revision)
+                result = run_autonomous_cycle(
+                    now_ns=time.time_ns(), software_revision=revision, train=_autonomous_train)
+                logger.info(
+                    "autonomous cycle: %s proposed, %s data-validated, %s offline-trained (revision %s)",
+                    result["proposed"], result["data_validated"], result["offline_trained"], revision)
             except Exception as error:  # noqa: BLE001 - optional work never crashes the backend
                 logger.warning("autonomous cycle skipped: %s", error)
 

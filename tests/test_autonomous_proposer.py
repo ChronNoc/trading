@@ -165,4 +165,105 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
     result = run_autonomous_cycle(
         store_root=tmp_path / "autonomous", raw_root=_raw_with_sessions(tmp_path / "raw", 2),
         now_ns=100, software_revision="rev-a")
-    assert result == {"proposed": len(RESEARCH_GRID), "data_validated": len(RESEARCH_GRID)}
+    grid = len(RESEARCH_GRID)
+    assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0}
+
+
+# -- OFFLINE_TRAINED gate (injected trainer: no heavy ML in tests) --------------------
+
+
+def _validated_store(tmp_path: Path):
+    from app.research.autonomous_proposer import advance_data_validation, build_store, run_proposer
+
+    store_root = tmp_path / "autonomous"
+    run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
+    store = build_store(store_root)
+    advance_data_validation(store, raw_root=_raw_with_sessions(tmp_path / "raw", 2), now_ns=200)
+    return store
+
+
+def test_offline_training_advances_data_validated_to_offline_trained(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+    passed = advance_offline_training(
+        store, trainer=lambda c: {"oos_predictions": 120, "evaluated_days": 5}, now_ns=300)
+    assert passed == 3
+    assert {c.state.value for c in store.list_candidates()} == {"OFFLINE_TRAINED"}
+    # Idempotent: already-trained candidates are not re-processed.
+    assert advance_offline_training(store, trainer=lambda c: {"oos_predictions": 120}, now_ns=400) == 0
+
+
+def test_offline_training_fails_closed_without_oos_predictions(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+    passed = advance_offline_training(store, trainer=lambda c: {"oos_predictions": 0}, now_ns=300)
+    assert passed == 0
+    assert {c.state.value for c in store.list_candidates()} == {"FAILED_REQUIRES_REWORK"}
+
+
+def test_offline_training_error_is_transient_not_terminal(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+
+    def boom(_candidate):
+        raise RuntimeError("dataset build failed")
+
+    passed = advance_offline_training(store, trainer=boom, now_ns=300)
+    assert passed == 0
+    # A training error must NOT fail the candidate - it stays DATA_VALIDATED to retry.
+    assert {c.state.value for c in store.list_candidates()} == {"DATA_VALIDATED"}
+
+
+def test_offline_training_is_bounded_by_limit(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+    passed = advance_offline_training(
+        store, trainer=lambda c: {"oos_predictions": 120}, now_ns=300, limit=1)
+    assert passed == 1
+    states = [c.state.value for c in store.list_candidates()]
+    assert states.count("OFFLINE_TRAINED") == 1 and states.count("DATA_VALIDATED") == 2
+
+
+def test_offline_training_ignores_candidates_not_yet_data_validated(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training, build_store, run_proposer
+
+    store_root = tmp_path / "autonomous"
+    run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
+    store = build_store(store_root)
+    passed = advance_offline_training(store, trainer=lambda c: {"oos_predictions": 120}, now_ns=200)
+    assert passed == 0
+    assert {c.state.value for c in store.list_candidates()} == {"PROPOSED"}
+
+
+def test_offline_training_uses_the_candidate_geometry(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+    seen: list[tuple[int, int]] = []
+
+    def trainer(candidate):
+        d = candidate.definition
+        seen.append((int(d["target_ticks"]), int(d["stop_ticks"])))
+        return {"oos_predictions": 100}
+
+    advance_offline_training(store, trainer=trainer, now_ns=300)
+    assert set(seen) == {(12, 8), (8, 8), (6, 4)}, "trainer receives each grid geometry"
+
+
+def test_config_reader_training_defaults_false(tmp_path: Path) -> None:
+    from app.paper.options import read_autonomous_training_enabled
+
+    assert read_autonomous_training_enabled(tmp_path / "missing.yaml") is False
+    on = tmp_path / "on.yaml"
+    on.write_text("autonomous_training_enabled: true\n", encoding="utf-8")
+    assert read_autonomous_training_enabled(on) is True
+
+
+def test_backend_wires_the_opt_in_training_flag() -> None:
+    source = Path("tools/start_backend.py").read_text(encoding="utf-8")
+    assert "read_autonomous_training_enabled" in source
+    assert "train=_autonomous_train" in source

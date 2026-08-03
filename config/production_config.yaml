@@ -15,6 +15,14 @@ live_mode: false
 # authority. Requires an app restart to take effect.
 autonomous_enabled: true
 
+# autonomous_training_enabled: when true, the autonomous cycle ALSO runs the
+# OFFLINE_TRAINED gate - heavy offline model training (rebuilds datasets from
+# raw and walk-forward-validates). It defaults OFF because training must never
+# compete with live capture; enable it for a deliberate research run (e.g.
+# overnight when not capturing). Bounded to one candidate per cycle. Still
+# shadow-only: no model is ever loaded, approved, or traded.
+autonomous_training_enabled: false
+
 # paper_momentum_setup_enabled: when true, the PAPER engine also evaluates the
 # optional momentum-continuation setup (momentum-v1) beside the canonical
 # order-flow plan. It never replaces the canonical plan, uses the same risk
