@@ -29,6 +29,25 @@ def read_momentum_enabled(production_config_path: Path) -> bool:
     return payload.get("paper_momentum_setup_enabled") is True
 
 
+def read_autonomous_enabled(production_config_path: Path) -> bool:
+    """Whether the backend proposes shadow-only autonomous research candidates.
+
+    Missing/unreadable/missing-key means FALSE. Proposal is bounded, shadow-only,
+    and never touches runtime, risk, or the broker.
+    """
+    if not production_config_path.is_file():
+        return False
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return payload.get("autonomous_enabled") is True
+
+
 def read_ml_decision_policy_enabled(production_config_path: Path) -> bool:
     """Whether the paper engine's decisions may be vetoed by the shadow model.
 

@@ -67,3 +67,6 @@ data/processed/session_20260723T134503Z.decisions.jsonl
 
 # Graphify architecture graph cache and generated output (regenerate: graphify update .)
 graphify-out/
+
+# Autonomous intelligence evidence store (candidates, leases, activity log).
+data/autonomous/

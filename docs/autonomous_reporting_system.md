@@ -60,10 +60,15 @@ yet implemented:
   lists and labels; filtering is a follow-up).
 - Integrity **hashes** per report entry.
 
-These depend on the autonomous intelligence **service being wired into the
-runtime** (it currently exists as a tested module but is not instantiated by
-`start_backend`), which is tracked separately. Until then the Reports page
-honestly reflects the reports that the existing pipeline produces.
+The backend now **proposes** shadow-only autonomous candidates
+(`app/research/autonomous_proposer.py`, wired into `start_backend` behind
+`autonomous_enabled`), so the Autonomous Intelligence page shows real
+`PROPOSED` candidates and activity. What is still pending is **gate execution** —
+advancing candidates through the governed lifecycle needs a bounded gate runner
+per gate (data validation, offline training, walk-forward, stability, cost,
+shadow stages). Until those exist, candidates stay honestly in `PROPOSED`
+(the proposer never calls `run_once`, so it never fails them at an unwired
+gate). The Reports page reflects the reports the existing pipeline produces.
 
 ## Tests
 

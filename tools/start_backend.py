@@ -180,6 +180,33 @@ def run_backend(
 
     demo_service = DemoConnectionService()
     command_file = CommandFile(runtime_dir)
+
+    # Autonomous intelligence: propose shadow-only research candidates so the
+    # Autonomous Intelligence page reflects real state. Bounded and idempotent
+    # (a fixed research grid, deduplicated across restarts); it never runs gates,
+    # trades, or touches the broker. Runs in a daemon thread AFTER capture is
+    # set up so market recording always has priority.
+    from app.paper.options import read_autonomous_enabled
+
+    if read_autonomous_enabled(Path("config/production_config.yaml")):
+        def _propose_autonomous_candidates() -> None:
+            import time as _t
+
+            _t.sleep(5.0)  # let capture initialise first (capture priority)
+            try:
+                from app.research.autonomous_proposer import run_proposer
+
+                revision = __import__("subprocess").run(
+                    ["git", "rev-parse", "--short", "HEAD"], capture_output=True,
+                    text=True, timeout=10, check=False).stdout.strip() or "unknown"
+                count = run_proposer(now_ns=time.time_ns(), software_revision=revision)
+                logger.info("autonomous proposer: %s new candidate(s) (revision %s)", count, revision)
+            except Exception as error:  # noqa: BLE001 - optional work never crashes the backend
+                logger.warning("autonomous proposer skipped: %s", error)
+
+        threading.Thread(target=_propose_autonomous_candidates,
+                         name="mnq-autonomous-proposer", daemon=True).start()
+
     # Unattended-run guards: disk space under the recording root and sustained
     # writer deficit. Action order is fixed: pause research FIRST (optional
     # work never competes with recording); a critical disk is loudly surfaced

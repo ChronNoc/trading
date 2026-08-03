@@ -8,6 +8,13 @@
 live_enabled: false
 live_mode: false
 
+# autonomous_enabled: when true, the backend proposes SHADOW-ONLY autonomous
+# research candidates (a bounded, deduplicated grid) so the Autonomous
+# Intelligence page reflects real state. Proposal only - it never runs gates,
+# trains, promotes, trades, or touches the broker, and carries no runtime
+# authority. Requires an app restart to take effect.
+autonomous_enabled: true
+
 # paper_momentum_setup_enabled: when true, the PAPER engine also evaluates the
 # optional momentum-continuation setup (momentum-v1) beside the canonical
 # order-flow plan. It never replaces the canonical plan, uses the same risk
