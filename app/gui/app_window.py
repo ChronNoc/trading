@@ -40,45 +40,6 @@ SnapshotProvider = Callable[[], AppSnapshot]
 # 5-10 Hz: fast enough to feel live, slow enough to never fight the receiver.
 SNAPSHOT_INTERVAL_MS = 150
 
-_DARK = """
-QWidget { background: #14171c; color: #e6e9ef; font-size: 13px; }
-QLabel[role="headline"] { font-size: 18px; font-weight: 600; color: #f2f4f8; }
-QLabel[role="caption"] { color: #9aa4b2; }
-QLabel[role="locked"] { color: #0f1115; background: #d9a441; padding: 3px 10px;
-                        border-radius: 4px; font-weight: 700; }
-QGroupBox { border: 1px solid #2a2f39; border-radius: 6px; margin-top: 10px;
-            padding: 10px 8px 8px 8px; }
-QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #9aa4b2; }
-QListWidget#sidebar { background: #0f1115; border: none; outline: none;
-                      font-size: 14px; padding: 8px 4px; }
-QListWidget#sidebar::item { padding: 9px 12px; border-radius: 5px; margin: 2px 6px; }
-QListWidget#sidebar::item:selected { background: #2b6cb0; color: #ffffff; }
-QListWidget#sidebar::item:hover:!selected { background: #1b2029; }
-QProgressBar { border: 1px solid #2a2f39; border-radius: 4px; text-align: center;
-               background: #0f1115; height: 18px; }
-QProgressBar::chunk { background: #2f855a; border-radius: 3px; }
-QStatusBar { background: #0f1115; color: #9aa4b2; }
-"""
-
-_LIGHT = """
-QWidget { background: #f6f7f9; color: #1a1d23; font-size: 13px; }
-QLabel[role="headline"] { font-size: 18px; font-weight: 600; color: #12141a; }
-QLabel[role="caption"] { color: #5b6472; }
-QLabel[role="locked"] { color: #3a2b00; background: #f0c14b; padding: 3px 10px;
-                        border-radius: 4px; font-weight: 700; }
-QGroupBox { border: 1px solid #d6dae1; border-radius: 6px; margin-top: 10px;
-            padding: 10px 8px 8px 8px; }
-QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #5b6472; }
-QListWidget#sidebar { background: #eceff3; border: none; outline: none;
-                      font-size: 14px; padding: 8px 4px; }
-QListWidget#sidebar::item { padding: 9px 12px; border-radius: 5px; margin: 2px 6px; }
-QListWidget#sidebar::item:selected { background: #2b6cb0; color: #ffffff; }
-QProgressBar { border: 1px solid #d6dae1; border-radius: 4px; text-align: center;
-               background: #ffffff; height: 18px; }
-QProgressBar::chunk { background: #2f855a; border-radius: 3px; }
-QStatusBar { background: #eceff3; color: #5b6472; }
-"""
-
 THEMES = DASHBOARD_THEMES
 
 
@@ -268,11 +229,7 @@ class AppWindow(QMainWindow):
     # -- appearance ---------------------------------------------------------------
 
     def apply_theme(self, theme: str) -> None:
-        """Apply the dark or light palette.
-        
-        NOTE: Premium token-based styling is applied per-widget in widgets.py.
-        This global stylesheet provides base colors and system widget defaults.
-        """
+        """Apply the authoritative dark or light dashboard palette."""
         self._theme = theme if theme in THEMES else "dark"
         self.setStyleSheet(THEMES[self._theme])
 
@@ -289,7 +246,20 @@ class AppWindow(QMainWindow):
         self._gui_scale = scale
         font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
         font.setPointSizeF(max(8.0, font.pointSizeF()) * scale)
+
+        # Qt's style engine resolves and caches each widget's inherited font
+        # once a stylesheet has been polished on it, and neither reinstalling
+        # the stylesheet nor unpolishing forces already-built descendants to
+        # re-resolve from a new QMainWindow font on a second scale change.
+        # Setting the font directly on every descendant is the only path
+        # that is reliable across repeated calls, so QSS role selectors own
+        # only color/weight and this method owns size explicitly.
+        active_theme = THEMES[self._theme]
+        self.setStyleSheet("")
         self.setFont(font)
+        for widget in self.findChildren(QWidget):
+            widget.setFont(font)
+        self.setStyleSheet(active_theme)
 
     @property
     def gui_scale(self) -> float:

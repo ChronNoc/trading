@@ -1,4 +1,4 @@
-"""Observe-only shadow model loader: exact-approval scoring, zero decision effect.
+"""Shadow model loader: exact-approval scoring with paper-only policy evidence.
 
 This is the ML-003 connection between the immutable offline challenger
 registry (``app.machine_learning.registry``) and the shared causal feature
@@ -16,21 +16,26 @@ continues to hard-reject both, unchanged by this module, and this loader does
 not read or interpret them.
 
 Every prediction produced here is written to an append-only
-:class:`PredictionJournal` as memory/disk evidence only. This module has no
-import of, or dependency on, ``app.strategy``, ``app.paper``, ``app.risk``,
-``app.execution``, or any broker code — a scored probability can be observed
-and audited, but it cannot reach a trading decision.
+:class:`PredictionJournal` as durable evidence. This module has no import of,
+or dependency on, ``app.strategy``, ``app.paper``, ``app.risk``,
+``app.execution``, or any broker code. A paper/shadow caller may explicitly
+consume the latest causally correlated score through :meth:`last_probability`
+under the conservative ML policy, while broker execution remains unreachable.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import threading
 import time
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Callable
 
 from app.machine_learning.feature_contract import FeatureVector
 
@@ -41,11 +46,25 @@ PREDICTION_JOURNAL_SCHEMA_VERSION = 1
 # human-driven, so a bounded cadence is safe; explicit refresh() calls (e.g.
 # in tests) always run immediately regardless of this interval.
 DEFAULT_REFRESH_INTERVAL_SECONDS = 30.0
+DEFAULT_MAX_ARTIFACT_AGE_DAYS = 30
+
+
+@dataclass(frozen=True, slots=True)
+class ShadowProbabilityEvidence:
+    """Latest direction score with complete atomic causal model identity."""
+
+    prediction_id: str
+    artifact_id: str
+    artifact_sha256: str
+    session_id: str
+    direction: str
+    timestamp_ns: int
+    success_probability: float
 
 
 @dataclass(frozen=True, slots=True)
 class ShadowPrediction:
-    """One observe-only prediction record. Carries no decision effect."""
+    """One scored prediction record with no direct broker-side effect."""
 
     prediction_id: str
     artifact_id: str
@@ -58,7 +77,7 @@ class ShadowPrediction:
     schema_version: int = PREDICTION_JOURNAL_SCHEMA_VERSION
 
     def to_record(self) -> dict[str, object]:
-        """Return the JSON record. ``decision_impact`` is structural, not stored state."""
+        """Return the JSON record with the legacy direct-impact marker preserved."""
         return {
             "schema_version": self.schema_version,
             "prediction_id": self.prediction_id,
@@ -83,7 +102,7 @@ class JournalRecovery:
 
 
 class PredictionJournal:
-    """Append-only JSONL sink for observe-only shadow predictions.
+    """Append-only JSONL sink for scored shadow predictions.
 
     Mirrors ``app.paper.ledger.PaperLedger``: a written record is a historical
     fact that is never rewritten, an existing file is user-owned data that is
@@ -142,7 +161,7 @@ class PredictionJournal:
 
 @dataclass(frozen=True, slots=True)
 class ShadowPredictionSnapshot:
-    """Thread-safe truth about the observe-only loader; never a decision."""
+    """Thread-safe loader status; policy consumers may use correlated evidence."""
 
     state: str
     reason: str
@@ -156,14 +175,16 @@ class ShadowPredictionSnapshot:
 
 
 class ObserveOnlyModelLoader:
-    """Load the exact human-approved artifact and score vectors; no decision effect.
+    """Load the exact human-approved artifact and produce paper-policy evidence.
 
     ``state`` progresses through: ``UNLOADED`` (before the first refresh),
     ``NOT_APPROVED`` (no exact artifact currently approved),
     ``INVALID`` (registry, approval, or model evidence failed integrity checks),
+    ``STALE`` (approved evidence is older than the configured immutable-evaluation limit),
     ``LOAD_FAILED`` (an approved artifact exists but could not be loaded/scored),
-    ``SCORING`` (an exact-approved artifact is loaded and scoring observe-only
-    evidence). Only ``SCORING`` produces predictions; every other state makes
+    ``SCORING`` (an exact-approved artifact is loaded and producing scored
+    evidence for journaling and optional paper-policy consumption).
+    Only ``SCORING`` produces predictions; every other state makes
     :meth:`score` a no-op.
     """
 
@@ -174,12 +195,28 @@ class ObserveOnlyModelLoader:
         model_approval_path: Path,
         journal: PredictionJournal,
         refresh_interval_seconds: float = DEFAULT_REFRESH_INTERVAL_SECONDS,
+        max_artifact_age_days: int = DEFAULT_MAX_ARTIFACT_AGE_DAYS,
+        current_date_provider: Callable[[], date] | None = None,
+        outcome_tracker: object | None = None,
     ) -> None:
-        """Create a loader bound to a registry root, approval file, and journal."""
+        """Create a loader bound to a registry root, approval file, and journal.
+
+        ``outcome_tracker`` is optional and defaults to ``None`` so existing
+        callers are unaffected. When attached (an
+        ``app.machine_learning.outcome_journal.PendingOutcomeTracker``), every
+        journaled prediction is also handed to
+        ``outcome_tracker.register(...)`` (ML-004) so it can be causally
+        resolved against the same triple-barrier rule offline training uses.
+        """
         self._models_root = Path(models_root)
         self._model_approval_path = Path(model_approval_path)
         self._journal = journal
+        self._outcome_tracker = outcome_tracker
         self._refresh_interval_seconds = refresh_interval_seconds
+        if max_artifact_age_days < 0:
+            raise ValueError("max_artifact_age_days must be non-negative")
+        self._max_artifact_age_days = max_artifact_age_days
+        self._current_date_provider = current_date_provider or (lambda: datetime.now(UTC).date())
         self._lock = threading.Lock()
         self._model: object | None = None
         self._feature_columns: tuple[str, ...] = ()
@@ -194,12 +231,23 @@ class ObserveOnlyModelLoader:
         self._last_prediction_timestamp_ns: int | None = None
         self._prediction_counter = 0
         self._last_refresh_monotonic: float | None = None
+        # Last scored probability per direction ("long"/"short") for the
+        # paper-only engine to correlate with a decision. This cache does not
+        # mutate broker state; callers must supply complete causal correlation.
+        self._last_probability_by_direction: dict[str, ShadowProbabilityEvidence] = {}
         self.refresh()
 
     def bind_session(self, session_id: str) -> None:
-        """Record the active recording session; scoring needs no session-scoped state."""
+        """Bind a recording session and invalidate prior-session score evidence."""
         with self._lock:
+            if session_id != self._session_id:
+                self._last_probability_by_direction.clear()
             self._session_id = session_id
+        if self._outcome_tracker is not None:
+            try:
+                self._outcome_tracker.bind_session(session_id)  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001,S110 - a broken tracker must not stop scoring
+                pass
 
     def refresh(self) -> None:
         """Revalidate registry/approval truth and (re)load only an exact-approved artifact.
@@ -214,6 +262,7 @@ class ObserveOnlyModelLoader:
         self._last_refresh_monotonic = time.monotonic()
         try:
             from app.machine_learning.registry import (
+                is_artifact_stale,
                 read_model_approval,
                 read_registry,
                 validate_explicit_approval,
@@ -238,6 +287,33 @@ class ObserveOnlyModelLoader:
                 self._reason = validation.detail
             return
 
+        try:
+            as_of_date = self._current_date_provider()
+            if not isinstance(as_of_date, date):
+                raise TypeError("current_date_provider must return datetime.date")
+            stale = is_artifact_stale(
+                record,
+                as_of_date,
+                self._max_artifact_age_days,
+                models_root=self._models_root,
+            )
+        except Exception as error:  # noqa: BLE001 - staleness evidence is an integrity boundary
+            with self._lock:
+                self._unload_locked()
+                self._state = "INVALID"
+                self._reason = f"artifact staleness validation failed: {type(error).__name__}: {error}"
+            return
+
+        if stale:
+            with self._lock:
+                self._unload_locked()
+                self._state = "STALE"
+                self._reason = (
+                    "approved artifact exceeds maximum immutable evaluation age "
+                    f"of {self._max_artifact_age_days} days"
+                )
+            return
+
         with self._lock:
             already_loaded = (
                 self._model is not None
@@ -246,7 +322,7 @@ class ObserveOnlyModelLoader:
             )
             if already_loaded:
                 self._state = "SCORING"
-                self._reason = "exact-approved artifact loaded; scoring is observe-only evidence"
+                self._reason = "exact-approved artifact loaded; scoring paper-only policy evidence"
                 return
 
         try:
@@ -272,7 +348,7 @@ class ObserveOnlyModelLoader:
             self._loaded_artifact_id = record.artifact_id
             self._loaded_artifact_sha256 = record.artifact_sha256
             self._state = "SCORING"
-            self._reason = "exact-approved artifact loaded; scoring is observe-only evidence"
+            self._reason = "exact-approved artifact loaded; scoring paper-only policy evidence"
 
     def score(
         self,
@@ -281,12 +357,22 @@ class ObserveOnlyModelLoader:
         session_id: str,
         timestamp_ns: int,
         direction: str,
+        entry_price: Decimal | None = None,
+        target_ticks: Decimal | None = None,
+        stop_ticks: Decimal | None = None,
+        tick_size: Decimal | None = None,
     ) -> None:
         """Revalidate approval (throttled) then score one already-built feature vector.
 
         A no-op unless an exact-approved artifact is loaded. Any scoring
         failure is caught, counted, and never propagated: one bad vector must
         not stop analysis, matching ``AnalysisFeed``'s sink contract.
+
+        ``entry_price``/``target_ticks``/``stop_ticks``/``tick_size`` are
+        optional (default ``None``) so existing callers are unaffected. When
+        all four are provided AND an outcome tracker is attached (ML-004),
+        the scored prediction is also registered for causal outcome
+        resolution.
         """
         with self._lock:
             due = (
@@ -304,6 +390,10 @@ class ObserveOnlyModelLoader:
                 matrix = build_feature_matrix((vector.as_record(),), self._feature_columns)
                 probabilities = self._model.predict_proba(matrix)  # type: ignore[union-attr]
                 probability = float(probabilities[0][1])
+                if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+                    raise ValueError(
+                        "predict_proba returned a non-finite or out-of-range probability"
+                    )
             except Exception as error:  # noqa: BLE001 - one bad vector must not stop scoring
                 self._scoring_failures += 1
                 self._reason = f"scoring error: {type(error).__name__}: {error}"
@@ -333,8 +423,36 @@ class ObserveOnlyModelLoader:
             return
 
         with self._lock:
+            self._last_probability_by_direction[direction] = ShadowProbabilityEvidence(
+                prediction_id=prediction.prediction_id,
+                artifact_id=prediction.artifact_id,
+                artifact_sha256=prediction.artifact_sha256,
+                session_id=prediction.session_id,
+                direction=prediction.direction,
+                timestamp_ns=prediction.timestamp_ns,
+                success_probability=prediction.success_probability,
+            )
             self._shadow_predictions += 1
             self._last_prediction_timestamp_ns = timestamp_ns
+
+        if (
+            self._outcome_tracker is not None
+            and entry_price is not None
+            and target_ticks is not None
+            and stop_ticks is not None
+            and tick_size is not None
+        ):
+            try:
+                self._outcome_tracker.register(  # type: ignore[attr-defined]
+                    prediction,
+                    entry_price=entry_price,
+                    direction=direction,
+                    target_ticks=target_ticks,
+                    stop_ticks=stop_ticks,
+                    tick_size=tick_size,
+                )
+            except Exception:  # noqa: BLE001,S110 - a broken tracker must not stop scoring
+                pass
 
     def snapshot(self) -> ShadowPredictionSnapshot:
         """Return immutable status safe for GUI/status publication threads."""
@@ -350,9 +468,56 @@ class ObserveOnlyModelLoader:
                 last_prediction_timestamp_ns=self._last_prediction_timestamp_ns,
             )
 
+    def last_probability(
+        self,
+        direction: str,
+        *,
+        session_id: str | None = None,
+        as_of_timestamp_ns: int | None = None,
+        max_age_ns: int | None = None,
+    ) -> ShadowProbabilityEvidence | None:
+        """Return fresh direction-specific score evidence, or ``None``.
+
+        Callers that may affect a decision must supply ``session_id``, the
+        decision event's ``as_of_timestamp_ns``, and a non-negative
+        ``max_age_ns``. Omitting all three remains an observe-only inspection
+        API; partial correlation arguments are rejected so stale evidence
+        cannot accidentally look current.
+        """
+        correlation = (session_id, as_of_timestamp_ns, max_age_ns)
+        if any(value is not None for value in correlation):
+            if any(value is None for value in correlation):
+                raise ValueError(
+                    "session_id, as_of_timestamp_ns, and max_age_ns must be supplied together"
+                )
+            if session_id is None or as_of_timestamp_ns is None or max_age_ns is None:
+                raise AssertionError("complete correlation parameters expected")
+            if max_age_ns < 0:
+                raise ValueError("max_age_ns must be non-negative")
+        with self._lock:
+            evidence = self._last_probability_by_direction.get(direction)
+            if evidence is None or session_id is None:
+                return evidence
+            if session_id != self._session_id or session_id != evidence.session_id:
+                return None
+            if evidence.direction != direction:
+                return None
+            if (
+                evidence.artifact_id != self._loaded_artifact_id
+                or evidence.artifact_sha256 != self._loaded_artifact_sha256
+            ):
+                return None
+            if as_of_timestamp_ns is None or max_age_ns is None:
+                raise AssertionError("complete correlation parameters expected")
+            age_ns = as_of_timestamp_ns - evidence.timestamp_ns
+            if age_ns < 0 or age_ns > max_age_ns:
+                return None
+            return evidence
+
     def _unload_locked(self) -> None:
-        """Clear any loaded model. Caller must hold ``self._lock``."""
+        """Clear the model and any score evidence. Caller holds ``self._lock``."""
         self._model = None
         self._feature_columns = ()
         self._loaded_artifact_id = ""
         self._loaded_artifact_sha256 = ""
+        self._last_probability_by_direction.clear()

@@ -325,6 +325,8 @@ class AutomaticRuntimeController:
             "direction": direction,
             "strategy_version": strategy_version,
             "model_version": None,
+            "model_prediction_id": None,
+            "model_artifact_sha256": None,
             "session": self.current_session.name if self.current_session else "unknown",
             "regime": self.current_regime.summary if self.current_regime else "unknown/unknown/unknown",
             "profile_id": self.current_profile_id,
@@ -332,6 +334,17 @@ class AutomaticRuntimeController:
             "decision": "accepted" if accepted else "rejected",
             "reason": reasons,
             "broker_execution": None,
+            # -- ML decision-policy parity fields (see app.paper.streaming_engine) ---
+            # This is a PARALLEL, not-live-path decision recorder (only reached
+            # by synthetic scenarios/tests, never the real streaming engine),
+            # so it never actually consults a model; these fields exist only
+            # so its schema matches the live-path EvaluationRecord for
+            # GUI/snapshot consistency.
+            "confidence": None,
+            "raw_model_output": None,
+            "decision_source": "HEURISTIC",
+            "fallback_reason": "",
+            "policy_version": "",
         }
         self.decisions.append(decision)
         self.detected_setups.append(

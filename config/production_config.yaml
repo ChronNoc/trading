@@ -60,3 +60,28 @@ paper_break_even_trigger_ticks: 8    # +2.0 pts in favour -> stop to ~break-even
 paper_break_even_lock_ticks: 2       # lock +0.5 pt so a break-even exit is not a loss
 paper_trail_activation_ticks: 16     # +4.0 pts in favour -> start trailing (middle ground)
 paper_trail_distance_ticks: 10       # trail 2.5 pts behind the best price
+
+# paper_fixed_contracts / paper_max_risk_per_trade_usd: fixed-size PAPER sizing.
+# This is a PER-TRADE risk cap, NOT a daily loss cap (daily caps stay the
+# unlimited paper_max_entries_per_day / paper_max_losses_per_day above).
+# When paper_fixed_contracts > 0, every approved setup trades exactly this many
+# contracts (still capped by the account's hard max_contracts ceiling) instead
+# of the dynamic 1%-account/3-trades risk sizing. The strategy's real,
+# evidence-derived stop is never replaced or invented - if that real stop would
+# risk more than paper_max_risk_per_trade_usd at the fixed contract count, the
+# trade is rejected (reason: stop_exceeds_fixed_risk_cap) rather than resized
+# or forced onto an artificial stop. Set paper_fixed_contracts: 0 to disable and
+# fall back to the original dynamic risk sizing. Restart to apply.
+paper_fixed_contracts: 4
+paper_max_risk_per_trade_usd: 80
+
+# paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
+# observe-only shadow model's most recent scored probability (see
+# app/machine_learning/shadow_predictor.py) and may VETO a heuristic-accepted
+# setup if the model's success probability is low (conservative veto-only
+# policy; the model can never accept a heuristic-rejected setup). Ships
+# FALSE: with no approved/SCORING model, or with this flag off, every
+# decision is the unchanged heuristic-only outcome (decision_source =
+# "HEURISTIC"/"FALLBACK"). Still PAPER-ONLY; never touches live broker
+# routing or live_enabled/live_mode. Requires an app restart to take effect.
+paper_ml_decision_policy_enabled: false

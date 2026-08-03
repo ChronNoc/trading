@@ -444,7 +444,15 @@ class MarketSessionRecorder:
                 for capability in str(event.get("capabilities", "")).split(",")
                 if capability.strip()
             )
-            self.handshake_accepted = bool(event.get("handshake_accepted", False))
+            # Accepted handshake evidence is session-monotonic. A reconnect or
+            # duplicate control event from an older/incomplete bridge may omit
+            # the enrichment field, but that absence must not erase an earlier
+            # compatibility decision. Missing evidence still fails closed when
+            # no accepted handshake has ever been observed.
+            self.handshake_accepted = (
+                self.handshake_accepted
+                or event.get("handshake_accepted") is True
+            )
         if "receiver_intake_lost" in event:
             self.receiver_intake_lost_count = max(
                 self.receiver_intake_lost_count,

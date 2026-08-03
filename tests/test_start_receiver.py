@@ -77,6 +77,14 @@ def test_production_receiver_rejects_market_data_before_handshake(tmp_path: Path
     asyncio.run(_server_requires_handshake(tmp_path))
 
 
+def test_live_connected_event_persists_accepted_handshake(tmp_path: Path) -> None:
+    """A ``connected`` handshake sent over the live stream (not preloaded via
+    ``initial_control_events``) must still be enriched before the recorder
+    observes it, exercising the real capture path a Bookmap bridge drives.
+    """
+    asyncio.run(_server_persists_live_handshake(tmp_path))
+
+
 async def _server_records_messages(tmp_path: Path) -> None:
     timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
     state_store = CurrentMarketState()
@@ -306,6 +314,47 @@ async def _server_requires_handshake(tmp_path: Path) -> None:
     assert manifest["event_counts"]["depth_updates"] == 0
     assert manifest["data_quality"]["rejected_events"] == 1
     assert manifest["valid_for_order_flow_replay"] is False
+
+
+async def _server_persists_live_handshake(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+        require_protocol_handshake=True,
+    )
+
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send(json.dumps({
+                "type": "connected",
+                "timestamp_ns": timestamp_ns,
+                "protocol_version": "1.2",
+                "stream_id": "live-stream",
+                "connection_id": "live-connection",
+                "session_id": "live-session",
+                "provider": "bookmap",
+                "capabilities": "aggregated_depth,trades,aggressor_side,source_timestamps",
+            }))
+            await websocket.send(json.dumps({
+                "type": "session_ended",
+                "timestamp_ns": timestamp_ns + 1,
+            }))
+        session_dir = await _wait_for_session_dir(tmp_path)
+        await _wait_for_path(session_dir / "session_manifest.json")
+    finally:
+        await server.close()
+
+    manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
+    provenance = manifest["bridge_provenance"]
+    assert provenance["protocol_version"] == "1.2"
+    assert provenance["provider"] == "bookmap"
+    assert provenance["handshake_accepted"] is True
+    assert provenance["declared_capabilities"] == [
+        "aggregated_depth",
+        "aggressor_side",
+        "source_timestamps",
+        "trades",
+    ]
 
 
 async def _wait_for_path(path: Path) -> None:

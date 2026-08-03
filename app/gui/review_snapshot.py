@@ -1,4 +1,16 @@
-"""Deterministic, explicitly synthetic-free snapshot for GUI visual review."""
+"""Deterministic, explicitly synthetic-free snapshots for GUI visual review.
+
+Three data states are provided, matching what the running application can
+honestly show at different points in its life -- never a fabricated trade
+outcome, only states the real pipeline can occupy:
+
+- :func:`build_empty_snapshot` -- freshly started, nothing observed yet
+  (every field at its dataclass default).
+- :func:`build_partial_snapshot` -- receiver listening and recording, but
+  no setup has evaluated yet and no model/research evidence exists.
+- :func:`build_review_snapshot` -- a fully populated mid-session state,
+  including the offline model-registry evidence a challenger produces.
+"""
 
 from __future__ import annotations
 
@@ -8,17 +20,82 @@ from app.gui.view_models import (
     AppSnapshot,
     Capability,
     CaptureSnapshot,
+    ChallengerSummary,
     ComponentHealth,
     ExecutionSnapshot,
     Health,
     MarketHistoryPoint,
     MarketSnapshot,
+    ModelSnapshot,
     PaperSnapshot,
     PipelineSnapshot,
     PipelineStageRow,
+    ProfitabilitySnapshot,
+    ProgressGateRow,
     ResearchSnapshot,
     SetupCheck,
 )
+
+
+def build_empty_snapshot() -> AppSnapshot:
+    """Return the honest just-started state: every field at its default."""
+    return AppSnapshot()
+
+
+def build_partial_snapshot() -> AppSnapshot:
+    """Return a mid-session state: recording underway, nothing evaluated yet.
+
+    No setups have qualified, no research has run, and no model is
+    registered -- this is what the GUI looks like between "Bookmap
+    connected" and the first evaluated setup.
+    """
+    return AppSnapshot(
+        lifecycle_state="RECORDING",
+        market=MarketSnapshot(
+            contract="MNQU6", last_price=Decimal("29250.00"),
+            best_bid=Decimal("29249.75"), best_ask=Decimal("29250.25"),
+            spread=Decimal("0.50"), mid_price=Decimal("29250.00"),
+            cumulative_delta=Decimal("-4"), buy_volume=Decimal("62"),
+            sell_volume=Decimal("66"), is_delayed=True,
+            source_delay_minutes=15, processing_age_ms=11,
+            event_rate_per_second=340.5,
+        ),
+        capture=CaptureSnapshot(
+            receiver_listening=True, bookmap_connected=True, recording=True,
+            session_id="session_20260728T093000Z", current_session_drops=0,
+            lifetime_bridge_drops=1_031_435, intake_occupancy=2,
+            intake_capacity=10_000, recorder_occupancy=6,
+            recorder_capacity=50_000, flush_latency_ms=0.31,
+            persisted_per_second=340.5, analysis_offered=900,
+            analysis_processed=900, analysis_skipped=0, analysis_lag_ms=1.1,
+        ),
+        paper=PaperSnapshot(
+            profile_name="LucidFlex 25K Evaluation", balance=Decimal("25000"),
+            starting_balance=Decimal("25000"), profit_target=Decimal("1250"),
+            target_progress=Decimal("0"), drawdown_room=Decimal("1000"),
+            trades=0, evaluations=0, risk_remaining=Decimal("250"),
+        ),
+        research=ResearchSnapshot(state="idle", requested_workers=15),
+        execution=ExecutionSnapshot(
+            environment="PAPER",
+            live_blockers=("live_enabled is not true", "prop rules unresolved"),
+            prop_rules_resolved=False,
+        ),
+        components=(
+            ComponentHealth("capture", Health.OK, "recording"),
+            ComponentHealth("recorder", Health.OK, "flushing"),
+            ComponentHealth("paper", Health.IDLE, "no evaluations yet"),
+            ComponentHealth("research", Health.IDLE, "no pending jobs"),
+            ComponentHealth("model", Health.IDLE, "no runtime model"),
+        ),
+        capabilities=(
+            ("Aggregated depth", Capability.AVAILABLE, "provider supplies depth updates"),
+            ("Aggressor side", Capability.AVAILABLE, "trade aggressor side observed"),
+            ("MBO / native iceberg", Capability.UNAVAILABLE, "feed does not expose order IDs"),
+            ("Liquidity blocks", Capability.HEURISTIC, "derived from depth persistence"),
+        ),
+        next_action="Recording is healthy; wait for a qualifying setup to evaluate.",
+    )
 
 
 def build_review_snapshot() -> AppSnapshot:
@@ -94,6 +171,54 @@ def build_review_snapshot() -> AppSnapshot:
             environment="PAPER",
             live_blockers=("live_enabled is not true", "prop rules unresolved"),
             prop_rules_resolved=False,
+        ),
+        model=ModelSnapshot(
+            registry_state="CHALLENGER", artifact_id="challenger-abc",
+            artifact_sha256="a" * 64, dataset_id="dataset-abc",
+            model_type="logistic_regression", model_version="0.1.0",
+            eligible_sessions=4, excluded_sessions=2, validation_state="PASSED",
+            validation_detail="walk-forward gate passed", oos_predictions=120,
+            brier_score=0.21, beats_baseline=True,
+            approval_state="APPROVED_RUNTIME_DISABLED",
+            approval_detail="exact artifact approved; runtime loading remains disabled",
+            feature_parity_state="SHARED_BUILDER_RUNTIME_DISCONNECTED",
+            feature_observation_state="OBSERVING",
+            feature_observation_reason="feature vectors observed in memory; no model loaded or scored",
+            feature_observations=14, feature_gap_resets=2,
+            feature_session_resets=3, feature_skipped_events=19,
+            runtime_loaded=False, shadow_predictions=0, decision_impact="none",
+            shadow_loader_state="UNLOADED",
+            shadow_loader_reason="observe-only model loader is not attached",
+        ),
+        challengers=(
+            ChallengerSummary(
+                artifact_id="challenger-abc", dataset_id="dataset-abc",
+                model_type="logistic_regression", model_version="0.1.0",
+                validation_state="PASSED", validation_detail="walk-forward gate passed",
+                oos_predictions=120, brier_score=0.21, beats_baseline=True,
+                included_sessions=4, excluded_sessions=2,
+                approval_state="APPROVED_RUNTIME_DISABLED",
+                approval_detail="exact artifact approved; runtime loading remains disabled",
+            ),
+            ChallengerSummary(
+                artifact_id="challenger-xyz", dataset_id="dataset-xyz",
+                model_type="gradient_boosting", model_version="0.2.0",
+                validation_state="FAILED", validation_detail="brier worse than baseline",
+                oos_predictions=80, brier_score=0.31, beats_baseline=False,
+                included_sessions=3, excluded_sessions=1,
+                approval_state="NOT_APPROVED",
+                approval_detail="a different artifact is exactly approved",
+            ),
+        ),
+        profitability=ProfitabilitySnapshot(
+            fraction=0.067, computed=True, claim_supported=False,
+            headline="Data-collection stage: zero setups have completed on real data yet.",
+            gates=(
+                ProgressGateRow(label="Data capture healthy", status="passed",
+                                observed="1 clean session", threshold=">=1 clean session"),
+                ProgressGateRow(label="Minimum completed-setup sample", status="blocked",
+                                observed="0 completed", threshold=">= 100 completed setups"),
+            ),
         ),
         components=(
             ComponentHealth("capture", Health.OK, "recording"),

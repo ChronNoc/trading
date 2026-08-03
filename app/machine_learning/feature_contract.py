@@ -14,7 +14,7 @@ import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -26,7 +26,7 @@ from app.strategy.order_flow import StrategyLevels, _reference_price
 
 NEW_YORK = ZoneInfo("America/New_York")
 NANOSECONDS_PER_SECOND = 1_000_000_000
-FEATURE_CONTRACT_VERSION = "shared-causal-market-features-v2"
+FEATURE_CONTRACT_VERSION = "shared-causal-market-features-v3"
 FEATURE_PARITY_STATE = "SHARED_BUILDER_RUNTIME_DISCONNECTED"
 
 FEATURE_COLUMNS: tuple[str, ...] = (
@@ -59,11 +59,11 @@ _FEATURE_FORMULAS: tuple[str, ...] = (
     "ticks from reference price to largest same-direction depth level",
     "absolute first-to-last reference-price ticks per second",
     "executed volume delta per second",
-    "last spread in ticks; zero when no two-sided spread is available",
+    "last spread in ticks; row unavailable without a two-sided spread",
     "population standard deviation of sampled mid-prices in ticks",
     "timestamp nanoseconds floor-truncated to whole seconds, then America/New_York HH:MM:SS",
-    "ticks to nearest known causal overnight high/low; zero when unavailable",
-    "ticks to nearest known causal prior-day high/low; zero when unavailable",
+    "ticks to nearest known causal overnight high/low; zero absence sentinel when unavailable",
+    "ticks to nearest known causal prior-day high/low; zero absence sentinel when unavailable",
     "literal long or short",
     "configured triple-barrier stop distance in ticks",
     "configured triple-barrier target distance in ticks",
@@ -253,18 +253,28 @@ class ObserveOnlyFeatureSink:
             self._last_sample_ns = state.timestamp_ns
             session_id = self._session_id
             timestamp_ns = state.timestamp_ns
+            entry_price = _reference_price(state)
             vectors: list[tuple[str, FeatureVector]] = []
+            invalid_reason: str | None = None
             for direction in tuple(getattr(cfg, "directions")):
-                vector = self._pipeline.feature_vector(
-                    direction=str(direction),
-                    stop_distance=getattr(cfg, "stop_ticks"),
-                    target_distance=getattr(cfg, "target_ticks"),
-                )
+                try:
+                    vector = self._pipeline.feature_vector(
+                        direction=str(direction),
+                        stop_distance=getattr(cfg, "stop_ticks"),
+                        target_distance=getattr(cfg, "target_ticks"),
+                    )
+                except ValueError as error:
+                    invalid_reason = str(error)
+                    continue
                 vectors.append((str(direction), vector))
                 self._feature_observations += 1
-            self._last_feature_timestamp_ns = state.timestamp_ns
-            self._state = "OBSERVING"
-            self._reason = "feature vectors observed in memory; no model loaded or scored"
+            if vectors:
+                self._last_feature_timestamp_ns = state.timestamp_ns
+                self._state = "OBSERVING"
+                self._reason = "feature vectors observed in memory; no model loaded or scored"
+            else:
+                self._state = "INCOMPLETE"
+                self._reason = invalid_reason or "feature row unavailable: incomplete market state"
         # Scoring runs outside this sink's lock: the loader has its own lock
         # and may do disk I/O (journal append), which must never block feature
         # observation on the analysis thread.
@@ -276,6 +286,10 @@ class ObserveOnlyFeatureSink:
                         session_id=session_id,
                         timestamp_ns=timestamp_ns,
                         direction=direction,
+                        entry_price=entry_price,
+                        target_ticks=getattr(cfg, "target_ticks"),
+                        stop_ticks=getattr(cfg, "stop_ticks"),
+                        tick_size=getattr(cfg, "tick_size"),
                     )
                 except Exception:  # noqa: BLE001,S110 - a broken sink must not stop features
                     pass
@@ -336,17 +350,23 @@ def build_feature_vector(
 
     features = compute_market_features(snapshots)
     first, last = snapshots[0], snapshots[-1]
-    reference = _reference_price(last) or Decimal("0")
-    spread_ticks = last.spread / tick_size if last.spread is not None else Decimal("0")
+    reference = _reference_price(last)
+    if reference is None:
+        raise ValueError("feature row unavailable: reference price is missing")
+    if last.spread is None:
+        raise ValueError("feature row unavailable: two-sided spread is missing")
+    spread_ticks = last.spread / tick_size
     overnight = _nearest_distance_ticks(
         reference,
         (levels.overnight_high, levels.overnight_low),
         tick_size,
+        feature_name="overnight high/low",
     )
     prior_day = _nearest_distance_ticks(
         reference,
         (levels.prior_day_high, levels.prior_day_low),
         tick_size,
+        feature_name="prior-day high/low",
     )
 
     record: dict[str, str] = {
@@ -409,9 +429,10 @@ def feature_contract_descriptor(
             "output": "HH:MM:SS",
         },
         "missing_data": {
-            "spread": "0 when no two-sided spread is available",
-            "causal_higher_timeframe_level_distance": "0 when no level is known",
-            "defended_level_distance": "0 when reference price or side depth is unavailable",
+            "policy": "fail closed; an incomplete feature row is not emitted or scored",
+            "spread": "row unavailable when no two-sided spread is available",
+            "causal_higher_timeframe_level_distance": "zero is an explicit absence sentinel when no causal level is known",
+            "defended_level_distance": "row unavailable when reference price or side depth is unavailable",
         },
         "tick_size": _decimal_text(tick_size),
         "canonical_vector_encoding": "UTF-8 compact JSON array in columns order",
@@ -441,19 +462,52 @@ def feature_contract_sha256(
 
 
 def validate_feature_record(row: Mapping[str, Any]) -> FeatureVector:
-    """Validate and canonicalize a mapping supplied to a model scorer."""
+    """Validate and canonicalize a complete mapping supplied to a model scorer."""
     missing = [column for column in FEATURE_COLUMNS if column not in row]
     extra = [column for column in row if column not in FEATURE_COLUMNS]
     if missing or extra:
         raise ValueError(f"feature record schema mismatch; missing={missing}, extra={extra}")
-    return FeatureVector(tuple(str(row[column]) for column in FEATURE_COLUMNS))
+
+    categorical = {"direction", "time_of_day"}
+    values: list[str] = []
+    for column in FEATURE_COLUMNS:
+        value = row[column]
+        if value is None:
+            raise ValueError(f"feature value is missing: {column}")
+        text = str(value).strip()
+        if not text:
+            raise ValueError(f"feature value is missing: {column}")
+        if column not in categorical:
+            try:
+                number = Decimal(text)
+            except (InvalidOperation, ValueError) as error:
+                raise ValueError(f"feature value must be numeric: {column}") from error
+            if not number.is_finite():
+                raise ValueError(f"feature value must be finite: {column}")
+        values.append(text)
+    if values[FEATURE_COLUMNS.index("direction")] not in {"long", "short"}:
+        raise ValueError("feature direction must be 'long' or 'short'")
+    try:
+        datetime.strptime(values[FEATURE_COLUMNS.index("time_of_day")], "%H:%M:%S")
+    except ValueError as error:
+        raise ValueError("feature time_of_day must be HH:MM:SS") from error
+    return FeatureVector(tuple(values))
 
 
 def _nearest_distance_ticks(
     reference: Decimal,
     levels: tuple[Decimal | None, ...],
     tick_size: Decimal,
+    *,
+    feature_name: str,
 ) -> Decimal:
+    """Return distance to a known causal level or the contract's absence sentinel.
+
+    Higher-timeframe levels are structurally optional at the start of a recording;
+    zero is an explicit categorical sentinel in this contract, not a failed numeric
+    parse or silently imputed market observation.
+    """
+    del feature_name
     present = [level for level in levels if level is not None]
     if reference <= 0 or not present:
         return Decimal("0")
@@ -467,8 +521,10 @@ def _defended_distance_ticks(
 ) -> Decimal:
     depth = state.bid_depth if direction == "long" else state.ask_depth
     reference = _reference_price(state)
-    if not depth or reference is None:
-        return Decimal("0")
+    if reference is None:
+        raise ValueError("feature row unavailable: reference price is missing")
+    if not depth:
+        raise ValueError(f"feature row unavailable: {direction} side depth is missing")
     largest = max(depth, key=lambda level: level.size)
     return abs(reference - largest.price) / tick_size
 

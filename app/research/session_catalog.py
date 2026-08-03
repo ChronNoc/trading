@@ -11,6 +11,7 @@ raw file on disk is left untouched.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -222,6 +223,33 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
     )
 
 
+def _invalid_manifest_entry(manifest_path: Path, reason: str) -> SessionEntry:
+    """Return an auditable fail-closed entry for unreadable or invalid JSON."""
+    return SessionEntry(
+        session_id=manifest_path.parent.name,
+        manifest_path=manifest_path,
+        provenance=PROVENANCE_UNKNOWN,
+        is_delayed=False,
+        finalized=False,
+        active=True,
+        continuity_status="unreadable",
+        depth_updates=0,
+        trades=0,
+        dropped_message_count=0,
+        malformed_event_count=0,
+        rejected_event_count=0,
+        missed_trade_event_count=0,
+        utc_start=None,
+        utc_end=None,
+        eligible_for_analysis=False,
+        eligible_for_order_flow_replay=False,
+        eligible_for_model_training=False,
+        valid_for_live_decisions=False,
+        reasons=(reason,),
+        model_training_reasons=(reason,),
+    )
+
+
 def build_catalog(raw_root: Path) -> tuple[SessionEntry, ...]:
     """Scan ``raw_root`` for session manifests and classify each (read-only)."""
     if not raw_root.is_dir():
@@ -231,34 +259,21 @@ def build_catalog(raw_root: Path) -> tuple[SessionEntry, ...]:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            # An actively-writing or truncated manifest: treat as active, never fail.
-            entries.append(
-                SessionEntry(
-                    session_id=manifest_path.parent.name,
-                    manifest_path=manifest_path,
-                    provenance=PROVENANCE_UNKNOWN,
-                    is_delayed=False,
-                    finalized=False,
-                    active=True,
-                    continuity_status="unreadable",
-                    depth_updates=0,
-                    trades=0,
-                    dropped_message_count=0,
-                    malformed_event_count=0,
-                    rejected_event_count=0,
-                    missed_trade_event_count=0,
-                    utc_start=None,
-                    utc_end=None,
-                    eligible_for_analysis=False,
-                    eligible_for_order_flow_replay=False,
-                    eligible_for_model_training=False,
-                    valid_for_live_decisions=False,
-                    reasons=("manifest unreadable: active or truncated",),
-                    model_training_reasons=("manifest unreadable: active or truncated",),
-                ),
-            )
+            # An actively-writing or truncated manifest remains visible and
+            # fails closed instead of aborting discovery.
+            entries.append(_invalid_manifest_entry(
+                manifest_path,
+                "manifest unreadable: active or truncated",
+            ))
             continue
         if not isinstance(manifest, dict):
+            # Valid JSON with the wrong top-level shape is malformed, not an
+            # absent session. Keep it in the catalog so exclusion counts and
+            # provenance audits account for every discovered manifest.
+            entries.append(_invalid_manifest_entry(
+                manifest_path,
+                "manifest invalid: top-level JSON value must be an object",
+            ))
             continue
         entries.append(classify_manifest(manifest, manifest_path))
     return tuple(entries)
@@ -268,6 +283,12 @@ def eligibility_report(entries: Iterable[SessionEntry]) -> dict[str, object]:
     """Summarize a catalog for the smoke test / daily coverage view."""
     items = tuple(entries)
     eligible = [entry for entry in items if entry.eligible_for_analysis]
+    model_training_exclusion_reasons = Counter(
+        reason
+        for entry in items
+        if not entry.eligible_for_model_training
+        for reason in entry.model_training_reasons
+    )
     return {
         "total_sessions": len(items),
         "finalized": sum(1 for entry in items if entry.finalized),
@@ -277,6 +298,12 @@ def eligibility_report(entries: Iterable[SessionEntry]) -> dict[str, object]:
         "eligible_for_analysis": len(eligible),
         "eligible_for_order_flow_replay": sum(
             1 for entry in items if entry.eligible_for_order_flow_replay
+        ),
+        "eligible_for_model_training": sum(
+            1 for entry in items if entry.eligible_for_model_training
+        ),
+        "model_training_exclusion_reasons": dict(
+            sorted(model_training_exclusion_reasons.items())
         ),
         "valid_for_live_decisions": sum(1 for entry in items if entry.valid_for_live_decisions),
     }

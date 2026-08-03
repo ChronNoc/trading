@@ -9,12 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 
 import yaml
 
 from app.database.recorder import atomic_write_text
+from app.machine_learning.feature_contract import FEATURE_CONTRACT_VERSION
 
 RegistryState = Literal["NOT_REGISTERED", "CHALLENGER", "INVALID"]
 ApprovalState = Literal["NOT_APPROVED", "APPROVED_RUNTIME_DISABLED", "INVALID"]
@@ -111,7 +113,7 @@ def _validate_record_evidence(models_root: Path, record: ModelRegistryRecord) ->
         "model_sha256": record.artifact_sha256,
         "model_type": record.model_type,
         "model_version": record.model_version,
-        "feature_contract_version": "shared-causal-market-features-v2",
+        "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "feature_contract_sha256": record.feature_contract_sha256,
         "runtime_loaded": False,
         "shadow_predictions": 0,
@@ -289,6 +291,56 @@ def validate_explicit_approval(
         "exact artifact approved; runtime loading remains disabled",
         record,
     )
+
+def is_artifact_stale(
+    record: ModelRegistryRecord,
+    as_of_date: date | datetime,
+    max_age_days: int = 30,
+    *,
+    models_root: Path,
+) -> bool:
+    """Return whether the artifact's latest immutable evaluation day is old.
+
+    The full content-addressed evidence graph is revalidated first. The latest
+    walk-forward ``test_day`` is then used instead of mutable filesystem
+    timestamps. This helper reports policy evidence only; callers decide how a
+    stale artifact affects runtime behavior.
+    """
+    if max_age_days < 0:
+        raise ValueError("max_age_days must be non-negative")
+
+    _validate_record_evidence(models_root, record)
+    root = models_root.resolve()
+    artifact_path = (models_root / record.artifact_path).resolve()
+    if not artifact_path.is_relative_to(root):
+        raise ValueError("registry artifact path escapes models root")
+    validation_path = artifact_path.parent / "validation.json"
+    validation = _load_json_object(
+        validation_path,
+        description="challenger validation evidence",
+    )
+    fold_boundaries = validation.get("fold_boundaries")
+    if not isinstance(fold_boundaries, list) or not fold_boundaries:
+        raise ValueError("validation evidence has no walk-forward fold boundaries")
+
+    test_days: list[date] = []
+    for index, fold in enumerate(fold_boundaries):
+        if not isinstance(fold, dict):
+            raise ValueError(f"validation fold {index} must be an object")
+        raw_test_day = fold.get("test_day")
+        if not isinstance(raw_test_day, str):
+            raise ValueError(f"validation fold {index} is missing test_day")
+        try:
+            test_days.append(date.fromisoformat(raw_test_day))
+        except ValueError as error:
+            raise ValueError(
+                f"validation fold {index} test_day must be ISO-8601"
+            ) from error
+
+    comparison_date = as_of_date.date() if isinstance(as_of_date, datetime) else as_of_date
+    age_days = (comparison_date - max(test_days)).days
+    return age_days > max_age_days
+
 
 
 def sha256_file(path: Path) -> str:

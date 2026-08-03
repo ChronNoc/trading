@@ -278,6 +278,80 @@ def test_failed_job_records_retry_count_and_is_retryable(tmp_path: Path, monkeyp
     assert len(remaining) == 1
 
 
+def test_evidence_persistence_failure_is_retryable_after_restart(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A result is not durably complete until its evidence is persisted."""
+    _session(tmp_path / "raw", 10)
+    from app.research.auto_research import ResearchCheckpoint
+
+    service = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=1))
+    pending = service.discover_jobs(ResearchCheckpoint.load(service.checkpoint_path))
+    assert len(pending) == 1
+    key = pending[0].key
+
+    def _fail_persistence(_results) -> None:
+        raise OSError("simulated evidence write failure")
+
+    monkeypatch.setattr(service, "_persist_result_setups", _fail_persistence)
+    service.run_batch(use_processes=False)
+
+    checkpoint = ResearchCheckpoint.load(service.checkpoint_path)
+    assert key not in checkpoint.completed
+    assert not (tmp_path / "state" / "job_results" / f"{key}.json").exists()
+    errors = json.loads(
+        (tmp_path / "state" / "job_errors.json").read_text(encoding="utf-8")
+    )
+    assert errors[key]["retries"] == 1
+    assert "simulated evidence write failure" in errors[key]["last_error"]
+    assert list((tmp_path / "state" / "claims").glob("*.claim")) == []
+
+    restarted = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=1))
+    remaining = restarted.discover_jobs(
+        ResearchCheckpoint.load(restarted.checkpoint_path)
+    )
+    assert [job.key for job in remaining] == [key]
+
+
+def test_evidence_persistence_failure_does_not_block_other_results(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A failed evidence write stays retryable while another result completes."""
+    for minute in (10, 20):
+        _session(tmp_path / "raw", minute)
+    from app.research.auto_research import ResearchCheckpoint
+
+    service = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=1))
+    pending = service.discover_jobs(ResearchCheckpoint.load(service.checkpoint_path))
+    assert len(pending) == 2
+    failed_key, completed_key = (job.key for job in pending)
+    persist = service._persist_result_setups
+
+    def _fail_one_result(results) -> None:
+        result = results[0]
+        if result.key == failed_key:
+            raise OSError("simulated isolated evidence write failure")
+        persist(results)
+
+    monkeypatch.setattr(service, "_persist_result_setups", _fail_one_result)
+    service.run_batch(use_processes=False)
+
+    checkpoint = ResearchCheckpoint.load(service.checkpoint_path)
+    assert failed_key not in checkpoint.completed
+    assert completed_key in checkpoint.completed
+    result_dir = tmp_path / "state" / "job_results"
+    assert not (result_dir / f"{failed_key}.json").exists()
+    assert (result_dir / f"{completed_key}.json").exists()
+
+    restarted = _service(tmp_path, runtime_config=ResearchRuntimeConfig(worker_count=1))
+    remaining = restarted.discover_jobs(
+        ResearchCheckpoint.load(restarted.checkpoint_path)
+    )
+    assert [job.key for job in remaining] == [failed_key]
+
+
 def test_mid_batch_data_loss_cancels_remaining_jobs(tmp_path: Path) -> None:
     """New drops DURING a batch cancel not-yet-run jobs and release their claims."""
     for minute in (10, 20, 30):

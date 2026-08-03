@@ -91,6 +91,13 @@ class EpisodeConfig:
     # Research episodes keep the canonical default unless a candidate says
     # otherwise explicitly.
     momentum_enabled: bool = False
+    # Whether the live paper engine's decision may be VETOED by the observe-
+    # only shadow model's most recent scored probability (conservative
+    # veto-only policy; see app/paper/streaming_engine.py). Ships disabled;
+    # the live paper engine reads paper_ml_decision_policy_enabled from
+    # production_config.yaml. Research/replay has no model_loader to consult,
+    # so this has no effect outside the live streaming engine.
+    ml_decision_policy_enabled: bool = False
     # "canonical" (the honest RTH-only strategy) or "relaxed" (a research
     # profile with lower thresholds and no RTH gate, for per-session training).
     # See app/strategy/profiles.py. Research/replay defaults to canonical.
@@ -113,6 +120,15 @@ class EpisodeConfig:
     # risk-loosening; the loss cap protects the account and should stay tight.
     max_entries_per_day: int = 3
     max_losses_per_day: int = 3
+    # Fixed-size PAPER sizing (0 = disabled, keeps the dynamic risk sizing
+    # above unchanged). A PER-TRADE risk cap, not a daily loss cap - see
+    # paper_fixed_contracts / paper_max_risk_per_trade_usd in
+    # config/production_config.yaml. The strategy's real stop is never
+    # replaced; a stop implying more than max_risk_per_trade_usd at
+    # fixed_contracts contracts causes the trade to be rejected instead of
+    # resized. See app/paper/execution.py::size_intent.
+    fixed_contracts: int = 0
+    max_risk_per_trade_usd: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""
@@ -140,6 +156,16 @@ class EpisodeConfig:
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.fixed_contracts < 0:
+            raise ValueError("fixed_contracts must be non-negative")
+        if not self.max_risk_per_trade_usd.is_finite():
+            raise ValueError("max_risk_per_trade_usd must be finite")
+        if self.max_risk_per_trade_usd < 0:
+            raise ValueError("max_risk_per_trade_usd must be non-negative")
+        if self.fixed_contracts > 0 and self.max_risk_per_trade_usd <= 0:
+            raise ValueError(
+                "max_risk_per_trade_usd must be positive when fixed_contracts is set",
+            )
 
     @property
     def slippage_model(self) -> SlippageModel:

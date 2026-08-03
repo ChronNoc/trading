@@ -1,8 +1,8 @@
-"""Dark premium trading UI design tokens.
+"""Theme-neutral layout tokens and legacy palette constants for the GUI.
 
-Centralized theme system for consistent visual language across all screens.
-Deep navy/black base with electric blue, cyan, violet, emerald accents.
-Glass morphism aesthetic with subtle neon glow.
+The active dark and light reusable-widget palettes live in :mod:`app.gui.theme`.
+This module retains shared spacing, typography, elevation, and compatibility
+constants used by the dashboard component system.
 """
 
 from __future__ import annotations
@@ -54,6 +54,12 @@ COLOR_SUCCESS_GLOW: Final[str] = "rgba(16, 185, 129, 0.25)"
 COLOR_WARNING: Final[str] = "#f59e0b"
 COLOR_WARNING_LIGHT: Final[str] = "#fbbf24"
 COLOR_WARNING_DARK: Final[str] = "#d97706"
+
+# Locked/safety gate (amber family, semantically distinct from warning)
+COLOR_LOCKED_DARK: Final[str] = "#49391b"  # background for locked state
+COLOR_LOCKED_LIGHT: Final[str] = "#ffd98c"  # text for locked state
+COLOR_LOCKED_BORDER: Final[str] = "#a57b25"  # border for locked state
+COLOR_LOCKED_GLOW: Final[str] = "rgba(255, 217, 140, 0.25)"
 
 # Error (red)
 COLOR_ERROR: Final[str] = "#ef4444"
@@ -182,14 +188,12 @@ Z_INDEX_TOOLTIP: Final[int] = 600
 
 @dataclass(frozen=True, slots=True)
 class CardStyle:
-    """Glass morphism card styling."""
+    """Theme-neutral layout and elevation tokens for dashboard cards."""
 
-    background: str = COLOR_BASE_MID
-    border: str = COLOR_GLASS_BORDER
-    border_radius: int = RADIUS_LG
     padding: int = SPACE_MD
-    shadow: str = SHADOW_MD
-    overlay: str = COLOR_GLASS_OVERLAY
+    shadow_blur_radius: int = 16
+    shadow_offset_y: int = 4
+    shadow_alpha: int = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,4 +282,10 @@ BADGE_INFO = BadgeStyle(
 BADGE_NEUTRAL = BadgeStyle(
     background=COLOR_BASE_LIGHT,
     text=COLOR_TEXT_SECONDARY,
+)
+
+BADGE_LOCKED = BadgeStyle(
+    background=COLOR_LOCKED_DARK,
+    text=COLOR_LOCKED_LIGHT,
+    border=COLOR_LOCKED_BORDER,
 )

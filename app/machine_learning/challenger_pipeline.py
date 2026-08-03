@@ -63,6 +63,7 @@ class SourceSessionRecord:
     wins: int
     losses: int
     dropped_incomplete: int
+    dropped_invalid_features: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +162,7 @@ def build_challenger_dataset(
                 wins=summary.wins,
                 losses=summary.losses,
                 dropped_incomplete=summary.dropped_incomplete,
+                dropped_invalid_features=summary.dropped_invalid_features,
             )
         )
 

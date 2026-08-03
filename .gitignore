@@ -32,12 +32,14 @@ data/paper/
 pytest-clean-*/
 .pytest-tmp/
 .pytest-tmp2/
+.pytest-tmp-*/
 
 # Temporary work directories
 .tmp/
 
 # Claude Code and Serena tool directories
 .claude/
+.qoder/
 .serena/
 
 # Rendered GUI screenshots (regenerate: python -m tools.capture_gui_screenshots)

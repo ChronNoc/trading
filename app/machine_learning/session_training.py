@@ -32,6 +32,7 @@ from app.machine_learning.feature_contract import (
     CausalFeaturePipeline,
     feature_contract_sha256,
 )
+from app.machine_learning.triple_barrier import barrier_prices, resolve_barrier
 from app.market.state import MarketState
 from app.research.replay_loader import stream_session_events
 from app.strategy.order_flow import _reference_price
@@ -84,6 +85,7 @@ class SessionDatasetSummary:
     wins: int = 0
     losses: int = 0
     dropped_incomplete: int = 0
+    dropped_invalid_features: int = 0
     trainable: bool = False
     note: str = ""
 
@@ -143,11 +145,17 @@ def build_session_training_rows(
                 and event.timestamp_ns - last_sample_ns >= sample_ns):
             last_sample_ns = event.timestamp_ns
             for direction in cfg.directions:
-                row = features.feature_vector(
-                    direction=direction,
-                    stop_distance=cfg.stop_ticks,
-                    target_distance=cfg.target_ticks,
-                ).as_record()
+                try:
+                    row = features.feature_vector(
+                        direction=direction,
+                        stop_distance=cfg.stop_ticks,
+                        target_distance=cfg.target_ticks,
+                    ).as_record()
+                except ValueError:
+                    # Unknown spread/depth/causal levels are not numeric zero.
+                    # The row is incomplete and must never enter a dataset.
+                    summary.dropped_invalid_features += 1
+                    continue
                 row["timestamp_ns"] = event.timestamp_ns
                 target, stop = _barriers(ref, direction, cfg)
                 pendings.append(_Pending(row, direction, ref, target, stop,
@@ -298,28 +306,19 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def _barriers(entry: Decimal, direction: str, cfg: SessionTrainingConfig) -> tuple[Decimal, Decimal]:
-    up = cfg.target_ticks * cfg.tick_size
-    down = cfg.stop_ticks * cfg.tick_size
-    if direction == "long":
-        return entry + up, entry - down
-    return entry - up, entry + down
+    return barrier_prices(
+        entry, direction,
+        target_ticks=cfg.target_ticks, stop_ticks=cfg.stop_ticks, tick_size=cfg.tick_size,
+    )
 
 
 def _resolve(pending: _Pending, price: Decimal, ts_ns: int) -> int | None:
     """1 if target-before-stop, 0 if stop-first or horizon expired, None if open."""
-    if pending.direction == "long":
-        if price >= pending.target:
-            return 1
-        if price <= pending.stop:
-            return 0
-    else:
-        if price <= pending.target:
-            return 1
-        if price >= pending.stop:
-            return 0
-    if ts_ns >= pending.deadline_ns:
-        return 0
-    return None
+    return resolve_barrier(
+        pending.direction,
+        target=pending.target, stop=pending.stop, price=price,
+        timestamp_ns=ts_ns, deadline_ns=pending.deadline_ns,
+    )
 
 
 def _trade_price(event: object) -> Decimal | None:

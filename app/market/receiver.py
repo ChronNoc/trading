@@ -132,10 +132,17 @@ async def consume_market_stream(
         for event in frame_events:
             messages_processed += 1
             if is_control_event(event):
-                if recorder is not None and hasattr(recorder, "record_control_event"):
-                    recorder.record_control_event(event)
+                # ``on_control_event`` runs first: it is the handshake-validation
+                # callback (see tools/start_receiver.py) that stamps fields like
+                # ``handshake_accepted`` onto the event in place. The recorder
+                # persists whatever the callback decided, so it must observe the
+                # enriched event, not the raw wire payload - otherwise every
+                # session's manifest silently records a false negative for
+                # handshake acceptance regardless of what the callback approved.
                 if on_control_event is not None:
                     on_control_event(event)
+                if recorder is not None and hasattr(recorder, "record_control_event"):
+                    recorder.record_control_event(event)
                 control_events_processed += 1
                 if max_messages is not None and messages_processed >= max_messages:
                     stop_requested = True

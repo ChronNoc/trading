@@ -7,6 +7,7 @@ fails closed.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 
@@ -26,6 +27,26 @@ def read_momentum_enabled(production_config_path: Path) -> bool:
     if not isinstance(payload, dict):
         return False
     return payload.get("paper_momentum_setup_enabled") is True
+
+
+def read_ml_decision_policy_enabled(production_config_path: Path) -> bool:
+    """Whether the paper engine's decisions may be vetoed by the shadow model.
+
+    Missing file or missing key means FALSE (heuristic-only decisions, the
+    unchanged behaviour). See config/production_config.yaml for the full
+    policy description.
+    """
+    if not production_config_path.is_file():
+        return False
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return payload.get("paper_ml_decision_policy_enabled") is True
 
 
 def read_strategy_profile(production_config_path: Path) -> str:
@@ -77,9 +98,9 @@ _STOP_KEYS = (
 )
 
 
-def read_stop_settings(production_config_path: Path) -> dict[str, "Decimal"]:
+def read_stop_settings(production_config_path: Path) -> dict[str, Decimal]:
     """Return the dynamic-stop tick settings; all 0 (disabled) if unset/unreadable."""
-    from decimal import Decimal, InvalidOperation
+    from decimal import InvalidOperation
 
     zeros = {key.replace("paper_", ""): Decimal("0") for key in _STOP_KEYS}
     if not production_config_path.is_file():
@@ -104,6 +125,48 @@ def read_stop_settings(production_config_path: Path) -> dict[str, "Decimal"]:
         if value >= 0:
             result[key.replace("paper_", "")] = value
     return result
+
+
+def read_fixed_sizing(production_config_path: Path) -> dict[str, object]:
+    """Return fixed_contracts / max_risk_per_trade_usd (both 0 = disabled).
+
+    The two settings are atomic: fixed sizing is enabled only when both keys are
+    present and valid. Missing/unreadable config, a missing key, or any invalid
+    value fails closed to the disabled defaults, so malformed configuration can
+    neither activate fixed sizing nor prevent the paper engine from starting.
+    """
+    from decimal import InvalidOperation
+
+    defaults: dict[str, object] = {
+        "fixed_contracts": 0,
+        "max_risk_per_trade_usd": Decimal("0"),
+    }
+    if not production_config_path.is_file():
+        return defaults
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return defaults
+    if not isinstance(payload, dict):
+        return defaults
+
+    raw_contracts = payload.get("paper_fixed_contracts")
+    raw_risk = payload.get("paper_max_risk_per_trade_usd")
+    if raw_contracts is None or raw_risk is None or isinstance(raw_contracts, bool):
+        return defaults
+    try:
+        contracts = int(raw_contracts)
+        risk = Decimal(str(raw_risk))
+    except (InvalidOperation, TypeError, ValueError):
+        return defaults
+    if contracts <= 0 or not risk.is_finite() or risk <= 0:
+        return defaults
+    return {
+        "fixed_contracts": contracts,
+        "max_risk_per_trade_usd": risk,
+    }
 
 
 def read_daily_limits(production_config_path: Path) -> dict[str, int]:

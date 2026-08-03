@@ -125,6 +125,101 @@ def test_walk_forward_purges_labels_resolved_in_the_test_period() -> None:
     assert result.fold_boundaries[0]["train_rows"] == 5
 
 
+def test_walk_forward_purges_label_resolved_at_test_day_boundary() -> None:
+    """A label resolving exactly when the test trading day starts is unavailable."""
+    from datetime import date, datetime, time, timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.research.causal_context import trading_day_for_timestamp
+
+    rows: list[dict[str, object]] = []
+    for day in range(5):
+        rows.extend([
+            _row(day, 0, imbalance=-1.0, label=0),
+            _row(day, 1, imbalance=1.0, label=1),
+        ])
+
+    test_day = trading_day_for_timestamp(int(rows[6]["timestamp_ns"]))
+    boundary_local = datetime.combine(
+        date.fromisoformat(test_day) - timedelta(days=1),
+        time(18, 0),
+        tzinfo=ZoneInfo("America/New_York"),
+    )
+    boundary_ns = int(boundary_local.timestamp() * 1e9)
+    assert trading_day_for_timestamp(boundary_ns) == test_day
+    rows[4]["label_resolved_timestamp_ns"] = boundary_ns
+
+    result = walk_forward_evaluate(rows, min_train_days=3)
+
+    assert result.fold_boundaries[0]["test_day"] == test_day
+    assert result.fold_boundaries[0]["purged_train_rows"] == 1
+    assert result.fold_boundaries[0]["train_rows"] == 5
+
+
+def test_walk_forward_reports_varying_purge_counts_across_folds() -> None:
+    """Each fold must recompute label availability at its own day boundary."""
+    from app.research.causal_context import trading_day_for_timestamp
+
+    rows: list[dict[str, object]] = []
+    for day in range(6):
+        for index in range(4):
+            label = index % 2
+            rows.append(
+                _row(
+                    day,
+                    index,
+                    imbalance=1.0 if label else -1.0,
+                    label=label,
+                )
+            )
+
+    day_three_resolution = int(rows[12]["timestamp_ns"])
+    day_four_resolution = int(rows[16]["timestamp_ns"])
+    rows[0]["label_resolved_timestamp_ns"] = day_three_resolution
+    rows[1]["label_resolved_timestamp_ns"] = day_four_resolution
+    rows[2]["label_resolved_timestamp_ns"] = day_four_resolution
+
+    result = walk_forward_evaluate(rows, min_train_days=3)
+
+    purge_counts = {
+        str(fold["test_day"]): int(fold["purged_train_rows"])
+        for fold in result.fold_boundaries
+    }
+    assert purge_counts == {
+        trading_day_for_timestamp(day_three_resolution): 3,
+        trading_day_for_timestamp(day_four_resolution): 2,
+        trading_day_for_timestamp(int(rows[20]["timestamp_ns"])): 0,
+    }
+
+
+def test_walk_forward_skips_fold_when_purge_removes_all_training_rows() -> None:
+    """A fully purged fold produces no model fit or false OOS evidence."""
+    from app.research.causal_context import trading_day_for_timestamp
+
+    rows: list[dict[str, object]] = []
+    for day in range(5):
+        rows.extend([
+            _row(day, 0, imbalance=-1.0, label=0),
+            _row(day, 1, imbalance=1.0, label=1),
+        ])
+
+    fully_purged_day = int(rows[6]["timestamp_ns"])
+    for row in rows[:6]:
+        row["label_resolved_timestamp_ns"] = fully_purged_day
+
+    result = walk_forward_evaluate(rows, min_train_days=3)
+
+    skipped_test_day = trading_day_for_timestamp(fully_purged_day)
+    next_test_day = trading_day_for_timestamp(int(rows[8]["timestamp_ns"]))
+    assert result.evaluated_days == 1
+    assert result.oos_predictions == 2
+    assert all(
+        fold["test_day"] != skipped_test_day
+        for fold in result.fold_boundaries
+    )
+    assert result.fold_boundaries[0]["test_day"] == next_test_day
+
+
 def test_no_signal_is_reported_honestly() -> None:
     """Random labels uncorrelated with features -> no edge, does not beat baseline."""
     rng = random.Random(2)

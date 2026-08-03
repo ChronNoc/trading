@@ -415,6 +415,32 @@ class ModelSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class ChallengerSummary:
+    """One registered challenger's offline evidence. No field implies runtime use.
+
+    ``model`` (:class:`ModelSnapshot`) reflects only the single artifact selected
+    by :func:`app.machine_learning.registry.validate_explicit_approval` — zero or
+    two-or-more unapproved challengers both collapse to no record. This tuple is
+    the full, unfiltered ``read_registry()`` result so every registered artifact
+    stays visible even when none (or several) qualify for exact approval.
+    """
+
+    artifact_id: str = ""
+    dataset_id: str = ""
+    model_type: str = ""
+    model_version: str = ""
+    validation_state: str = "NOT_EVALUATED"
+    validation_detail: str = ""
+    oos_predictions: int = 0
+    brier_score: float = 0.0
+    beats_baseline: bool = False
+    included_sessions: int = 0
+    excluded_sessions: int = 0
+    approval_state: str = "NOT_APPROVED"
+    approval_detail: str = "not the exactly-approved artifact"
+
+
+@dataclass(frozen=True, slots=True)
 class AppSnapshot:
     """The single immutable object the GUI renders. Built off-thread."""
 
@@ -429,6 +455,7 @@ class AppSnapshot:
     execution: ExecutionSnapshot = field(default_factory=ExecutionSnapshot)
     components: tuple[ComponentHealth, ...] = ()
     capabilities: tuple[tuple[str, Capability, str], ...] = ()
+    challengers: tuple[ChallengerSummary, ...] = ()
     next_action: str = ""
     blocker: str = ""
 

@@ -45,12 +45,45 @@ class WalkForwardResult:
 
 
 def load_pooled_rows(models_root: Path) -> list[dict[str, object]]:
-    """Read every per-session dataset.jsonl under ``models_root``."""
+    """Read causally complete per-session rows and reject legacy schemas.
+
+    ``label_resolved_timestamp_ns`` cannot be reconstructed safely from the
+    feature timestamp: doing so would allow labels resolved in a validation
+    period to leak into an earlier training fold. Legacy datasets must be
+    rebuilt from raw events with the current session builder instead.
+    """
     rows: list[dict[str, object]] = []
     for path in sorted(models_root.rglob("dataset.jsonl")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(),
+            start=1,
+        ):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"dataset row must be a JSON object: {path}:{line_number}"
+                )
+            resolved = row.get("label_resolved_timestamp_ns")
+            if resolved is None or isinstance(resolved, bool):
+                raise ValueError(
+                    "legacy dataset row lacks causal label resolution timestamp: "
+                    f"{path}:{line_number}; rebuild from raw session events"
+                )
+            try:
+                resolved_ns = int(str(resolved))
+            except ValueError as error:
+                raise ValueError(
+                    "dataset label_resolved_timestamp_ns must be an integer: "
+                    f"{path}:{line_number}"
+                ) from error
+            if resolved_ns < int(str(row.get("timestamp_ns", ""))):
+                raise ValueError(
+                    "dataset label resolves before its feature timestamp: "
+                    f"{path}:{line_number}"
+                )
+            rows.append(row)
     return rows
 
 

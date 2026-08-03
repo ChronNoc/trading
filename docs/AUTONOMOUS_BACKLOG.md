@@ -1,51 +1,56 @@
 # Autonomous Product Backlog
 
+_Last updated: 2026-07-27. Status distinguishes verified software mechanics from unavailable real-market learning evidence._
+
 ## Current
 
 | ID | Priority | Owner | Item | Reason / acceptance |
 |---|---:|---|---|---|
-| ML-001 | P0 | Data + ML | Provenance-gated reproducible dataset and immutable offline challenger | Completed when eligible/excluded sessions and hashes are explicit, folds are prior-days-only, registry is immutable, and runtime impact is none. |
-| OPS-001 | P0 | Reliability | Complete capture provenance and current-session loss truth | Completed when protocol/provider/capability and lifetime-vs-session loss agree across manifest and catalog. |
+| DATA-002 | P0 | Data + ML | Collect current-contract real delayed Bookmap sessions | Complete only when enough finalized sessions pass protocol/provider/capability/continuity/model-training gates and yield causally resolved rows for prior-days-only walk-forward evaluation. |
+| ML-REAL-001 | P0 | ML | Rerun real challenger lifecycle without relaxing gates | Complete only when a real-data challenger passes every objective gate, immutable evidence validates independently, and an honest registry record is published. Current status: `FAILED_REQUIRES_REWORK`. |
 
 ## Next
 
 | ID | Priority | Dependencies | Item | Acceptance |
 |---|---:|---|---|---|
-| ML-003 | P1 | ML-002 | Explicit approved-model observe-only loader | Loads exact ID+SHA only; schema/hash failure disables scoring; analysis thread only; no decision effect. |
-| ML-004 | P1 | ML-003 | Prediction/outcome journal | Prediction ID joins to target/stop/timeout outcome without leakage; append-only and quality-stamped. |
-| GUI-002 | P1 | ML-003/4 | Runtime model evidence | GUI shows loaded ID, prediction, abstention, outcome coverage, and errors from real snapshot state. |
-| DATA-002 | P1 | market availability | New real delayed Bookmap shadow session | Zero new session drops, clean finalization, accepted 1.2 provenance, automatic reports. |
+| ML-005 | P1 | sufficient real prediction/outcome coverage | Calibration bins, Brier confidence intervals, PSI/drift, and abstention quality | Report only statistically supportable comparisons; unavailable coverage remains explicit. |
+| ML-006 | P1 | real challenger passes | Audited champion/challenger comparison and reversible human promotion | Exact artifact ID+SHA approval remains separate from training; no automatic promotion. |
+| GUI-003 | P2 | stable backend evidence | Process control and diagnostic export | GUI commands operate through confirmed detached-backend state and preserve capture isolation. |
+| PERF-002 | P2 | production-shaped soak | Quantitative Qt responsiveness under concurrent capture | Measured event-loop and capture behavior at the declared rate; no inferred success. |
 
-## Later
+## Blocked / Not Authorized
 
-- ML-005 (P2): calibration bins, Brier confidence intervals, PSI/drift and abstention quality.
-- ML-006 (P2): audited champion/challenger comparison and reversible human promotion.
-- EDGE-001 (P2): incremental OOS tests for microprice/depth-imbalance features against returns/volume/spread/time baselines.
-- GUI-003 (P2): process control and diagnostic export through confirmed backend state.
-- PERF-002 (P2): quantitative Qt event-loop responsiveness under concurrent 1,650+ events/s capture.
-
-## Blocked
-
-- EXEC-001: Tradovate DEMO order submission — requires separate authorization and safety review.
-- LIVE-001: any LIVE execution — not authorized.
-- EDGE-MBO: queue/MBO/native iceberg work — current feed exposes no order IDs.
+- EXEC-001: Tradovate DEMO order submission requires separate authorization and safety review.
+- LIVE-001: any LIVE execution is not authorized.
+- EDGE-MBO: queue/MBO/native-iceberg work is unavailable because the current feed exposes no order IDs.
+- Model approval is blocked by evidence, not tooling: no real challenger has passed.
 
 ## Rejected
 
 - Loading the newest model by filename or modification time: non-reproducible and unsafe.
-- Automatic promotion after training: validation and deployment must remain separate.
+- Automatic promotion after training: validation, approval, and deployment must remain separate.
 - Deep/RL models before simulator, parity, and baseline evidence: unnecessary degrees of freedom.
 - Missing capability represented as zero: zero has market meaning and would be deceptive.
+- Relaxing causal timestamps, session eligibility, or walk-forward gates to manufacture an artifact.
+- Presenting the synthetic integration fixture as market edge, cross-session real-market learning, or profitability.
 
-## Completed
+## Verified Complete
 
 - Capture moved off fragile GUI ownership.
-- Bounded receiver/recorder/analysis stages with conservation metrics.
+- Bounded receiver, recorder, and analysis stages with conservation metrics.
 - Session rotation after bridge/recorder damage.
-- Protocol 1.2 batching/global sequencing.
-- Manual pooled walk-forward evaluation.
-- ML-001 and OPS-001 first-cycle vertical slice.
-- ML-002 shared causal feature builder and canonical-vector golden fixture; runtime integration remains disconnected.
-- Purged CME-trading-day walk-forward evidence with label-resolution provenance.
-- Registry evidence graph integrity binding for model, bundle, validation, dataset, and feature contract.
-- Every-event analysis-thread feature observer with gap/session reset, rewarm, and memory-only status; no model scoring.
+- Protocol 1.2 batching and global sequencing.
+- OPS-001 capture provenance and current-session loss truth.
+- ML-001 provenance-gated deterministic dataset, prior-days-only evaluation, immutable attempt/challenger evidence, and exact approval separation.
+- ML-002 shared causal feature contract and canonical-vector golden fixture, used online and offline.
+- ML-003 exact-approved, integrity- and staleness-validated loader. It creates no direct broker effect but supplies atomically correlated evidence to an optional paper-only policy consumer.
+- ML-004 append-only prediction and outcome journals with shared fixed triple-barrier resolution.
+- Authoritative `DelayedPaperEngine` integration with default-off conservative veto-only policy and exact decision provenance.
+- Shared in-process/detached startup graph for feature sink, loader, and outcome tracker.
+- GUI model/outcome status from real runtime snapshots.
+- Synthetic trained-artifact mechanics proof through the authoritative paper decision path.
+- Final acceptance verifier covers approval, staleness, provenance, journal round trip, execution isolation, and false live flags.
+
+## Current Real-Evidence Failure
+
+The local corpus contains 250 physical manifests, 5 analysis-eligible sessions, 1 replay-eligible session, and 0 model-training-eligible sessions. All 4,109 legacy rows lack `label_resolved_timestamp_ns` and fail closed; there are 0 current-contract real training rows. Both real attempts failed all five walk-forward gates. No real artifact was published, registered, or approved.

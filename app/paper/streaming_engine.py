@@ -57,6 +57,25 @@ STATE_WARMING = "WARMING_UP"
 STATE_EVALUATING = "EVALUATING"
 STATE_ERROR = "ERROR"
 
+# -- ML decision-policy constants (see _apply_ml_policy) -------------------------
+# decision_source values: which logic produced accepted/rejected.
+DECISION_SOURCE_HEURISTIC = "HEURISTIC"
+DECISION_SOURCE_ML = "ML"
+DECISION_SOURCE_BLENDED = "BLENDED"
+DECISION_SOURCE_FALLBACK = "FALLBACK"
+# Versions the historical record so future policy changes are distinguishable.
+ML_POLICY_VERSION = "ml-veto-v1"
+# Conservative veto-only threshold: a heuristic-accepted setup is overridden to
+# rejected only when the model's success probability is below this. Chosen as
+# a clearly-below-coinflip bar so the veto only fires on a confident negative
+# signal, never on ordinary uncertainty. Documented here, not derived from any
+# backtest, until real shadow-scoring evidence justifies tuning it.
+ML_VETO_PROBABILITY_THRESHOLD = 0.35
+# A prediction is causal evidence only near the market event that produced it.
+# The feature sampler runs every 30 seconds by default; allowing two cadences
+# prevents boundary jitter while forbidding indefinite reuse of stale scores.
+ML_PREDICTION_CORRELATION_WINDOW_NS = 60_000_000_000
+
 
 @dataclass(frozen=True, slots=True)
 class ConditionResult:
@@ -82,6 +101,33 @@ class EvaluationRecord:
     accepted: bool
     conditions: tuple[ConditionResult, ...]
     rejection_reasons: tuple[str, ...]
+    # -- ML decision-policy provenance (see _apply_ml_policy) -------------------
+    # Which logic actually produced ``accepted``: "HEURISTIC" (heuristic alone,
+    # policy off or model not consulted), "ML" (heuristic accepted, model
+    # probability was available and consulted but did not veto), "BLENDED"
+    # (heuristic accepted, model probability vetoed it), or "FALLBACK" (policy
+    # enabled but no usable model - behaviour matches heuristic-only).
+    decision_source: str = DECISION_SOURCE_HEURISTIC
+    # The model's success_probability consulted for this decision, when
+    # available; None when the policy was off or no model was consulted.
+    confidence: float | None = None
+    # The untransformed output returned by this binary model. Kept distinct
+    # from ``confidence`` so a future policy may calibrate/transform confidence
+    # without losing the original model evidence. The current loader exposes a
+    # single success probability, represented as a structured scalar payload.
+    raw_model_output: dict[str, float] | None = None
+    # The approved artifact_id backing ``confidence``, or "" when none.
+    model_version: str = ""
+    # Atomic identity from the exact correlated prediction evidence.
+    model_prediction_id: str = ""
+    model_artifact_sha256: str = ""
+    # Why ML did not/could not influence this decision (e.g. "policy
+    # disabled", "no approved model", "model not SCORING"); "" when ML was
+    # actually consulted and influenced (or could have influenced) the result.
+    fallback_reason: str = ""
+    # A literal version string for the blending policy logic itself, so
+    # future policy changes are distinguishable in the historical record.
+    policy_version: str = ML_POLICY_VERSION
 
     @property
     def first_failure(self) -> str:
@@ -171,11 +217,22 @@ class DelayedPaperEngine:
         capabilities: Mapping[str, bool] | None = None,
         account_profile: object | None = None,
         is_synthetic_fixture: bool = False,
+        model_loader: object | None = None,
     ) -> None:
         """Create an engine that begins evaluating as soon as warm-up completes.
 
         It also owns a :class:`PaperExecutor`, so a qualifying setup automatically
         becomes a risk-checked, causally-filled simulated trade - no button.
+
+        ``model_loader`` is optional (default ``None``) and structurally
+        duck-typed: any object exposing ``.snapshot()`` (returning something
+        with a ``.state``/``.artifact_id``) and ``.last_probability(direction)`` returning timestamped evidence
+        (``success_probability``/``timestamp_ns``)
+        works - matching ``app.machine_learning.shadow_predictor
+        .ObserveOnlyModelLoader``'s public interface, without importing that
+        module here. Only consulted when ``config.ml_decision_policy_enabled``
+        is true, and always inside a broad try/except: a broken or absent
+        loader can never stop or alter heuristic-only paper evaluation.
         """
         from app.paper.execution import PaperExecutor
         from app.risk.account_profile import load_selected_profile
@@ -183,6 +240,7 @@ class DelayedPaperEngine:
         self._profile = account_profile or load_selected_profile()
         limits = self._profile.effective_limits()  # type: ignore[union-attr]
         self._config = config or EpisodeConfig()
+        self._model_loader = model_loader
         from app.instruments import resolve_instrument
 
         self._instrument = resolve_instrument(self._config.instrument)
@@ -195,6 +253,8 @@ class DelayedPaperEngine:
             trail_distance_ticks=self._config.trail_distance_ticks,
             max_entries_per_day=self._config.max_entries_per_day,
             max_losses_per_day=self._config.max_losses_per_day,
+            fixed_contracts=self._config.fixed_contracts,
+            max_risk_per_trade_usd=self._config.max_risk_per_trade_usd,
         )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]
@@ -499,8 +559,22 @@ class DelayedPaperEngine:
             )
             for c in evaluation.conditions  # type: ignore[attr-defined]
         )
-        reasons = tuple(c.message for c in conditions if not c.passed)
-        accepted = bool(evaluation.accepted)  # type: ignore[attr-defined]
+        reasons = list(c.message for c in conditions if not c.passed)
+        heuristic_accepted = bool(evaluation.accepted)  # type: ignore[attr-defined]
+        (
+            accepted,
+            decision_source,
+            confidence,
+            model_version,
+            model_prediction_id,
+            model_artifact_sha256,
+            fallback_reason,
+        ) = self._apply_ml_policy(direction, heuristic_accepted)
+        if decision_source == DECISION_SOURCE_BLENDED:
+            reasons.append(
+                f"ML veto: success_probability={confidence:.4f} < "
+                f"{ML_VETO_PROBABILITY_THRESHOLD:.2f} (model {model_version})",
+            )
         with self._lock:
             session_id = self._status.session_id
         record = EvaluationRecord(
@@ -512,7 +586,16 @@ class DelayedPaperEngine:
             event_index=self._event_index,
             accepted=accepted,
             conditions=conditions,
-            rejection_reasons=reasons,
+            rejection_reasons=tuple(reasons),
+            decision_source=decision_source,
+            confidence=confidence,
+            raw_model_output=(
+                {"success_probability": confidence} if confidence is not None else None
+            ),
+            model_version=model_version,
+            model_prediction_id=model_prediction_id,
+            model_artifact_sha256=model_artifact_sha256,
+            fallback_reason=fallback_reason,
         )
         self._evaluations.append(record)
         for condition in conditions:
@@ -526,7 +609,9 @@ class DelayedPaperEngine:
             self._status.last_setup = f"{setup_version}_{direction.value}"
             self._status.last_direction = direction.value
             self._status.last_decision = "accepted" if accepted else "rejected"
-            self._status.last_reason = "" if accepted else (record.first_failure or "")
+            self._status.last_reason = (
+                "" if accepted else (record.first_failure or (reasons[-1] if reasons else ""))
+            )
             self._status.last_evaluation_ns = record.evaluated_at_ns
             self._status.top_rejections = tuple(self._rejections.most_common(5))
             if accepted:
@@ -535,6 +620,110 @@ class DelayedPaperEngine:
         # An accepted setup is the ONLY thing that may produce a candidate.
         if accepted and derived is not None and tick is not None:
             self._consider_entry(record, derived, tick)
+
+    def _apply_ml_policy(
+        self,
+        direction: TradeDirection,
+        heuristic_accepted: bool,
+    ) -> tuple[bool, str, float | None, str, str, str, str]:
+        """Apply the veto-only ML decision policy; always fail-safe to HEURISTIC.
+
+        Returns ``(accepted, decision_source, confidence, model_version,
+        model_prediction_id, model_artifact_sha256, fallback_reason)``. Artifact
+        and prediction identity always come atomically from the exact correlated
+        evidence; the loader snapshot only gates on ``SCORING``. The model can
+        only turn a heuristic ACCEPT into a REJECT (conservative veto); it never
+        accepts a heuristic-rejected setup. Any missing, malformed, stale, or
+        broken model evidence falls back to the unchanged heuristic outcome.
+        """
+        fallback = (
+            heuristic_accepted,
+            DECISION_SOURCE_FALLBACK,
+            None,
+            "",
+            "",
+            "",
+        )
+        if not self._config.ml_decision_policy_enabled:
+            return (
+                heuristic_accepted,
+                DECISION_SOURCE_HEURISTIC,
+                None,
+                "",
+                "",
+                "",
+                "policy disabled",
+            )
+
+        if self._model_loader is None:
+            return (*fallback, "no model loader configured")
+
+        try:
+            snapshot = self._model_loader.snapshot()  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - a broken loader must never stop paper evaluation
+            return (*fallback, "model loader snapshot failed")
+
+        state = getattr(snapshot, "state", "")
+        if state != "SCORING":
+            return (*fallback, f"no approved model (state={state or 'unknown'})")
+
+        try:
+            evaluation_timestamp_ns = int(getattr(self._state, "timestamp_ns", 0))
+            with self._lock:
+                session_id = self._status.session_id
+            evidence = self._model_loader.last_probability(  # type: ignore[attr-defined]
+                direction.value,
+                session_id=session_id,
+                as_of_timestamp_ns=evaluation_timestamp_ns,
+                max_age_ns=ML_PREDICTION_CORRELATION_WINDOW_NS,
+            )
+        except Exception:  # noqa: BLE001 - a broken loader must never stop paper evaluation
+            evidence = None
+
+        if evidence is None:
+            return (*fallback, "no matching prediction within correlation window")
+
+        # Every field below must come from the same immutable evidence object.
+        # Missing identity is malformed evidence and cannot affect a decision.
+        prediction_id = getattr(evidence, "prediction_id", None)
+        artifact_id = getattr(evidence, "artifact_id", None)
+        artifact_sha256 = getattr(evidence, "artifact_sha256", None)
+        evidence_session_id = getattr(evidence, "session_id", None)
+        evidence_direction = getattr(evidence, "direction", None)
+        probability = getattr(evidence, "success_probability", None)
+        prediction_timestamp_ns = getattr(evidence, "timestamp_ns", None)
+        if (
+            not prediction_id
+            or not artifact_id
+            or not artifact_sha256
+            or evidence_session_id != session_id
+            or evidence_direction != direction.value
+            or probability is None
+            or prediction_timestamp_ns is None
+        ):
+            return (*fallback, "prediction evidence missing or mismatched atomic identity")
+
+        age_ns = evaluation_timestamp_ns - int(prediction_timestamp_ns)
+        if age_ns < 0 or age_ns > ML_PREDICTION_CORRELATION_WINDOW_NS:
+            return (*fallback, f"prediction outside correlation window (age_ns={age_ns})")
+        probability = float(probability)
+        identity = (str(artifact_id), str(prediction_id), str(artifact_sha256))
+
+        if not heuristic_accepted:
+            # Veto-only: the model never independently accepts a
+            # heuristic-rejected setup - it can only tighten, never loosen.
+            return (
+                heuristic_accepted,
+                DECISION_SOURCE_HEURISTIC,
+                probability,
+                *identity,
+                "",
+            )
+
+        if probability < ML_VETO_PROBABILITY_THRESHOLD:
+            return False, DECISION_SOURCE_BLENDED, probability, *identity, ""
+
+        return True, DECISION_SOURCE_ML, probability, *identity, ""
 
     # -- candidate -> risk -> simulated order -----------------------------------------
 
@@ -588,6 +777,8 @@ class DelayedPaperEngine:
             max_contracts=self._profile.effective_limits().max_contracts,  # type: ignore[union-attr]
             commission_per_contract=self._exec_config.commission_per_contract,
             tick_value=self._instrument.tick_value,
+            fixed_contracts=self._exec_config.fixed_contracts,
+            max_risk_per_trade_usd=self._exec_config.max_risk_per_trade_usd,
         )
         self._executor.submit(intent, decision, tick, trading_day=trading_day)
         if not decision.approved:

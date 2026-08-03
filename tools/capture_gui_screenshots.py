@@ -31,8 +31,13 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     from app.gui.app_window import AppWindow
-    from app.gui.review_snapshot import build_review_snapshot
+    from app.gui.review_snapshot import (
+        build_empty_snapshot,
+        build_partial_snapshot,
+        build_review_snapshot,
+    )
     from app.gui.screens import SCREEN_ORDER
+    from app.gui.visual_regression import screen_slug
 
     app = QApplication.instance() or QApplication(sys.argv)
     if not QFontDatabase.families():
@@ -52,18 +57,25 @@ def main() -> int:
         saved.append(str(path))
         window.close()
 
-    # One screenshot per screen at the smallest supported display.
-    window = AppWindow(snapshot_provider=build_review_snapshot, start_timer=False)
-    window.resize(1366, 768)
-    window.show()
-    for name in SCREEN_ORDER:
-        window.navigate_to(name)
-        window.refresh_from_snapshot()
-        app.processEvents()
-        path = OUTPUT_DIR / f"screen_{name.lower().replace(' ', '_')}.png"
-        window.grab().save(str(path))
-        saved.append(str(path))
-    window.close()
+    # Every destination in each honest lifecycle state at the standard viewport.
+    states = (
+        ("empty", build_empty_snapshot),
+        ("partial", build_partial_snapshot),
+        ("full", build_review_snapshot),
+    )
+    for state_name, snapshot_builder in states:
+        window = AppWindow(snapshot_provider=snapshot_builder, start_timer=False)
+        window.resize(1366, 768)
+        window.show()
+        for name in SCREEN_ORDER:
+            window.navigate_to(name)
+            window.refresh_from_snapshot()
+            app.processEvents()
+            path = OUTPUT_DIR / f"{state_name}__{screen_slug(name)}.png"
+            if not window.grab().save(str(path)):
+                raise OSError(f"failed to save GUI screenshot: {path}")
+            saved.append(str(path))
+        window.close()
 
     print(f"saved {len(saved)} screenshots to {OUTPUT_DIR}")
     for path in saved:

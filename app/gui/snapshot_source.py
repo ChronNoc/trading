@@ -21,6 +21,7 @@ from app.gui.view_models import (
     AppSnapshot,
     Capability,
     CaptureSnapshot,
+    ChallengerSummary,
     ComponentHealth,
     ExecutionSnapshot,
     Health,
@@ -130,6 +131,7 @@ class SnapshotSource:
                 execution=self._execution(),
                 components=self._components(),
                 capabilities=self._capabilities(),
+                challengers=self._challengers(),
                 next_action=self._next_action(),
                 blocker=self._blocker(),
             )
@@ -606,6 +608,66 @@ class SnapshotSource:
                 approval_state="INVALID",
                 approval_detail="registry or approval data is malformed",
             )
+
+    def _challengers(self) -> tuple[ChallengerSummary, ...]:
+        """Return every registered challenger, unfiltered by single-record selection.
+
+        ``_model_snapshot()`` only ever exposes the one record
+        ``validate_explicit_approval`` selects (or none, if zero or several are
+        unapproved). This lists the full ``read_registry()`` result so the GUI
+        can show all registered artifacts side by side - still pure evidence
+        display with no runtime effect.
+        """
+        cached = self._cached("challengers", self._load_challengers)
+        assert isinstance(cached, tuple)
+        return cached
+
+    def _load_challengers(self) -> tuple[ChallengerSummary, ...]:
+        try:
+            from app.machine_learning.registry import read_model_approval, read_registry
+
+            records = read_registry(self._models_root)
+            approval = read_model_approval(self._model_approval_path)
+            summaries = []
+            for record in records:
+                approval_state, approval_detail = self._challenger_approval(record, approval)
+                summaries.append(ChallengerSummary(
+                    artifact_id=record.artifact_id,
+                    dataset_id=record.dataset_id,
+                    model_type=record.model_type,
+                    model_version=record.model_version,
+                    validation_state=record.validation_state,
+                    validation_detail=record.validation_detail,
+                    oos_predictions=record.oos_predictions,
+                    brier_score=record.brier_score,
+                    beats_baseline=record.beats_baseline,
+                    included_sessions=record.included_sessions,
+                    excluded_sessions=record.excluded_sessions,
+                    approval_state=approval_state,
+                    approval_detail=approval_detail,
+                ))
+            return tuple(summaries)
+        except Exception:  # noqa: BLE001 - a bad registry must never kill the GUI
+            return ()
+
+    @staticmethod
+    def _challenger_approval(record: object, approval: object) -> tuple[str, str]:
+        """Mirror ``validate_explicit_approval``'s per-record verdict, read-only."""
+        approved_artifact_id = approval.approved_artifact_id  # type: ignore[attr-defined]
+        approved_sha256 = approval.approved_sha256  # type: ignore[attr-defined]
+        if approved_artifact_id is None and approved_sha256 is None:
+            return "NOT_APPROVED", "no exact artifact approval is configured"
+        if not approved_artifact_id or not approved_sha256:
+            return "INVALID", "approval requires both artifact id and SHA"
+        if record.artifact_id != approved_artifact_id:  # type: ignore[attr-defined]
+            return "NOT_APPROVED", "a different artifact is exactly approved"
+        if record.artifact_sha256 != approved_sha256:  # type: ignore[attr-defined]
+            return "INVALID", "approved artifact SHA does not match registry"
+        if record.validation_state != "PASSED":  # type: ignore[attr-defined]
+            return "INVALID", "failed validation cannot be approved"
+        if approval.runtime_loading_enabled or approval.shadow_scoring_enabled:  # type: ignore[attr-defined]
+            return "INVALID", "runtime loading and shadow scoring are not implemented in this cycle"
+        return "APPROVED_RUNTIME_DISABLED", "exact artifact approved; runtime loading remains disabled"
 
     def _pipeline_snapshot(
         self,

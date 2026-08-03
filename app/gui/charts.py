@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from app.gui.view_models import MarketHistoryPoint
@@ -88,6 +88,22 @@ class HistoryChart(QWidget):
                 path.moveTo(x, y)
             else:
                 path.lineTo(x, y)
+
+        # Static area-gradient fill under the line, fading to transparent
+        area = QPainterPath(path)
+        last_x = rect.left() + rect.width() * (len(values) - 1) / max(1, len(values) - 1)
+        area.lineTo(last_x, rect.bottom())
+        area.lineTo(rect.left(), rect.bottom())
+        area.closeSubpath()
+        gradient = QLinearGradient(0, rect.top(), 0, rect.bottom())
+        fill_color = QColor(dt.COLOR_PRIMARY)
+        fill_color.setAlpha(70)
+        gradient.setColorAt(0.0, fill_color)
+        transparent = QColor(dt.COLOR_PRIMARY)
+        transparent.setAlpha(0)
+        gradient.setColorAt(1.0, transparent)
+        painter.fillPath(area, gradient)
+
         painter.setPen(QPen(line, 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         painter.drawPath(path)
         
@@ -121,8 +137,15 @@ class AggressorBar(QWidget):
         self.setAccessibleDescription(f"Bid {self._bid_fraction:.1%}, Ask {1 - self._bid_fraction:.1%}")
         self.update()
 
-    def set_values(self, bid_volume: Decimal, ask_volume: Decimal) -> None:
-        """Set aggressor volumes and update the visual split."""
+    def set_values(
+        self,
+        bid_volume: Decimal | None,
+        ask_volume: Decimal | None,
+    ) -> None:
+        """Set aggressor volumes and use an even split before data arrives."""
+        if bid_volume is None or ask_volume is None:
+            self.set_split(0.5)
+            return
         total = bid_volume + ask_volume
         if total > 0:
             self.set_split(float(bid_volume / total))

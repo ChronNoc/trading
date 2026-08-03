@@ -49,6 +49,7 @@ REASON_DUPLICATE = "duplicate_setup_occurrence"
 REASON_STALE_BOOK = "stale_or_crossed_book"
 REASON_CONTRACT_UNRESOLVED = "contract_unresolved"
 REASON_APPROVED = "approved"
+REASON_STOP_TOO_WIDE = "stop_exceeds_fixed_risk_cap"
 
 
 def align_to_tick(price: Decimal, *, round_up: bool) -> Decimal:
@@ -84,6 +85,13 @@ class ExecutionConfig:
     # this many ticks behind the best price seen. Locks in more as it runs.
     trail_activation_ticks: Decimal = Decimal("0")
     trail_distance_ticks: Decimal = Decimal("0")
+    # Fixed-size PAPER sizing (0 = disabled -> the original dynamic 1%-account/
+    # 3-trades risk sizing in size_intent() is unchanged). A PER-TRADE risk
+    # cap, not a daily loss cap. See EpisodeConfig.fixed_contracts and
+    # config/production_config.yaml's paper_fixed_contracts /
+    # paper_max_risk_per_trade_usd for the full explanation.
+    fixed_contracts: int = 0
+    max_risk_per_trade_usd: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate assumptions."""
@@ -97,6 +105,16 @@ class ExecutionConfig:
                 raise ValueError(f"{name} must be non-negative")
         if self.trail_activation_ticks > 0 and self.trail_distance_ticks <= 0:
             raise ValueError("trail_distance_ticks must be positive when trailing is armed")
+        if self.fixed_contracts < 0:
+            raise ValueError("fixed_contracts must be non-negative")
+        if not self.max_risk_per_trade_usd.is_finite():
+            raise ValueError("max_risk_per_trade_usd must be finite")
+        if self.max_risk_per_trade_usd < 0:
+            raise ValueError("max_risk_per_trade_usd must be non-negative")
+        if self.fixed_contracts > 0 and self.max_risk_per_trade_usd <= 0:
+            raise ValueError(
+                "max_risk_per_trade_usd must be positive when fixed_contracts is set",
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,16 +433,50 @@ def size_intent(
     max_contracts: int,
     commission_per_contract: Decimal,
     tick_value: Decimal = MNQ_TICK_VALUE,
+    fixed_contracts: int = 0,
+    max_risk_per_trade_usd: Decimal = Decimal("0"),
 ) -> RiskDecision:
     """Size an intent through the PROJECT risk engine (never bypassed).
 
     Reuses ``app.risk.sizing.calculate_position_size`` - the same sizing the
     offline ledger uses - then applies the account's hard contract cap.
+
+    When ``fixed_contracts > 0`` (the paper-engine's fixed-size mode), sizing
+    switches to a fixed contract count instead of the dynamic 1%-account/
+    3-trades budget below. The strategy's real, evidence-derived stop
+    (``intent.stop_distance_ticks``) is never replaced or invented - if it
+    implies more than ``max_risk_per_trade_usd`` of risk at the fixed contract
+    count, the trade is rejected rather than resized or forced onto an
+    artificial stop.
     """
     from app.risk.sizing import SizingInputs, calculate_position_size
+    from app.risk.sizing import calculate_risk_per_contract
 
     if intent.stop_distance_ticks <= 0:
         return RiskDecision.reject(REASON_NO_STOP, "stop distance is not positive")
+
+    if fixed_contracts > 0:
+        contracts = min(fixed_contracts, max_contracts)
+        if contracts <= 0:
+            return RiskDecision.reject(
+                REASON_RISK_ZERO_SIZE, "account contract cap permits zero contracts",
+            )
+        risk_per_contract = calculate_risk_per_contract(
+            stop_distance_ticks=intent.stop_distance_ticks,
+            tick_value=tick_value,
+            estimated_commission=commission_per_contract,
+            estimated_slippage=Decimal("0.50"),
+        )
+        total_risk = risk_per_contract * contracts
+        if total_risk > max_risk_per_trade_usd:
+            return RiskDecision.reject(
+                REASON_STOP_TOO_WIDE,
+                f"natural stop implies ${total_risk} risk at {contracts} contracts, "
+                f"exceeds ${max_risk_per_trade_usd} per-trade cap",
+            )
+        return RiskDecision(approved=True, contracts=contracts,
+                            reason_code=REASON_APPROVED, reason="fixed-size approved")
+
     sizing = calculate_position_size(
         SizingInputs(
             account_size=max(balance, Decimal("0")),

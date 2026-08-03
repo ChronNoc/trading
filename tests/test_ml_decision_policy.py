@@ -158,6 +158,24 @@ class _BrokenModelLoader:
         raise RuntimeError("boom")
 
 
+class _CallTrackingLoader:
+    """Records every method invocation, then raises - proves zero-touch, not
+    just safe-if-touched. ``_BrokenModelLoader`` alone cannot distinguish
+    "never called" from "called but the broad except swallowed it", since
+    ``_apply_ml_policy`` fails safe to the heuristic outcome either way. This
+    loader also raises on ANY attribute access at all (not just the two
+    methods the enabled path uses), so a future refactor that reads a new
+    attribute off the loader would be caught here too.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str) -> object:
+        self.calls.append(name)
+        raise RuntimeError(f"policy-off path must never touch model_loader.{name}")
+
+
 def _engine(*, ml_decision_policy_enabled: bool, model_loader: object | None) -> DelayedPaperEngine:
     return DelayedPaperEngine(
         config=EpisodeConfig(
@@ -395,3 +413,25 @@ def test_ml_policy_disabled_ignores_model_loader_entirely_even_when_broken() -> 
     status = engine.status()
     assert status.orders_submitted == 1
     assert status.accepted_setups > 0
+
+
+def test_ml_policy_disabled_never_calls_any_model_loader_method_or_attribute() -> None:
+    """Stronger guarantee than the broken-loader test above: prove ZERO attribute
+    access on model_loader when the policy is off, not merely "safe if touched".
+    ``_CallTrackingLoader`` raises on every attribute access and records the
+    name first, so if ``_apply_ml_policy`` ever reads ``.snapshot``,
+    ``.last_probability``, or anything else off the loader while disabled,
+    this fails loudly with the exact attribute name that leaked through -
+    matching the byte-identical-path guarantee in
+    docs/model_governance_and_shadow_policy.md section 8.
+    """
+    loader = _CallTrackingLoader()
+    engine = _run(_engine(ml_decision_policy_enabled=False, model_loader=loader))
+    status = engine.status()
+
+    assert loader.calls == [], f"policy-off path touched model_loader attributes: {loader.calls}"
+    assert status.orders_submitted == 1
+    assert status.accepted_setups > 0
+    for record in engine.recent_evaluations(limit=500):
+        assert record.decision_source == DECISION_SOURCE_HEURISTIC
+        assert record.fallback_reason == "policy disabled"

@@ -458,11 +458,20 @@ class ResearchService:
                 self._record_retry(result.key, result.error)
                 self.claims.release(result.key)  # allow retry
                 continue
+            try:
+                self._persist_result_setups((result,))
+            except OSError as exc:
+                failed += 1
+                self._record_retry(
+                    result.key,
+                    f"{type(exc).__name__}: failed to persist result evidence: {exc}",
+                )
+                self.claims.release(result.key)  # allow retry
+                continue
             checkpoint.mark(result.key)
             completed += 1
         checkpoint.save(self.checkpoint_path)
         self.claims.recover_stale(checkpoint.completed)  # clean up successful claims
-        self._persist_result_setups(results)
 
         aggregate = self._aggregate_persisted(checkpoint)
         final_state = STATE_THROTTLED if cancelled else STATE_IDLE

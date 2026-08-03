@@ -17,7 +17,17 @@ import pytest
 from PySide6.QtWidgets import QLabel, QListWidget, QProgressBar
 
 from app.gui.app_window import AppWindow
+from app.gui.charts import AggressorBar
 from app.gui.screens import SCREEN_ORDER
+from app.gui.theme import DASHBOARD_DARK, DASHBOARD_LIGHT
+from app.gui.widgets import (
+    CapabilityEmptyState,
+    Card,
+    EvidenceTable,
+    MetricMeter,
+    StatTile,
+    StatusBadge,
+)
 from app.gui.view_models import (
     AppSnapshot,
     Capability,
@@ -110,6 +120,36 @@ def test_sidebar_has_exactly_the_eight_required_destinations(window: AppWindow) 
     ]
 
 
+def test_status_badges_use_consolidated_accessible_styles(window: AppWindow) -> None:
+    """Badge states stay labelled while both themes own their semantic palette."""
+    badge = window._live_badge
+    assert badge.text() == "LIVE LOCKED"
+    assert badge.accessibleName() == "LIVE LOCKED"
+    assert badge.property("state") == "locked"
+    assert badge.styleSheet() == ""
+
+    dark_locked = DASHBOARD_DARK.split('QLabel[state="locked"]', 1)[1].split("}", 1)[0]
+    assert "#49391b" in dark_locked
+    assert "#ffd98c" in dark_locked
+    assert "#a57b25" in dark_locked
+    assert "#1d4ed8" not in dark_locked
+
+    light_locked = DASHBOARD_LIGHT.split('QLabel[state="warn"], QLabel[state="locked"]', 1)[
+        1
+    ].split("}", 1)[0]
+    assert "#fff1d4" in light_locked
+    assert "#714b05" in light_locked
+    assert "#d5a348" in light_locked
+
+    badge.set_status("UNKNOWN STATE", "unexpected")
+    assert badge.text() == "UNKNOWN STATE"
+    assert badge.accessibleName() == "UNKNOWN STATE"
+    assert badge.property("state") == "neutral"
+    assert badge.styleSheet() == ""
+    assert "#172131" in DASHBOARD_DARK
+    assert "#e9eef5" in DASHBOARD_LIGHT
+
+
 def test_every_screen_renders_and_navigates(window: AppWindow) -> None:
     """All eight screens render real snapshot content without error."""
     for name in SCREEN_ORDER:
@@ -170,6 +210,30 @@ def test_live_order_flow_labels_heuristics_and_unavailable_capabilities(window: 
     assert "Aggressor side: AVAILABLE" in body
 
 
+@pytest.mark.parametrize(
+    ("bid_volume", "ask_volume"),
+    (
+        (None, None),
+        (Decimal("1"), None),
+        (None, Decimal("1")),
+    ),
+)
+def test_aggressor_bar_uses_neutral_split_until_both_volumes_arrive(
+    qtbot: object,
+    bid_volume: Decimal | None,
+    ask_volume: Decimal | None,
+) -> None:
+    """An incomplete market snapshot must not invent directional aggression."""
+    bar = AggressorBar("test_aggressor")
+    qtbot.addWidget(bar)  # type: ignore[attr-defined]
+    bar.set_split(0.8)
+
+    bar.set_values(bid_volume, ask_volume)
+
+    assert bar._bid_fraction == 0.5
+    assert bar.accessibleDescription() == "Bid 50.0%, Ask 50.0%"
+
+
 def test_research_screen_separates_canonical_from_experimental(window: AppWindow) -> None:
     window.navigate_to("Research and Model Health")
     window.refresh_from_snapshot()
@@ -207,6 +271,54 @@ def test_research_screen_shows_honest_offline_model_state(window) -> None:
     assert "no effect on strategy, paper, risk, or execution" in body
 
 
+def test_research_screen_lists_every_registered_challenger(window) -> None:
+    """The registry panel must show all challengers, not just the one exact approval."""
+    from app.gui.view_models import ChallengerSummary
+
+    window.submit_snapshot(replace(_rich_snapshot(), challengers=(
+        ChallengerSummary(
+            artifact_id="challenger-abc", dataset_id="dataset-abc",
+            model_type="logistic_regression", model_version="0.1.0",
+            validation_state="PASSED", validation_detail="walk-forward gate passed",
+            oos_predictions=120, brier_score=0.21, beats_baseline=True,
+            included_sessions=4, excluded_sessions=2,
+            approval_state="APPROVED_RUNTIME_DISABLED",
+            approval_detail="exact artifact approved; runtime loading remains disabled",
+        ),
+        ChallengerSummary(
+            artifact_id="challenger-xyz", dataset_id="dataset-xyz",
+            model_type="gradient_boosting", model_version="0.2.0",
+            validation_state="FAILED", validation_detail="brier worse than baseline",
+            oos_predictions=80, brier_score=0.31, beats_baseline=False,
+            included_sessions=3, excluded_sessions=1,
+            approval_state="NOT_APPROVED",
+            approval_detail="a different artifact is exactly approved",
+        ),
+    )))
+    window.navigate_to("Research and Model Health")
+    table = window.stack.currentWidget().findChild(EvidenceTable, "research_registry_table")
+    assert table.rowCount() == 2
+    assert table.item(0, 0).text() == "challenger-abc"
+    assert table.item(1, 0).text() == "challenger-xyz"
+    body = window.stack.currentWidget().body.text()
+    assert "ALL REGISTERED CHALLENGERS (2)" in body
+    assert "challenger-abc" in body
+    assert "challenger-xyz" in body
+    assert "NO RUNTIME EFFECT" in body
+
+
+def test_research_screen_shows_placeholder_when_no_challenger_registered(window: AppWindow) -> None:
+    """An empty registry must render an honest placeholder, not a blank table."""
+    window.navigate_to("Research and Model Health")
+    window.refresh_from_snapshot()
+    table = window.stack.currentWidget().findChild(EvidenceTable, "research_registry_table")
+    assert table.rowCount() == 1
+    assert table.item(0, 0).text() == "no challenger registered"
+    body = window.stack.currentWidget().body.text()
+    assert "ALL REGISTERED CHALLENGERS (0)" in body
+    assert "no challenger registered" in body
+
+
 def test_snapshot_source_reports_malformed_registry_as_invalid(tmp_path: Path) -> None:
     from app.gui.snapshot_source import SnapshotSource
 
@@ -240,17 +352,115 @@ def test_status_bar_uses_plain_language(window: AppWindow) -> None:
 
 
 def test_themes_and_scale_and_reset_layout(window: AppWindow) -> None:
+    """Theme switching and accessibility zoom change rendered font metrics."""
+    metric = next(
+        label
+        for label in window.findChildren(QLabel)
+        if label.property("role") == "metric"
+    )
+    window.show()
+    metric.ensurePolished()
+    baseline_height = metric.fontMetrics().height()
+
     window.apply_theme("light")
     assert window.theme == "light" and window.styleSheet()
     window.apply_theme("dark")
     assert window.theme == "dark"
     window.set_gui_scale(1.5)
+    metric.ensurePolished()
     assert window.gui_scale == 1.5
+    assert metric.fontMetrics().height() > baseline_height
+
     window.set_gui_scale(99.0)
+    metric.ensurePolished()
     assert window.gui_scale == 2.0  # clamped
+    assert metric.fontMetrics().height() > baseline_height
+
     window.reset_layout()
+    metric.ensurePolished()
     assert window.gui_scale == 1.0 and window.theme == "dark"
     assert window.current_screen_name == "Overview"
+    assert metric.fontMetrics().height() == baseline_height
+
+
+def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
+    """Card surfaces and headings must not pin dark colors in light mode."""
+    cards = window.findChildren(Card)
+    assert len(cards) == 31
+    assert all(card.styleSheet() == "" for card in cards)
+    assert all(card.graphicsEffect() is not None for card in cards)
+
+    headings = [
+        label
+        for card in cards
+        for label in card.findChildren(QLabel)
+        if label.property("role") == "section_title"
+    ]
+    assert len(headings) == 31
+    assert all(heading.styleSheet() == "" for heading in headings)
+
+    window.apply_theme("light")
+    assert "stop:0 #ffffff, stop:1 #f7faff" in window.styleSheet()
+    assert 'QLabel[role="section_title"]' in window.styleSheet()
+    assert "color:#101928" in window.styleSheet()
+
+    window.apply_theme("dark")
+    assert "stop:0 #172231, stop:1 #111821" in window.styleSheet()
+    assert "color:#f5f8fc" in window.styleSheet()
+
+
+def test_reusable_dashboard_widgets_defer_palette_to_themes(window: AppWindow) -> None:
+    """Nested dashboard widgets expose semantics without pinning palette QSS."""
+    component_types = (
+        StatTile,
+        StatusBadge,
+        MetricMeter,
+        CapabilityEmptyState,
+        EvidenceTable,
+    )
+    components = tuple(
+        component
+        for component_type in component_types
+        for component in window.findChildren(component_type)
+    )
+    assert components
+    assert all(component.styleSheet() == "" for component in components)
+
+    stat_tiles = window.findChildren(StatTile)
+    assert stat_tiles
+    assert all(tile.property("role") == "stat_tile" for tile in stat_tiles)
+    assert all(tile.accessibleName() for tile in stat_tiles)
+    assert all(tile.value.property("role") == "metric" for tile in stat_tiles)
+
+    badges = window.findChildren(StatusBadge)
+    assert badges
+    assert all(badge.property("state") in StatusBadge._VALID_STATES for badge in badges)
+    assert all(badge.text() and badge.accessibleName() for badge in badges)
+
+    meters = window.findChildren(MetricMeter)
+    assert meters
+    assert all(meter.value.property("role") == "meter_value" for meter in meters)
+    assert all(meter.accessibleName() for meter in meters)
+
+    empty_states = window.findChildren(CapabilityEmptyState)
+    assert empty_states
+    assert all(state.property("role") == "empty_state" for state in empty_states)
+
+    tables = window.findChildren(EvidenceTable)
+    assert tables
+    assert all(table.accessibleName() for table in tables)
+
+    for theme in (DASHBOARD_DARK, DASHBOARD_LIGHT):
+        for selector in (
+            'QFrame[role="stat_tile"]',
+            'QFrame[role="empty_state"]',
+            'QLabel[role="metric"]',
+            'QLabel[role="meter_value"]',
+            'QLabel[state="neutral"]',
+            "QProgressBar",
+            "QTableWidget::item:selected",
+        ):
+            assert selector in theme
 
 
 def test_window_renders_without_a_provider() -> None:
