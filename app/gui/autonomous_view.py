@@ -164,9 +164,16 @@ def _disk_bytes(store_root: Path) -> int:
     return total
 
 
-def _covered_range(path: Path) -> str:
-    for part in path.parts:
-        if len(part) == 10 and part[4] == "-" and part[7] == "-":
+def _covered_range(path: Path, reports_root: Path) -> str:
+    # Scan only the path RELATIVE to reports_root - never absolute parts, or an
+    # ancestor directory that happens to be date-named (e.g. a dated project
+    # folder) would be mistaken for the report's covered date.
+    try:
+        parts = path.relative_to(reports_root).parts
+    except ValueError:
+        parts = path.parts
+    for part in parts:
+        if _is_date(part):
             return part
     return "-"
 
@@ -215,7 +222,7 @@ def _read_reports(reports_root: Path, *, limit: int = 400) -> list[ReportView]:
         reports.append(ReportView(
             title=path.stem.replace("_", " "),
             category=_category(path, reports_root),
-            covered=_covered_range(path),
+            covered=_covered_range(path, reports_root),
             provenance=_provenance(path, head),
             path=str(path),
             modified=_iso(int(stat.st_mtime * 1e9)),

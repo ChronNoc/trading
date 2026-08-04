@@ -70,3 +70,6 @@ graphify-out/
 
 # Autonomous intelligence evidence store (candidates, leases, activity log).
 data/autonomous/
+
+# Runtime-generated reports (session, daily paper, daily learning). Regenerated.
+data/reports/
