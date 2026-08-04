@@ -100,10 +100,30 @@ gate logic is fully unit-tested without running ML.
 > fail-*closed*-on-bad-result design working as intended: the loop will not
 > fabricate a trained model it cannot actually evaluate.
 
-The remaining gates (walk-forward, stability, cost, shadow stages) are still
-pending. Until they are wired, candidates rest honestly at `OFFLINE_TRAINED`
-(or `DATA_VALIDATED` when training is disabled). The Reports page reflects the
-reports the existing pipeline produces.
+The **WALK_FORWARD_VALIDATED** gate (`advance_walk_forward_validation`) is now
+wired. The walk-forward evaluation (out-of-sample expectancy after costs vs. the
+take-everything baseline) already ran during OFFLINE_TRAINED, so this gate reads
+the *carried-forward* metric (`beats_baseline_after_costs`, stored on the
+OFFLINE_TRAINED evidence) and **never re-trains**. Its outcomes are deliberately
+asymmetric with OFFLINE_TRAINED:
+
+- **beats baseline → advances** to `WALK_FORWARD_VALIDATED` (`gate_passed`).
+- **does not beat baseline → `REJECTED`** (terminal, `gate_rejected`). Unlike a
+  data shortage, a fully evaluated model that loses to the baseline is a real,
+  final answer — the governed lifecycle is *allowed* to conclude a candidate does
+  not work. That is the point of the gate.
+- **metric absent** (e.g. trained before it was recorded) → *deferred*, never
+  rejected.
+
+Because it only reads stored evidence, walk-forward validation is cheap and runs
+every cycle (it advances any `OFFLINE_TRAINED` candidate left by this or an
+earlier cycle), independent of the heavy, opt-in training step.
+
+The remaining gates (stability, cost, shadow stages) are still pending. Until
+they are wired, candidates rest honestly at `WALK_FORWARD_VALIDATED`,
+`OFFLINE_TRAINED`, or `DATA_VALIDATED` (per how far the data lets them progress),
+or terminally at `REJECTED`. The Reports page reflects the reports the existing
+pipeline produces.
 
 ## Tests
 

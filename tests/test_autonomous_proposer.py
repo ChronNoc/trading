@@ -166,7 +166,8 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
         store_root=tmp_path / "autonomous", raw_root=_raw_with_sessions(tmp_path / "raw", 2),
         now_ns=100, software_revision="rev-a")
     grid = len(RESEARCH_GRID)
-    assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0}
+    assert result == {"proposed": grid, "data_validated": grid,
+                      "offline_trained": 0, "walk_forward_validated": 0}
 
 
 # -- OFFLINE_TRAINED gate (injected trainer: no heavy ML in tests) --------------------
@@ -258,6 +259,78 @@ def test_offline_training_uses_the_candidate_geometry(tmp_path: Path) -> None:
 
     advance_offline_training(store, trainer=trainer, now_ns=300)
     assert set(seen) == {(12, 8), (8, 8), (6, 4)}, "trainer receives each grid geometry"
+
+
+# -- WALK_FORWARD_VALIDATED gate (reads carried-forward metrics: no ML) ---------------
+
+
+def _offline_trained_store(tmp_path: Path, trainer):
+    from app.research.autonomous_proposer import advance_offline_training
+
+    store = _validated_store(tmp_path)
+    advance_offline_training(store, trainer=trainer, now_ns=300)
+    return store
+
+
+def _beats(edge: float) -> dict:
+    return {"oos_predictions": 120.0, "beats_baseline_after_costs": 1.0 if edge > 0 else 0.0,
+            "expectancy_edge_ticks": edge, "taken_trades": 40.0}
+
+
+def test_walk_forward_advances_when_the_model_beats_baseline(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    store = _offline_trained_store(tmp_path, lambda c: _beats(0.8))
+    passed = advance_walk_forward_validation(store, now_ns=400)
+    assert passed == 3
+    assert {c.state.value for c in store.list_candidates()} == {"WALK_FORWARD_VALIDATED"}
+    # Idempotent: already-validated candidates are not re-processed.
+    assert advance_walk_forward_validation(store, now_ns=500) == 0
+
+
+def test_walk_forward_rejects_when_the_model_does_not_beat_baseline(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    store = _offline_trained_store(tmp_path, lambda c: _beats(-0.5))
+    passed = advance_walk_forward_validation(store, now_ns=400)
+    assert passed == 0
+    # A fully evaluated model that does not beat baseline is an honest terminal REJECT.
+    assert {c.state.value for c in store.list_candidates()} == {"REJECTED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_rejected" in events
+
+
+def test_walk_forward_defers_when_the_metric_is_absent(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    # OFFLINE_TRAINED by a trainer that never recorded walk-forward performance.
+    store = _offline_trained_store(tmp_path, lambda c: {"oos_predictions": 120.0})
+    passed = advance_walk_forward_validation(store, now_ns=400)
+    assert passed == 0
+    # Missing evidence is a defer, never a reject: candidate stays OFFLINE_TRAINED.
+    assert {c.state.value for c in store.list_candidates()} == {"OFFLINE_TRAINED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_deferred" in events and "gate_rejected" not in events
+
+
+def test_walk_forward_ignores_candidates_not_yet_offline_trained(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    store = _validated_store(tmp_path)  # DATA_VALIDATED, not yet OFFLINE_TRAINED
+    assert advance_walk_forward_validation(store, now_ns=400) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"DATA_VALIDATED"}
+
+
+def test_walk_forward_is_bounded_by_limit(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    store = _offline_trained_store(tmp_path, lambda c: _beats(0.8))
+    passed = advance_walk_forward_validation(store, now_ns=400, limit=1)
+    assert passed == 1
+    states = [c.state.value for c in store.list_candidates()]
+    assert states.count("WALK_FORWARD_VALIDATED") == 1 and states.count("OFFLINE_TRAINED") == 2
 
 
 def test_config_reader_training_defaults_false(tmp_path: Path) -> None:

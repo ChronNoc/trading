@@ -1,15 +1,16 @@
-"""Bounded, shadow-only proposal of autonomous research candidates.
+"""Bounded, shadow-only autonomous research: propose and advance candidates.
 
-Populates the ``AutonomousStore`` with governed candidate proposals so the
-Autonomous Intelligence page reflects real repository state. It is deliberately
-PROPOSAL-ONLY: it never runs gates, trains, promotes, or trades. Advancing a
-candidate through the governed lifecycle needs bounded gate runners for every
-gate; those are tracked as a separate follow-up. Until they exist, proposing
-without running gates keeps candidates honestly in ``PROPOSED`` rather than
-failing them at the first unwired gate.
+Populates the ``AutonomousStore`` with governed candidate proposals and advances
+them through the wired governed gates so the Autonomous Intelligence page
+reflects real repository state. Wired gates so far: DATA_VALIDATED (recorded
+data exists), OFFLINE_TRAINED (a challenger produced out-of-sample predictions),
+and WALK_FORWARD_VALIDATED (that model's OOS expectancy after costs beats the
+baseline). Each gate is advanced by a SCOPED helper that only ever processes its
+own current state, so it can never fail a candidate at an unwired later gate.
 
 Shadow-only by construction: this module imports no execution/broker/paper-order
-module. Candidates carry no runtime authority.
+module, and no gate ever promotes, loads, or trades a model. Candidates carry no
+runtime authority; LIVE stays locked.
 """
 
 from __future__ import annotations
@@ -216,10 +217,22 @@ def default_offline_trainer(
             Path(raw_root), Path(models_root), config=config, model_version="0.1.0",
             target_ticks=target, stop_ticks=stop, min_oos_predictions=1)
         validation = result["validation"]
+        expectancy = float(validation["expectancy_ticks"])
+        baseline = float(validation["baseline_expectancy_ticks"])
+        # OFFLINE_TRAINED only requires that a model was trained and produced
+        # out-of-sample predictions. The walk-forward PERFORMANCE (does its OOS
+        # expectancy after costs beat the baseline?) is computed by the very same
+        # evaluation, so it is carried forward here and checked by the separate
+        # WALK_FORWARD_VALIDATED gate - the model is never re-trained.
         return {
             "oos_predictions": float(validation["oos_predictions"]),
             "evaluated_days": float(validation["evaluated_days"]),
             "brier_score": float(validation["brier_score"]),
+            "taken_trades": float(validation["taken_trades"]),
+            "expectancy_ticks": expectancy,
+            "baseline_expectancy_ticks": baseline,
+            "expectancy_edge_ticks": expectancy - baseline,
+            "beats_baseline_after_costs": 1.0 if validation["beats_baseline"] else 0.0,
         }
 
     return trainer
@@ -295,6 +308,101 @@ def advance_offline_training(
     return passed
 
 
+# WALK_FORWARD_VALIDATED gate: the trained model's out-of-sample expectancy
+# after costs must beat the take-everything baseline. The evaluation already
+# ran during OFFLINE_TRAINED, so this gate reads the carried-forward metric
+# (stored as 1.0/0.0) - it never re-trains.
+WALK_FORWARD_REQUIREMENT: tuple[GateRequirement, ...] = (
+    GateRequirement("beats_baseline_after_costs", minimum=1.0),
+)
+
+
+def _passed_gate_metrics(record, gate: CandidateState):
+    """Return the metrics from the record's most recent PASSED evidence at ``gate``."""
+    for evidence in reversed(record.gate_history):
+        if evidence.gate is gate and evidence.passed:
+            return evidence.metrics
+    return None
+
+
+def advance_walk_forward_validation(
+    store: AutonomousStore,
+    *,
+    now_ns: int,
+    limit: int | None = None,
+    owner: str = "autonomous-backend",
+) -> int:
+    """Advance OFFLINE_TRAINED candidates one governed step to WALK_FORWARD_VALIDATED.
+
+    Reads the walk-forward performance that OFFLINE_TRAINED already recorded (no
+    re-training) and checks whether the model's out-of-sample expectancy after
+    costs beat the baseline. Unlike OFFLINE_TRAINED - where too little data is a
+    transient defer - a fully evaluated model that does NOT beat the baseline is
+    an honest, terminal REJECTED (the strategy genuinely did not work). If the
+    carried-forward metric is absent (e.g. trained before it was recorded), the
+    candidate is deferred, never rejected. Returns how many newly validated.
+    """
+    passed = 0
+    processed = 0
+    for record in store.list_candidates():
+        if record.state is not CandidateState.OFFLINE_TRAINED:
+            continue
+        if next_gate(record) is not CandidateState.WALK_FORWARD_VALIDATED:
+            continue
+        if limit is not None and processed >= limit:
+            break
+        prior = _passed_gate_metrics(record, CandidateState.OFFLINE_TRAINED)
+        if prior is None or "beats_baseline_after_costs" not in prior:
+            # No carried-forward walk-forward evidence: cannot evaluate this gate
+            # without re-running training. Defer (never reject for missing data).
+            store.append_activity({
+                "event": "gate_deferred", "candidate_id": record.candidate_id,
+                "gate": CandidateState.WALK_FORWARD_VALIDATED.value,
+                "reason": "walk-forward metrics unavailable; retrain to populate",
+                "recorded_at_ns": now_ns})
+            continue
+        lease = store.try_acquire(record.candidate_id, owner, now_ns=now_ns)
+        if lease is None:
+            continue
+        try:
+            processed += 1
+            edge = float(prior.get("expectancy_edge_ticks", 0.0))
+            metrics = {
+                "beats_baseline_after_costs": float(prior["beats_baseline_after_costs"]),
+                "expectancy_edge_ticks": edge,
+                "taken_trades": float(prior.get("taken_trades", 0.0)),
+            }
+            evidence = evaluate_requirements(
+                gate=CandidateState.WALK_FORWARD_VALIDATED, recorded_at_ns=now_ns,
+                metrics=metrics, requirements=WALK_FORWARD_REQUIREMENT,
+                evidence_refs=(f"walk_forward:edge_{edge:+.4f}_ticks",))
+            if evidence.passed:
+                store.publish(apply_gate(record, evidence), lease=lease)
+                store.append_activity({
+                    "event": "gate_passed", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.WALK_FORWARD_VALIDATED.value,
+                    "expectancy_edge_ticks": edge, "recorded_at_ns": now_ns})
+                passed += 1
+            else:
+                # Fully evaluated and does not beat baseline: an honest terminal
+                # rejection, not a defer. The governed lifecycle is allowed to say
+                # "this candidate does not work" - that is the point of the gate.
+                store.publish(
+                    apply_gate(record, evidence, failure_state=CandidateState.REJECTED),
+                    lease=lease)
+                store.append_activity({
+                    "event": "gate_rejected", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.WALK_FORWARD_VALIDATED.value,
+                    "reason": evidence.failure_reason,
+                    "expectancy_edge_ticks": edge, "recorded_at_ns": now_ns})
+        finally:
+            try:
+                store.release(lease)
+            except PermissionError:
+                pass
+    return passed
+
+
 def run_proposer(
     *,
     store_root: Path | str = DEFAULT_STORE_ROOT,
@@ -341,12 +449,18 @@ def run_autonomous_cycle(
         trained = advance_offline_training(
             store, trainer=default_offline_trainer(raw_root, models_root),
             now_ns=now_ns, limit=train_limit)
+    # Walk-forward validation only reads carried-forward metrics (no ML), so it
+    # is cheap and always runs - it advances any OFFLINE_TRAINED candidate left
+    # by this or a previous cycle.
+    walk_forward = advance_walk_forward_validation(store, now_ns=now_ns)
     store.append_activity({
         "event": "autonomous_cycle_ran",
         "software_revision": software_revision,
         "newly_proposed": proposed,
         "data_validated": validated,
         "offline_trained": trained,
+        "walk_forward_validated": walk_forward,
         "recorded_at_ns": now_ns,
     })
-    return {"proposed": proposed, "data_validated": validated, "offline_trained": trained}
+    return {"proposed": proposed, "data_validated": validated,
+            "offline_trained": trained, "walk_forward_validated": walk_forward}
