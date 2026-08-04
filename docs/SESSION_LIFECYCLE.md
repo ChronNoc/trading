@@ -25,7 +25,7 @@ A session becomes canonical research evidence only when ALL hold
 - both depth and trades present
 - zero current-session drops and zero overflows
 - zero unrecoverable malformed events
-- clean shutdown (a `session_ended` terminal marker was delivered)
+- clean shutdown (a graceful end — see below)
 - completed manifest
 
 An unclean session stays available for diagnostics but is **ineligible** for
@@ -33,12 +33,28 @@ canonical research.
 
 ## Clean shutdown
 
-The Java bridge sends a `session_ended` control marker on a clean close, which
-triggers `recorder.finalize(clean_shutdown=True)`. The Python receiver drains its
-queue on shutdown (`app/runtime/shutdown.py`) instead of being killed mid-write —
-previously the receiver was a daemon thread killed at process exit, which is
-consistent with the dominant real-world ineligibility reason: **192 of 200
-finalized sessions were "unclean shutdown"**, now addressed.
+A session is "clean" when it ended **gracefully**, by either signal:
+
+1. an explicit `session_ended` control marker (the Java bridge sends one on a
+   deliberate stop), which triggers `recorder.finalize(clean_shutdown=True)`; or
+2. a **normal transport close** — the producer closed the WebSocket without a
+   marker. The receiver inspects its socket-pump task: a normal close (no
+   transport error) means the peer finished and every buffered frame was drained,
+   so the session is clean and complete; only a transport **error** (abnormal
+   close) leaves a possibly-truncated tail and finalizes unclean
+   (`transport_closed_uncleanly`).
+
+Crucially, "clean" is only about *how the session ended*, never a claim of zero
+loss. Data loss is enforced independently and always wins: `RecorderPipeline`
+forces `clean_shutdown=False` for any segment that lost a write, and the quality
+counters (drops/overflow/malformed) separately block order-flow eligibility. So a
+clean flag can never hide loss.
+
+Before this fix, **every** close without an explicit `session_ended` — including
+perfectly graceful ones — was recorded as `websocket_closed` **unclean**, which
+matched the dominant real-world ineligibility reason: **202 of 224 finalized
+sessions were "unclean shutdown"**. The receiver also drains its queue on
+shutdown (`app/runtime/shutdown.py`) instead of being killed mid-write.
 
 ## Rotation and catch-up
 
@@ -58,7 +74,11 @@ the hand-verified schedule exactly, so it can never run out like the old table
 
 ## Measured bottleneck
 
-Of 200 finalized sessions, only **1** is order-flow-eligible: 192× unclean
-shutdown, 145× continuity `receiver_error` (31 the temp-file race, now fixed),
-71× depth-only, 11× no depth. The two dominant causes are fixed; the resulting
-improvement is a **prediction** pending new recordings, not a proven result.
+Of 224 finalized sessions, only **1** is order-flow-eligible: 202× unclean
+shutdown, 145× continuity `receiver_error` (~35 the temp-file race, now fixed),
+79× depth-only, 19× no depth, plus the two richest sessions blocked purely by
+malformed events. The dominant `unclean shutdown` cause is now addressed by
+treating a graceful transport close as clean (above); the resulting improvement
+is a **prediction** pending new recordings, not a proven result. Whether a given
+session's close was graceful or a genuine transport error is decided per session
+at capture time — this fix reclassifies only the graceful ones.

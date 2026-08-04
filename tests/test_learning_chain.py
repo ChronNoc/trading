@@ -203,9 +203,15 @@ def test_bookmap_reconnects_produce_fresh_sessions_without_stalling(tmp_path: Pa
                                               "dropped_message_count": 0,
                                               "reason": "clean shutdown",
                                               "stream_sequence": wire_sequence + 1}))
-                await asyncio.sleep(0.3)
-            # leaving the block closes the socket - an abrupt disconnect when
-            # clean_end is False, exactly like a feed drop.
+                    await asyncio.sleep(0.3)
+                else:
+                    # A REAL feed drop: abort the TCP transport so NO WebSocket
+                    # close frame is sent. The receiver sees an abnormal close
+                    # (transport error) and finalizes unclean. (A graceful close -
+                    # a normal close frame - is now a clean, complete session, so
+                    # exiting the block normally would no longer be "a drop".)
+                    await asyncio.sleep(0.3)
+                    ws.transport.abort()
 
         asyncio.run(one_connection(0, 200, clean_end=False))   # feed drop
         time.sleep(1.0)

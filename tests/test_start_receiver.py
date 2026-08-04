@@ -85,6 +85,46 @@ def test_live_connected_event_persists_accepted_handshake(tmp_path: Path) -> Non
     asyncio.run(_server_persists_live_handshake(tmp_path))
 
 
+def test_graceful_close_without_session_ended_is_clean(tmp_path: Path) -> None:
+    """A normal socket close is a complete session even with no session_ended."""
+    asyncio.run(_server_graceful_close_without_marker_is_clean(tmp_path))
+
+
+async def _wait_for_finalized_manifest(manifest_path: Path) -> dict:
+    for _ in range(250):
+        if manifest_path.is_file():
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if data.get("utc_end") is not None:  # finalized, not a mid-session write
+                return data
+        await asyncio.sleep(0.02)
+    raise AssertionError("manifest was not finalized in time")
+
+
+async def _server_graceful_close_without_marker_is_clean(tmp_path: Path) -> None:
+    timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
+    server = await start_receiver_websocket_server(
+        ReceiverServerConfig(port=0, output_root=tmp_path),
+    )
+    try:
+        async with websockets.connect(server.url) as websocket:
+            await websocket.send(event_to_json(format_depth_update(
+                timestamp=timestamp_ns, symbol="MNQ", side="bid", price="100.00",
+                previous_size="0", new_size="10")))
+            await websocket.send(event_to_json(format_trade(
+                timestamp_ns=timestamp_ns + 1, price="100.25", size="3",
+                aggressor_side="buy", instrument="MNQ", sequence_id=1)))
+            # Deliberately NO session_ended: the client just closes the socket
+            # normally, exactly like a Bookmap feed that ends without a marker.
+        session_dir = await _wait_for_session_dir(tmp_path)
+        manifest = await _wait_for_finalized_manifest(session_dir / "session_manifest.json")
+    finally:
+        await server.close()
+    # A graceful transport close is a clean, COMPLETE session - previously it was
+    # wrongly marked unclean/websocket_closed, which excluded ~90% of real sessions.
+    assert manifest["clean_shutdown"] is True
+    assert manifest["continuity_status"] == "continuous"
+
+
 async def _server_records_messages(tmp_path: Path) -> None:
     timestamp_ns = _timestamp_ns(2026, 7, 10, 14, 30)
     state_store = CurrentMarketState()

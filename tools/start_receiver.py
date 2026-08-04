@@ -197,10 +197,19 @@ async def start_receiver_websocket_server(
             raise
         finally:
             pump_task.cancel()
+            # The pump reads the socket; its outcome is the ONLY signal that
+            # distinguishes a graceful end from a lossy one. A transport error
+            # (abnormal close) means the tail may be truncated - an unclean
+            # session. A clean end (normal close frame) means the producer
+            # finished and every frame was drained. Swallowing this (as before)
+            # forced EVERY socket close to look identical and unclean.
+            pump_transport_failed = False
             try:
                 await pump_task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001 - socket teardown
+            except asyncio.CancelledError:
                 pass
+            except Exception:  # noqa: BLE001 - abnormal transport close = unclean
+                pump_transport_failed = True
             if feed_guard is not None and quality_baseline is not None:
                 quality = feed_guard.status()
                 recorder.update_feed_quality(
@@ -220,9 +229,17 @@ async def start_receiver_websocket_server(
                         quality.clock_drift_alerts - quality_baseline.clock_drift_alerts,
                     ),
                 )
-            # Drain the bounded recorder queue (if wrapped) before finalizing so a
-            # clean shutdown persists every accepted event.
-            recorder.finalize(clean_shutdown=recorder.clean_shutdown, reason="websocket_closed")
+            # A market-data feed legitimately ends when the producer closes the
+            # socket, even without an explicit session_ended marker. A NORMAL close
+            # (no transport error) means the peer finished and every buffered frame
+            # was drained - a clean, COMPLETE session. Only a transport ERROR leaves
+            # a possibly-truncated tail and stays unclean. Data LOSS (drops/overflow)
+            # is tracked separately and still blocks order-flow replay, so a clean
+            # flag never hides loss. (An explicit session_ended already finalized.)
+            graceful_close = not pump_transport_failed
+            recorder.finalize(
+                clean_shutdown=recorder.clean_shutdown or graceful_close,
+                reason="websocket_closed" if graceful_close else "transport_closed_uncleanly")
             if on_session_finalized is not None:
                 on_session_finalized(recorder)
 
