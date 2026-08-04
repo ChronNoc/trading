@@ -121,10 +121,18 @@ _REASON_BUCKET_LIMIT = 256
 
 
 def _reason_bucket(reason: str, *, fallback: str) -> str:
-    """Bound reason-cardinality while retaining an attributable prefix."""
+    """Bound reason-cardinality while retaining the attributable CAUSE."""
     normalized = reason.strip() or fallback
-    # Feed-guard details append volatile timestamps/sequence numbers after a
-    # colon. Keeping the stable category prevents manifest/memory explosions.
+    # A batch envelope wraps the real cause as "event batch item {index}: {cause}"
+    # (or "event batch item {index} must be ..."). Here the index is the VOLATILE
+    # part and the cause is stable - so strip the index prefix and bucket by the
+    # cause. Without this, a malformed burst produces one bucket per batch
+    # position (0..N) and the real schema reason is invisible.
+    if normalized.startswith("event batch item "):
+        rest = normalized[len("event batch item "):].lstrip("0123456789")
+        normalized = rest.lstrip(": ").strip() or fallback
+    # Other feed-guard details append volatile timestamps/sequence numbers after a
+    # colon. Keeping the stable category before it prevents manifest/memory blowups.
     category = normalized.split(":", 1)[0].strip() or fallback
     return category[:160]
 

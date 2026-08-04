@@ -522,6 +522,26 @@ def test_session_quality_counters_gate_order_flow_replay(tmp_path: Path) -> None
     assert not recorder.manifest_path.with_suffix(".json.tmp").exists()
 
 
+def test_malformed_batch_items_bucket_by_cause_not_index(tmp_path: Path) -> None:
+    """A malformed burst must be attributable to its schema cause, not batch position."""
+    recorder = MarketSessionRecorder(
+        root_dir=tmp_path,
+        session_start_utc=datetime(2026, 7, 15, 0, 22, tzinfo=UTC),
+    )
+    # Same real cause at three different batch positions must collapse into ONE
+    # bucket named by the cause - not three "event batch item N" buckets that hide it.
+    for index in (0, 1, 7):
+        recorder.note_malformed_event(f"event batch item {index}: size must be greater than 0")
+    recorder.note_malformed_event("event batch item 3 must be a JSON object")
+    recorder.finalize(clean_shutdown=True)
+    reasons = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))["data_quality"][
+        "malformed_event_reasons"
+    ]
+    assert reasons.get("size must be greater than 0") == 3, reasons
+    assert reasons.get("must be a JSON object") == 1, reasons
+    assert not any(key.startswith("event batch item ") for key in reasons), reasons
+
+
 def test_session_manifest_separates_bridge_lifetime_drops_from_session_damage(tmp_path: Path) -> None:
     """A fresh connection starts from the bridge's process-lifetime drop baseline."""
     recorder = MarketSessionRecorder(
