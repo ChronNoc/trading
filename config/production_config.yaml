@@ -88,8 +88,13 @@ paper_trail_distance_ticks: 10       # trail 2.5 pts behind the best price
 # Only if a single contract already exceeds the cap is the stop genuinely too
 # wide, and the trade is rejected (reason: stop_exceeds_fixed_risk_cap). Set
 # paper_fixed_contracts: 0 to fall back to dynamic risk sizing. Restart to apply.
+#
+# Sizing math (simulation only - delayed data, LIVE locked): the momentum stop
+# sits ~57 ticks away = ~$28.7 risk/contract, so 4 contracts is ~$115. The cap
+# is set to 130 so the intended 4-unit MNQ size fits at typical stops; unusually
+# wide stops still size DOWN to stay within the cap (that guardrail is kept).
 paper_fixed_contracts: 4
-paper_max_risk_per_trade_usd: 80
+paper_max_risk_per_trade_usd: 130
 
 # paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
 # observe-only shadow model's most recent scored probability (see
