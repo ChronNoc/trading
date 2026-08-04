@@ -139,22 +139,7 @@ def parse_stream_messages(message: str | bytes) -> tuple[RawStreamEvent, ...]:
     if payload.get("type") != EVENT_BATCH_TYPE:
         return (_normalize_stream_payload(payload),)
 
-    if frozenset(payload) != EVENT_BATCH_KEYS:
-        raise EventSchemaError("event batch must match the exact envelope schema")
-    version = str(payload.get("protocol_version", "")).strip()
-    if not version or version.split(".", 1)[0] != "1":
-        raise EventSchemaError("event batch protocol_version must use supported major version 1")
-    event_count = _raw_int(payload.get("event_count"), "event_count")
-    if event_count <= 0 or event_count > MAX_EVENTS_PER_BATCH:
-        raise EventSchemaError(
-            f"event_count must be between 1 and {MAX_EVENTS_PER_BATCH}",
-        )
-    raw_events = payload.get("events")
-    if not isinstance(raw_events, list):
-        raise EventSchemaError("event batch events must be a JSON array")
-    if len(raw_events) != event_count:
-        raise EventSchemaError("event batch event_count does not match events length")
-
+    raw_events = _validate_event_batch_envelope(payload)
     normalized: list[RawStreamEvent] = []
     for index, raw_event in enumerate(raw_events):
         if not isinstance(raw_event, dict):
@@ -166,6 +151,69 @@ def parse_stream_messages(message: str | bytes) -> tuple[RawStreamEvent, ...]:
         except EventSchemaError as error:
             raise EventSchemaError(f"event batch item {index}: {error}") from error
     return tuple(normalized)
+
+
+def _validate_event_batch_envelope(payload: RawStreamEvent) -> list[object]:
+    """Validate a batch envelope's structure and return its raw events list.
+
+    Envelope problems (wrong keys, bad protocol, count mismatch) are structural:
+    nothing in the frame can be trusted, so both the strict and resilient parsers
+    treat them as a whole-frame failure.
+    """
+    if frozenset(payload) != EVENT_BATCH_KEYS:
+        raise EventSchemaError("event batch must match the exact envelope schema")
+    version = str(payload.get("protocol_version", "")).strip()
+    if not version or version.split(".", 1)[0] != "1":
+        raise EventSchemaError("event batch protocol_version must use supported major version 1")
+    event_count = _raw_int(payload.get("event_count"), "event_count")
+    if event_count <= 0 or event_count > MAX_EVENTS_PER_BATCH:
+        raise EventSchemaError(f"event_count must be between 1 and {MAX_EVENTS_PER_BATCH}")
+    raw_events = payload.get("events")
+    if not isinstance(raw_events, list):
+        raise EventSchemaError("event batch events must be a JSON array")
+    if len(raw_events) != event_count:
+        raise EventSchemaError("event batch event_count does not match events length")
+    return raw_events
+
+
+def parse_stream_messages_resilient(
+    message: str | bytes,
+) -> tuple[tuple[RawStreamEvent, ...], tuple[str, ...]]:
+    """Parse a frame, KEEPING every well-formed event and collecting per-item errors.
+
+    Unlike :func:`parse_stream_messages` (all-or-nothing), one malformed item in a
+    batch never discards its well-formed siblings: the good events are returned and
+    each bad item contributes exactly one attributable error string. Envelope-level
+    problems still fail the whole frame (nothing in it can be trusted). The receiver
+    uses this so a single benign anomaly (e.g. a zero-size trade) cannot destroy the
+    good depth updates batched alongside it.
+    """
+    try:
+        payload = cast(RawStreamEvent, _json_object(message))
+    except EventSchemaError as error:
+        return (), (str(error),)
+    if payload.get("type") != EVENT_BATCH_TYPE:
+        try:
+            return (_normalize_stream_payload(payload),), ()
+        except EventSchemaError as error:
+            return (), (str(error),)
+    try:
+        raw_events = _validate_event_batch_envelope(payload)
+    except EventSchemaError as error:
+        return (), (str(error),)
+    normalized: list[RawStreamEvent] = []
+    errors: list[str] = []
+    for index, raw_event in enumerate(raw_events):
+        if not isinstance(raw_event, dict):
+            errors.append(f"event batch item {index} must be a JSON object")
+        elif raw_event.get("type") == EVENT_BATCH_TYPE:
+            errors.append(f"event batch item {index}: nested event batches are not supported")
+        else:
+            try:
+                normalized.append(_normalize_stream_payload(cast(RawStreamEvent, raw_event)))
+            except EventSchemaError as error:
+                errors.append(f"event batch item {index}: {error}")
+    return tuple(normalized), tuple(errors)
 
 
 def _normalize_stream_payload(payload: RawStreamEvent) -> RawStreamEvent:

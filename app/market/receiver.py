@@ -11,13 +11,13 @@ from typing import Protocol, TypeAlias
 from app.database.recorder import MarketEventRecorder
 from app.market.state import MarketState
 from bookmap_addon.events import (
-    EventSchemaError,
     RawMarketEvent,
     RawStreamEvent,
     is_control_event,
     parse_event_message,
     parse_stream_message,
     parse_stream_messages,
+    parse_stream_messages_resilient,
 )
 
 DEFAULT_RECEIVER_URL = "ws://127.0.0.1:8765/bookmap"
@@ -119,16 +119,22 @@ async def consume_market_stream(
     messages_processed = 0
     stop_requested = False
     async for message in stream:
-        try:
+        if on_schema_error is None:
+            # Strict mode (no error sink): a malformed frame is fatal, as before.
             frame_events = parse_stream_messages(message)
-        except EventSchemaError as error:
-            if on_schema_error is None:
-                raise
-            on_schema_error(str(error))
-            messages_processed += 1
-            if max_messages is not None and messages_processed >= max_messages:
+        else:
+            # Resilient mode (capture): keep the frame's well-formed events and
+            # report each malformed item, so one bad item in a batch never
+            # discards its good siblings. Each error is one counted malformed.
+            frame_events, frame_errors = parse_stream_messages_resilient(message)
+            for error_reason in frame_errors:
+                on_schema_error(error_reason)
+                messages_processed += 1
+                if max_messages is not None and messages_processed >= max_messages:
+                    stop_requested = True
+                    break
+            if stop_requested:
                 break
-            continue
         for event in frame_events:
             messages_processed += 1
             if is_control_event(event):

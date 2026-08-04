@@ -19,7 +19,14 @@ from app.market.receiver import (
     decode_stream_messages,
 )
 from app.market.state import MarketState
-from bookmap_addon.events import EventSchemaError, event_to_json, format_depth_update, format_trade
+from bookmap_addon.events import (
+    EventSchemaError,
+    event_to_json,
+    format_depth_update,
+    format_trade,
+    parse_stream_messages,
+    parse_stream_messages_resilient,
+)
 
 
 class MockWebSocketClient:
@@ -187,6 +194,41 @@ def test_receiver_expands_ordered_micro_batch_and_preserves_single_frames() -> N
     assert result.events_processed == 2
     assert result.final_state.best_bid == Decimal("100.00")
     assert result.final_state.executed_sell_volume == Decimal("2")
+
+
+def _batch_with_one_bad_item() -> str:
+    good_depth = format_depth_update(
+        timestamp=100, symbol="MNQ", side="bid", price="100.00",
+        previous_size="0", new_size="10")
+    # A zero-size trade: matches the trade key set but fails size > 0. Built as a
+    # raw dict because format_trade would reject it at construction.
+    bad_trade = {"type": "trade", "timestamp_ns": 101, "price": "100.25", "size": "0",
+                 "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 1}
+    return json.dumps({"type": "event_batch", "protocol_version": "1.2",
+                       "event_count": 2, "events": [good_depth, bad_trade]})
+
+
+def test_resilient_parser_keeps_good_events_and_reports_the_bad_item() -> None:
+    """One bad item in a batch must not discard its well-formed siblings."""
+    events, errors = parse_stream_messages_resilient(_batch_with_one_bad_item())
+    assert len(events) == 1 and events[0]["type"] == "depth_update"
+    assert errors == ("event batch item 1: size must be greater than 0",)
+    # Strict parsing stays all-or-nothing: the whole batch is rejected.
+    with pytest.raises(EventSchemaError, match="item 1"):
+        parse_stream_messages(_batch_with_one_bad_item())
+
+
+def test_consume_keeps_good_events_from_a_partially_malformed_batch() -> None:
+    """The capture path records the good depth update and counts the bad trade."""
+    reasons: list[str] = []
+    result = asyncio.run(consume_market_stream(
+        MockWebSocketClient([_batch_with_one_bad_item()]), on_schema_error=reasons.append))
+    assert result.events_processed == 1  # the good depth update was NOT lost
+    assert result.final_state.best_bid == Decimal("100.00")
+    assert reasons == ["event batch item 1: size must be greater than 0"]
+    # Without an error sink (strict), the same batch is fatal, as before.
+    with pytest.raises(EventSchemaError):
+        asyncio.run(consume_market_stream(MockWebSocketClient([_batch_with_one_bad_item()])))
 
 
 @pytest.mark.parametrize(
