@@ -79,14 +79,15 @@ paper_trail_distance_ticks: 10       # trail 2.5 pts behind the best price
 # paper_fixed_contracts / paper_max_risk_per_trade_usd: fixed-size PAPER sizing.
 # This is a PER-TRADE risk cap, NOT a daily loss cap (daily caps stay the
 # unlimited paper_max_entries_per_day / paper_max_losses_per_day above).
-# When paper_fixed_contracts > 0, every approved setup trades exactly this many
-# contracts (still capped by the account's hard max_contracts ceiling) instead
-# of the dynamic 1%-account/3-trades risk sizing. The strategy's real,
-# evidence-derived stop is never replaced or invented - if that real stop would
-# risk more than paper_max_risk_per_trade_usd at the fixed contract count, the
-# trade is rejected (reason: stop_exceeds_fixed_risk_cap) rather than resized
-# or forced onto an artificial stop. Set paper_fixed_contracts: 0 to disable and
-# fall back to the original dynamic risk sizing. Restart to apply.
+# When paper_fixed_contracts > 0, this is the CEILING on contracts per setup
+# (still capped by the account's hard max_contracts ceiling) instead of the
+# dynamic 1%-account/3-trades risk sizing. The strategy's real, evidence-derived
+# stop is never replaced or invented: if that real stop would risk more than
+# paper_max_risk_per_trade_usd at the full ceiling, the position is sized DOWN
+# to the largest contract count that fits the cap (the cap is never relaxed).
+# Only if a single contract already exceeds the cap is the stop genuinely too
+# wide, and the trade is rejected (reason: stop_exceeds_fixed_risk_cap). Set
+# paper_fixed_contracts: 0 to fall back to dynamic risk sizing. Restart to apply.
 paper_fixed_contracts: 4
 paper_max_risk_per_trade_usd: 80
 

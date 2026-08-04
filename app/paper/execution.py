@@ -442,22 +442,24 @@ def size_intent(
     offline ledger uses - then applies the account's hard contract cap.
 
     When ``fixed_contracts > 0`` (the paper-engine's fixed-size mode), sizing
-    switches to a fixed contract count instead of the dynamic 1%-account/
+    uses ``fixed_contracts`` as a *ceiling* instead of the dynamic 1%-account/
     3-trades budget below. The strategy's real, evidence-derived stop
-    (``intent.stop_distance_ticks``) is never replaced or invented - if it
-    implies more than ``max_risk_per_trade_usd`` of risk at the fixed contract
-    count, the trade is rejected rather than resized or forced onto an
-    artificial stop.
+    (``intent.stop_distance_ticks``) is never replaced or invented. If that
+    real stop would risk more than ``max_risk_per_trade_usd`` at the full
+    ceiling, the position is sized DOWN to the largest contract count that
+    fits the cap (the cap is never relaxed, the stop is never faked). Only if a
+    single contract already exceeds the cap is the stop genuinely too wide, and
+    the trade is rejected outright.
     """
     from app.risk.sizing import SizingInputs, calculate_position_size
-    from app.risk.sizing import calculate_risk_per_contract
+    from app.risk.sizing import calculate_contracts, calculate_risk_per_contract
 
     if intent.stop_distance_ticks <= 0:
         return RiskDecision.reject(REASON_NO_STOP, "stop distance is not positive")
 
     if fixed_contracts > 0:
-        contracts = min(fixed_contracts, max_contracts)
-        if contracts <= 0:
+        ceiling = min(fixed_contracts, max_contracts)
+        if ceiling <= 0:
             return RiskDecision.reject(
                 REASON_RISK_ZERO_SIZE, "account contract cap permits zero contracts",
             )
@@ -467,15 +469,23 @@ def size_intent(
             estimated_commission=commission_per_contract,
             estimated_slippage=Decimal("0.50"),
         )
-        total_risk = risk_per_contract * contracts
-        if total_risk > max_risk_per_trade_usd:
+        # Size DOWN to the largest contract count that fits the per-trade risk
+        # cap. The strategy's real, evidence-derived stop is never replaced or
+        # invented, and the cap is never relaxed - we simply trade fewer
+        # contracts. Only if a *single* contract already exceeds the cap is the
+        # stop genuinely too wide to trade at all (then reject honestly).
+        contracts = min(ceiling, calculate_contracts(max_risk_per_trade_usd, risk_per_contract))
+        if contracts <= 0:
             return RiskDecision.reject(
                 REASON_STOP_TOO_WIDE,
-                f"natural stop implies ${total_risk} risk at {contracts} contracts, "
+                f"natural stop implies ${risk_per_contract} risk on a single contract, "
                 f"exceeds ${max_risk_per_trade_usd} per-trade cap",
             )
-        return RiskDecision(approved=True, contracts=contracts,
-                            reason_code=REASON_APPROVED, reason="fixed-size approved")
+        total_risk = risk_per_contract * contracts
+        return RiskDecision(
+            approved=True, contracts=contracts, reason_code=REASON_APPROVED,
+            reason=f"fixed-size approved: {contracts} contract(s), "
+                   f"${total_risk} risk within ${max_risk_per_trade_usd} cap")
 
     sizing = calculate_position_size(
         SizingInputs(

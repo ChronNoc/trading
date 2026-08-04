@@ -345,11 +345,31 @@ def test_execution_config_rejects_non_finite_fixed_risk_caps(invalid_cap: Decima
         ExecutionConfig(fixed_contracts=4, max_risk_per_trade_usd=invalid_cap)
 
 
-def test_fixed_size_rejects_when_the_real_stop_is_too_wide_for_the_cap() -> None:
+def test_fixed_size_sizes_down_to_fit_the_cap_instead_of_rejecting() -> None:
     # _long() has a 10-point (40-tick) stop: risk_per_contract = 40*0.50 + 1.24 + 0.50
-    # = 21.74, so 4 contracts = $86.96 - above the $80 cap. The trade must be
-    # rejected outright, never resized or forced onto an artificial stop.
+    # = 21.74, so the full ceiling of 4 = $86.96 exceeds the $80 cap. Rather than
+    # reject, the position is sized DOWN to 3 contracts ($65.22 < $80) - the real
+    # stop is untouched and the cap is never relaxed.
     decision = size_intent(_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=20, commission_per_contract=Decimal("1.24"),
+                           fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
+    assert decision.approved is True
+    assert decision.contracts == 3
+    assert decision.reason_code == REASON_APPROVED
+
+
+def _wide_stop_long(setup_id: str = "s1", index: int = 10) -> PaperOrderIntent:
+    # 40-point stop (160 ticks): risk_per_contract = 160*0.50 + 1.24 + 0.50 = 81.74,
+    # so even ONE contract exceeds the $80 cap - genuinely too wide to trade.
+    return PaperOrderIntent(direction=Direction.LONG, entry_reference=Decimal("29500.00"),
+                            stop=Decimal("29460.00"), target=Decimal("29580.00"),
+                            provenance=_prov(setup_id, index))
+
+
+def test_fixed_size_rejects_only_when_a_single_contract_exceeds_the_cap() -> None:
+    # A single contract already risks $81.74 > $80: the stop is genuinely too
+    # wide, so the trade is rejected outright (never resized onto a fake stop).
+    decision = size_intent(_wide_stop_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
                            max_contracts=20, commission_per_contract=Decimal("1.24"),
                            fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
     assert decision.approved is False
