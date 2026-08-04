@@ -119,8 +119,18 @@ Because it only reads stored evidence, walk-forward validation is cheap and runs
 every cycle (it advances any `OFFLINE_TRAINED` candidate left by this or an
 earlier cycle), independent of the heavy, opt-in training step.
 
-The remaining gates (stability, cost, shadow stages) are still pending. Until
-they are wired, candidates rest honestly at `WALK_FORWARD_VALIDATED`,
+The **STABILITY_VALIDATED** gate (`advance_stability_validation`) is now wired. A
+model can beat the baseline *in aggregate* while the edge is really carried by one
+lucky day. The walk-forward evaluator therefore now scores **each** out-of-sample
+day individually and records `stable_fold_fraction` — the fraction of independent
+OOS days on which the model beat the baseline by itself. This gate reads that
+carried-forward metric (no re-training) and requires it to be at least
+`STABILITY_MIN_FOLD_FRACTION` (0.6). Outcomes mirror WALK_FORWARD_VALIDATED:
+consistent edge → advances; evaluated but inconsistent → terminal `REJECTED`;
+metric absent → deferred.
+
+The remaining gates (cost, shadow stages) are still pending. Until they are
+wired, candidates rest honestly at `STABILITY_VALIDATED`, `WALK_FORWARD_VALIDATED`,
 `OFFLINE_TRAINED`, or `DATA_VALIDATED` (per how far the data lets them progress),
 or terminally at `REJECTED`. The Reports page reflects the reports the existing
 pipeline produces.

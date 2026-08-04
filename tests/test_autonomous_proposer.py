@@ -166,8 +166,8 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
         store_root=tmp_path / "autonomous", raw_root=_raw_with_sessions(tmp_path / "raw", 2),
         now_ns=100, software_revision="rev-a")
     grid = len(RESEARCH_GRID)
-    assert result == {"proposed": grid, "data_validated": grid,
-                      "offline_trained": 0, "walk_forward_validated": 0}
+    assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0,
+                      "walk_forward_validated": 0, "stability_validated": 0}
 
 
 # -- OFFLINE_TRAINED gate (injected trainer: no heavy ML in tests) --------------------
@@ -331,6 +331,67 @@ def test_walk_forward_is_bounded_by_limit(tmp_path: Path) -> None:
     assert passed == 1
     states = [c.state.value for c in store.list_candidates()]
     assert states.count("WALK_FORWARD_VALIDATED") == 1 and states.count("OFFLINE_TRAINED") == 2
+
+
+# -- STABILITY_VALIDATED gate (reads carried-forward per-fold consistency) ------------
+
+
+def _walk_forward_validated_store(tmp_path: Path, *, stable: float, with_stability: bool = True):
+    from app.research.autonomous_proposer import advance_walk_forward_validation
+
+    def trainer(_candidate):
+        metrics = {"oos_predictions": 120.0, "beats_baseline_after_costs": 1.0,
+                   "expectancy_edge_ticks": 0.8, "taken_trades": 40.0}
+        if with_stability:
+            metrics["stable_fold_fraction"] = stable
+        return metrics
+
+    store = _offline_trained_store(tmp_path, trainer)
+    advance_walk_forward_validation(store, now_ns=350)
+    return store
+
+
+def test_stability_advances_when_edge_is_consistent_across_days(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_stability_validation
+
+    store = _walk_forward_validated_store(tmp_path, stable=0.8)
+    passed = advance_stability_validation(store, now_ns=400)
+    assert passed == 3
+    assert {c.state.value for c in store.list_candidates()} == {"STABILITY_VALIDATED"}
+    assert advance_stability_validation(store, now_ns=500) == 0  # idempotent
+
+
+def test_stability_rejects_when_edge_is_not_consistent(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_stability_validation
+
+    store = _walk_forward_validated_store(tmp_path, stable=0.2)  # below the 0.6 floor
+    passed = advance_stability_validation(store, now_ns=400)
+    assert passed == 0
+    assert {c.state.value for c in store.list_candidates()} == {"REJECTED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_rejected" in events
+
+
+def test_stability_defers_when_the_metric_is_absent(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_stability_validation
+
+    store = _walk_forward_validated_store(tmp_path, stable=0.0, with_stability=False)
+    passed = advance_stability_validation(store, now_ns=400)
+    assert passed == 0
+    # Missing evidence defers, never rejects: candidate stays WALK_FORWARD_VALIDATED.
+    assert {c.state.value for c in store.list_candidates()} == {"WALK_FORWARD_VALIDATED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_deferred" in events and "gate_rejected" not in events
+
+
+def test_stability_ignores_candidates_not_yet_walk_forward_validated(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_stability_validation
+
+    store = _offline_trained_store(tmp_path, lambda c: _beats(0.8))  # OFFLINE_TRAINED only
+    assert advance_stability_validation(store, now_ns=400) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"OFFLINE_TRAINED"}
 
 
 def test_config_reader_training_defaults_false(tmp_path: Path) -> None:

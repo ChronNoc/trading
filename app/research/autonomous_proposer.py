@@ -233,6 +233,8 @@ def default_offline_trainer(
             "baseline_expectancy_ticks": baseline,
             "expectancy_edge_ticks": expectancy - baseline,
             "beats_baseline_after_costs": 1.0 if validation["beats_baseline"] else 0.0,
+            # Consistency across independent OOS days - read by STABILITY_VALIDATED.
+            "stable_fold_fraction": float(validation.get("stable_fold_fraction", 0.0)),
         }
 
     return trainer
@@ -403,6 +405,82 @@ def advance_walk_forward_validation(
     return passed
 
 
+# STABILITY_VALIDATED gate: the out-of-sample edge must be CONSISTENT across
+# independent trading days, not carried by one lucky day. Reads the carried-
+# forward per-fold consistency (stable_fold_fraction) - it never re-trains.
+STABILITY_MIN_FOLD_FRACTION = 0.6
+STABILITY_REQUIREMENT: tuple[GateRequirement, ...] = (
+    GateRequirement("stable_fold_fraction", minimum=STABILITY_MIN_FOLD_FRACTION),
+)
+
+
+def advance_stability_validation(
+    store: AutonomousStore,
+    *,
+    now_ns: int,
+    limit: int | None = None,
+    owner: str = "autonomous-backend",
+) -> int:
+    """Advance WALK_FORWARD_VALIDATED candidates one step to STABILITY_VALIDATED.
+
+    Reads the per-fold consistency the training step recorded (no re-training)
+    and checks the edge held on a sufficient fraction of independent out-of-sample
+    days. Like WALK_FORWARD_VALIDATED, an evaluated-but-unstable edge is an honest
+    terminal REJECTED; an absent metric defers. Returns how many newly validated.
+    """
+    passed = 0
+    processed = 0
+    for record in store.list_candidates():
+        if record.state is not CandidateState.WALK_FORWARD_VALIDATED:
+            continue
+        if next_gate(record) is not CandidateState.STABILITY_VALIDATED:
+            continue
+        if limit is not None and processed >= limit:
+            break
+        prior = _passed_gate_metrics(record, CandidateState.OFFLINE_TRAINED)
+        if prior is None or "stable_fold_fraction" not in prior:
+            store.append_activity({
+                "event": "gate_deferred", "candidate_id": record.candidate_id,
+                "gate": CandidateState.STABILITY_VALIDATED.value,
+                "reason": "stability metrics unavailable; retrain to populate",
+                "recorded_at_ns": now_ns})
+            continue
+        lease = store.try_acquire(record.candidate_id, owner, now_ns=now_ns)
+        if lease is None:
+            continue
+        try:
+            processed += 1
+            fraction = float(prior["stable_fold_fraction"])
+            evidence = evaluate_requirements(
+                gate=CandidateState.STABILITY_VALIDATED, recorded_at_ns=now_ns,
+                metrics={"stable_fold_fraction": fraction}, requirements=STABILITY_REQUIREMENT,
+                evidence_refs=(f"stability:{fraction:.4f}_fold_fraction",))
+            if evidence.passed:
+                store.publish(apply_gate(record, evidence), lease=lease)
+                store.append_activity({
+                    "event": "gate_passed", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.STABILITY_VALIDATED.value,
+                    "stable_fold_fraction": fraction, "recorded_at_ns": now_ns})
+                passed += 1
+            else:
+                # Evaluated but the edge is not consistent across days: honest,
+                # terminal REJECTED (not a defer - the evidence exists and fails).
+                store.publish(
+                    apply_gate(record, evidence, failure_state=CandidateState.REJECTED),
+                    lease=lease)
+                store.append_activity({
+                    "event": "gate_rejected", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.STABILITY_VALIDATED.value,
+                    "reason": evidence.failure_reason,
+                    "stable_fold_fraction": fraction, "recorded_at_ns": now_ns})
+        finally:
+            try:
+                store.release(lease)
+            except PermissionError:
+                pass
+    return passed
+
+
 def run_proposer(
     *,
     store_root: Path | str = DEFAULT_STORE_ROOT,
@@ -449,10 +527,11 @@ def run_autonomous_cycle(
         trained = advance_offline_training(
             store, trainer=default_offline_trainer(raw_root, models_root),
             now_ns=now_ns, limit=train_limit)
-    # Walk-forward validation only reads carried-forward metrics (no ML), so it
-    # is cheap and always runs - it advances any OFFLINE_TRAINED candidate left
-    # by this or a previous cycle.
+    # Walk-forward and stability validation only read carried-forward metrics (no
+    # ML), so they are cheap and always run - advancing any candidate left at the
+    # prior state by this or an earlier cycle.
     walk_forward = advance_walk_forward_validation(store, now_ns=now_ns)
+    stability = advance_stability_validation(store, now_ns=now_ns)
     store.append_activity({
         "event": "autonomous_cycle_ran",
         "software_revision": software_revision,
@@ -460,7 +539,9 @@ def run_autonomous_cycle(
         "data_validated": validated,
         "offline_trained": trained,
         "walk_forward_validated": walk_forward,
+        "stability_validated": stability,
         "recorded_at_ns": now_ns,
     })
     return {"proposed": proposed, "data_validated": validated,
-            "offline_trained": trained, "walk_forward_validated": walk_forward}
+            "offline_trained": trained, "walk_forward_validated": walk_forward,
+            "stability_validated": stability}

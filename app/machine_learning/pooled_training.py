@@ -39,6 +39,7 @@ class WalkForwardResult:
     beats_baseline: bool
     fold_boundaries: tuple[dict[str, object], ...]
     note: str
+    stable_fold_fraction: float = 0.0
 
     def to_json(self) -> dict[str, object]:
         return asdict(self)
@@ -116,6 +117,9 @@ def walk_forward_evaluate(
         by_day[_trading_day(int(str(row["timestamp_ns"])))].append(row)
     days = sorted(by_day)
 
+    def expectancy(win_rate: float) -> float:
+        return win_rate * target_ticks - (1 - win_rate) * stop_ticks - cost_ticks
+
     oos_pred: list[int] = []
     oos_probability: list[float] = []
     oos_actual: list[int] = []
@@ -148,6 +152,12 @@ def walk_forward_evaluate(
         oos_pred.extend(predictions)
         oos_probability.extend(probabilities)
         oos_actual.extend(actual)
+        # Per-fold outcome so STABILITY can check the edge is consistent across
+        # independent out-of-sample days, not carried by one lucky day.
+        fold_taken = [a for p, a in zip(predictions, actual) if p == 1]
+        fold_win_rate = (sum(fold_taken) / len(fold_taken)) if fold_taken else 0.0
+        fold_base_rate = (sum(actual) / len(actual)) if actual else 0.0
+        fold_expectancy = expectancy(fold_win_rate) if fold_taken else 0.0
         folds.append({
             "test_day": day,
             "train_start_day": train_days[0],
@@ -156,6 +166,14 @@ def walk_forward_evaluate(
             "train_rows": len(train_rows),
             "purged_train_rows": purged_rows,
             "test_rows": len(test_rows),
+            "taken_trades": len(fold_taken),
+            "taken_win_rate": round(fold_win_rate, 6),
+            "expectancy_ticks": round(fold_expectancy, 6),
+            "beats_baseline": bool(
+                fold_taken
+                and fold_expectancy > expectancy(fold_base_rate)
+                and fold_expectancy > 0
+            ),
         })
 
     if not oos_pred:
@@ -175,19 +193,20 @@ def walk_forward_evaluate(
     taken = [actual for predicted, actual in zip(oos_pred, oos_actual) if predicted == 1]
     taken_win_rate = (sum(taken) / len(taken)) if taken else 0.0
 
-    def expectancy(win_rate: float) -> float:
-        return win_rate * target_ticks - (1 - win_rate) * stop_ticks - cost_ticks
-
     exp_taken = expectancy(taken_win_rate) if taken else 0.0
     exp_baseline = expectancy(base_rate)
     beats = bool(taken and exp_taken > exp_baseline and exp_taken > 0)
+    # Fraction of independent out-of-sample days on which the model individually
+    # beat the baseline: the STABILITY signal (consistency, not one lucky day).
+    stable_fold_fraction = round(
+        sum(1 for fold in folds if fold["beats_baseline"]) / len(folds), 6)
     return WalkForwardResult(
         total_rows=len(rows), trading_days=len(days), evaluated_days=len(folds),
         oos_predictions=n, base_rate=round(base_rate, 6), model_accuracy=round(accuracy, 6),
         brier_score=round(brier, 6), taken_trades=len(taken),
         taken_win_rate=round(taken_win_rate, 6), expectancy_ticks=round(exp_taken, 6),
         baseline_expectancy_ticks=round(exp_baseline, 6), beats_baseline=beats,
-        fold_boundaries=tuple(folds),
+        fold_boundaries=tuple(folds), stable_fold_fraction=stable_fold_fraction,
         note=("model's taken-trade expectancy beats take-everything after costs"
               if beats else
               "no out-of-sample edge: the model does not beat taking every trade after costs"))
