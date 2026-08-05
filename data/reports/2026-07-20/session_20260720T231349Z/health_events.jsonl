@@ -1,8 +1,0 @@
-{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-20T23:13:26.661134+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T23:13:26.661197+00:00"}
-{"component":"learning","message":"daily learning summary written: data\\reports\\daily_learning\\2026-07-20\\daily_learning.md","status":"daily_summary","timestamp_utc":"2026-07-20T23:13:26.821257+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T23:13:49.709352+00:00"}
-{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-20T23:13:49.720599+00:00"}
-{"component":"bookmap","message":"Bookmap delayed entitlement entered replay playback","status":"replay_started","timestamp_utc":"2026-07-20T23:13:49.724336+00:00"}
-{"component":"bookmap","message":"Bookmap stream detected as delayed","status":"realtime_started","timestamp_utc":"2026-07-20T23:13:50.878771+00:00"}
-{"component":"runtime","message":"automatic runtime stopping","status":"stopping","timestamp_utc":"2026-07-21T01:25:48.535718+00:00"}

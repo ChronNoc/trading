@@ -1,6 +1,0 @@
-{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-20T15:14:56.014802+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T15:14:56.014864+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-20T15:14:56.338826+00:00"}
-{"component":"bookmap","message":"bridge queue drops (lifetime): 6186; this connection: 0","status":"data_gap","timestamp_utc":"2026-07-20T15:14:56.341543+00:00"}
-{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-20T15:14:56.341552+00:00"}
-{"component":"runtime","message":"automatic runtime stopping","status":"stopping","timestamp_utc":"2026-07-20T15:19:41.356154+00:00"}

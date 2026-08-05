@@ -1,7 +1,0 @@
-{"component":"runtime","message":"automatic runtime started in SHADOW mode","status":"starting","timestamp_utc":"2026-07-23T13:44:35.726171+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-23T13:44:35.726231+00:00"}
-{"component":"bookmap","message":"Bookmap delayed data mode: 15-minute","status":"delayed_mode","timestamp_utc":"2026-07-23T13:45:03.571572+00:00"}
-{"component":"bookmap","message":"Bookmap stream connected","status":"connected","timestamp_utc":"2026-07-23T13:45:03.589139+00:00"}
-{"component":"bookmap","message":"Bookmap delayed entitlement entered replay playback","status":"replay_started","timestamp_utc":"2026-07-23T13:45:03.602055+00:00"}
-{"component":"bookmap","message":"Bookmap stream detected as delayed","status":"realtime_started","timestamp_utc":"2026-07-23T13:45:04.952149+00:00"}
-{"component":"bookmap","message":"Bookmap session ended","status":"session_ended","timestamp_utc":"2026-07-23T20:04:59.790458+00:00"}
