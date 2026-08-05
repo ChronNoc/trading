@@ -167,7 +167,9 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
         now_ns=100, software_revision="rev-a")
     grid = len(RESEARCH_GRID)
     assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0,
-                      "walk_forward_validated": 0, "stability_validated": 0, "cost_validated": 0}
+                      "walk_forward_validated": 0, "stability_validated": 0, "cost_validated": 0,
+                      "shadow_candidate": 0, "shadow_observing": 0, "shadow_eligible": 0,
+                      "shadow_approved": 0}
 
 
 # -- OFFLINE_TRAINED gate (injected trainer: no heavy ML in tests) --------------------
@@ -457,6 +459,97 @@ def test_cost_ignores_candidates_not_yet_stability_validated(tmp_path: Path) -> 
     store = _walk_forward_validated_store(tmp_path, stable=0.8)  # WALK_FORWARD_VALIDATED only
     assert advance_cost_validation(store, now_ns=400) == 0
     assert {c.state.value for c in store.list_candidates()} == {"WALK_FORWARD_VALIDATED"}
+
+
+# -- Shadow stages (injected shadow_observer: no live pipeline in tests) --------------
+
+
+def _cost_validated_store(tmp_path: Path):
+    from app.research.autonomous_proposer import advance_cost_validation
+
+    store = _stability_validated_store(tmp_path, expectancy=3.0)
+    advance_cost_validation(store, now_ns=370)
+    return store
+
+
+def _strong_shadow(_candidate):
+    return {"shadow_decisions": 150.0, "shadow_days": 7.0, "shadow_beats_baseline": 1.0}
+
+
+def test_shadow_candidate_admits_cost_validated(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_shadow_candidate
+
+    store = _cost_validated_store(tmp_path)
+    assert advance_shadow_candidate(store, now_ns=400) == 3
+    assert {c.state.value for c in store.list_candidates()} == {"SHADOW_CANDIDATE"}
+
+
+def test_shadow_observation_defers_without_a_pipeline(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import (
+        advance_shadow_candidate,
+        advance_shadow_observation,
+    )
+
+    store = _cost_validated_store(tmp_path)
+    advance_shadow_candidate(store, now_ns=400)
+    # The default observer yields None (no shadow pipeline): defer, never advance.
+    assert advance_shadow_observation(store, now_ns=410) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"SHADOW_CANDIDATE"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_deferred" in events
+
+
+def test_shadow_full_chain_reaches_approved_with_a_strong_record(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import (
+        advance_shadow_approval,
+        advance_shadow_candidate,
+        advance_shadow_eligibility,
+        advance_shadow_observation,
+    )
+
+    store = _cost_validated_store(tmp_path)
+    assert advance_shadow_candidate(store, now_ns=400) == 3
+    assert advance_shadow_observation(store, shadow_observer=_strong_shadow, now_ns=410) == 3
+    assert advance_shadow_eligibility(store, shadow_observer=_strong_shadow, now_ns=420) == 3
+    assert advance_shadow_approval(store, shadow_observer=_strong_shadow, now_ns=430) == 3
+    assert {c.state.value for c in store.list_candidates()} == {"SHADOW_APPROVED"}
+
+
+def test_shadow_eligibility_defers_on_thin_observation(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import (
+        advance_shadow_candidate,
+        advance_shadow_eligibility,
+        advance_shadow_observation,
+    )
+
+    def thin(_candidate):
+        return {"shadow_decisions": 5.0, "shadow_days": 2.0, "shadow_beats_baseline": 1.0}
+
+    store = _cost_validated_store(tmp_path)
+    advance_shadow_candidate(store, now_ns=400)
+    advance_shadow_observation(store, shadow_observer=thin, now_ns=410)  # 5 >= 1 -> OBSERVING
+    assert advance_shadow_eligibility(store, shadow_observer=thin, now_ns=420) == 0  # 5 < 100
+    assert {c.state.value for c in store.list_candidates()} == {"SHADOW_OBSERVING"}
+
+
+def test_shadow_approval_rejects_a_failing_shadow_record(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import (
+        advance_shadow_approval,
+        advance_shadow_candidate,
+        advance_shadow_eligibility,
+        advance_shadow_observation,
+    )
+
+    def loses(_candidate):
+        return {"shadow_decisions": 150.0, "shadow_days": 7.0, "shadow_beats_baseline": 0.0}
+
+    store = _cost_validated_store(tmp_path)
+    advance_shadow_candidate(store, now_ns=400)
+    advance_shadow_observation(store, shadow_observer=loses, now_ns=410)
+    advance_shadow_eligibility(store, shadow_observer=loses, now_ns=420)
+    assert advance_shadow_approval(store, shadow_observer=loses, now_ns=430) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"REJECTED"}
 
 
 def test_config_reader_training_defaults_false(tmp_path: Path) -> None:

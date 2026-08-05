@@ -562,6 +562,134 @@ def advance_cost_validation(
     return passed
 
 
+# -- Shadow stages: SHADOW_CANDIDATE -> SHADOW_OBSERVING -> SHADOW_ELIGIBLE -> SHADOW_APPROVED
+#
+# The offline gates prove a model on RECORDED data. The shadow stages then require
+# it to prove itself LIVE-but-inert: its predictions are observed alongside the
+# running engine without ever affecting a decision, and only a sustained,
+# baseline-beating shadow record earns SHADOW_APPROVED (terminal) - the point at
+# which a promotion bridge may register it for the paper ML decision policy.
+# Shadow observation comes from an injected ``shadow_observer`` (candidate ->
+# metrics | None). There is no shadow pipeline yet, so the default observer yields
+# None and candidates rest honestly at SHADOW_CANDIDATE, awaiting observation.
+SHADOW_MIN_DECISIONS = 100
+SHADOW_MIN_DAYS = 5
+
+
+def default_shadow_observer(candidate: object) -> dict | None:  # noqa: ARG001
+    """Real shadow-observation source. None until a shadow pipeline is wired."""
+    return None
+
+
+def _advance_shadow_stage(
+    store: AutonomousStore,
+    *,
+    from_state: CandidateState,
+    requirement: tuple[GateRequirement, ...],
+    metrics_for,
+    now_ns: int,
+    limit: int | None,
+    owner: str,
+    failure_state: CandidateState | None = None,
+) -> int:
+    """Drive one shadow-stage transition (shared by all four stages).
+
+    ``metrics_for(record) -> dict | None``: shadow-observation metrics, or None
+    when there is no observation yet (always a DEFER). A requirement miss with
+    ``failure_state=None`` DEFERS (awaiting more observation); with a terminal
+    state it is an honest rejection of an evaluated-but-failing shadow record.
+    """
+    passed = 0
+    processed = 0
+    for record in store.list_candidates():
+        if record.state is not from_state:
+            continue
+        gate = next_gate(record)
+        if gate is None:
+            continue
+        if limit is not None and processed >= limit:
+            break
+        metrics = metrics_for(record)
+        if metrics is None:
+            store.append_activity({
+                "event": "gate_deferred", "candidate_id": record.candidate_id,
+                "gate": gate.value, "reason": "no shadow observation yet",
+                "recorded_at_ns": now_ns})
+            continue
+        lease = store.try_acquire(record.candidate_id, owner, now_ns=now_ns)
+        if lease is None:
+            continue
+        try:
+            processed += 1
+            evidence = evaluate_requirements(
+                gate=gate, recorded_at_ns=now_ns,
+                metrics={key: float(value) for key, value in metrics.items()},
+                requirements=requirement, evidence_refs=(f"shadow:{gate.value.lower()}",))
+            if evidence.passed:
+                store.publish(apply_gate(record, evidence), lease=lease)
+                store.append_activity({
+                    "event": "gate_passed", "candidate_id": record.candidate_id,
+                    "gate": gate.value, "recorded_at_ns": now_ns})
+                passed += 1
+            elif failure_state is None:
+                store.append_activity({
+                    "event": "gate_deferred", "candidate_id": record.candidate_id,
+                    "gate": gate.value, "reason": evidence.failure_reason,
+                    "recorded_at_ns": now_ns})
+            else:
+                store.publish(apply_gate(record, evidence, failure_state=failure_state), lease=lease)
+                store.append_activity({
+                    "event": "gate_rejected", "candidate_id": record.candidate_id,
+                    "gate": gate.value, "reason": evidence.failure_reason,
+                    "recorded_at_ns": now_ns})
+        finally:
+            try:
+                store.release(lease)
+            except PermissionError:
+                pass
+    return passed
+
+
+def advance_shadow_candidate(store, *, now_ns, limit=None, owner="autonomous-backend") -> int:
+    """COST_VALIDATED -> SHADOW_CANDIDATE: admit a fully offline-validated candidate
+    to shadow observation. Admission is automatic (no new evidence required)."""
+    return _advance_shadow_stage(
+        store, from_state=CandidateState.COST_VALIDATED,
+        requirement=(GateRequirement("admitted_to_shadow", minimum=1.0),),
+        metrics_for=lambda record: {"admitted_to_shadow": 1.0},
+        now_ns=now_ns, limit=limit, owner=owner)
+
+
+def advance_shadow_observation(store, *, shadow_observer=default_shadow_observer,
+                               now_ns, limit=None, owner="autonomous-backend") -> int:
+    """SHADOW_CANDIDATE -> SHADOW_OBSERVING: confirm shadow observation has begun."""
+    return _advance_shadow_stage(
+        store, from_state=CandidateState.SHADOW_CANDIDATE,
+        requirement=(GateRequirement("shadow_decisions", minimum=1.0),),
+        metrics_for=shadow_observer, now_ns=now_ns, limit=limit, owner=owner)
+
+
+def advance_shadow_eligibility(store, *, shadow_observer=default_shadow_observer,
+                               now_ns, limit=None, owner="autonomous-backend") -> int:
+    """SHADOW_OBSERVING -> SHADOW_ELIGIBLE: enough shadow decisions across enough days."""
+    return _advance_shadow_stage(
+        store, from_state=CandidateState.SHADOW_OBSERVING,
+        requirement=(GateRequirement("shadow_decisions", minimum=float(SHADOW_MIN_DECISIONS)),
+                     GateRequirement("shadow_days", minimum=float(SHADOW_MIN_DAYS))),
+        metrics_for=shadow_observer, now_ns=now_ns, limit=limit, owner=owner)
+
+
+def advance_shadow_approval(store, *, shadow_observer=default_shadow_observer,
+                            now_ns, limit=None, owner="autonomous-backend") -> int:
+    """SHADOW_ELIGIBLE -> SHADOW_APPROVED (terminal): the shadow record beats
+    baseline. An evaluated-but-failing shadow record is a terminal REJECTED."""
+    return _advance_shadow_stage(
+        store, from_state=CandidateState.SHADOW_ELIGIBLE,
+        requirement=(GateRequirement("shadow_beats_baseline", minimum=1.0),),
+        metrics_for=shadow_observer, now_ns=now_ns, limit=limit, owner=owner,
+        failure_state=CandidateState.REJECTED)
+
+
 def run_proposer(
     *,
     store_root: Path | str = DEFAULT_STORE_ROOT,
@@ -614,17 +742,19 @@ def run_autonomous_cycle(
     walk_forward = advance_walk_forward_validation(store, now_ns=now_ns)
     stability = advance_stability_validation(store, now_ns=now_ns)
     cost = advance_cost_validation(store, now_ns=now_ns)
+    # Shadow stages: admission is automatic; the rest await a shadow-observation
+    # pipeline (default observer yields None), so candidates rest at SHADOW_CANDIDATE.
+    shadow_candidate = advance_shadow_candidate(store, now_ns=now_ns)
+    shadow_observing = advance_shadow_observation(store, now_ns=now_ns)
+    shadow_eligible = advance_shadow_eligibility(store, now_ns=now_ns)
+    shadow_approved = advance_shadow_approval(store, now_ns=now_ns)
+    result = {
+        "proposed": proposed, "data_validated": validated, "offline_trained": trained,
+        "walk_forward_validated": walk_forward, "stability_validated": stability,
+        "cost_validated": cost, "shadow_candidate": shadow_candidate,
+        "shadow_observing": shadow_observing, "shadow_eligible": shadow_eligible,
+        "shadow_approved": shadow_approved}
     store.append_activity({
-        "event": "autonomous_cycle_ran",
-        "software_revision": software_revision,
-        "newly_proposed": proposed,
-        "data_validated": validated,
-        "offline_trained": trained,
-        "walk_forward_validated": walk_forward,
-        "stability_validated": stability,
-        "cost_validated": cost,
-        "recorded_at_ns": now_ns,
-    })
-    return {"proposed": proposed, "data_validated": validated,
-            "offline_trained": trained, "walk_forward_validated": walk_forward,
-            "stability_validated": stability, "cost_validated": cost}
+        "event": "autonomous_cycle_ran", "software_revision": software_revision,
+        "recorded_at_ns": now_ns, **result})
+    return result

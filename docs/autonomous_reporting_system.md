@@ -138,11 +138,26 @@ survive costs running ~2× the assumed level. No re-training. Outcomes mirror th
 other evidence gates: robust → advances; evaluated-but-fragile → terminal
 `REJECTED`; metric absent → deferred.
 
-The remaining gates (the four shadow stages) are still pending. Until they are
-wired, candidates rest honestly at `COST_VALIDATED`, `STABILITY_VALIDATED`,
-`WALK_FORWARD_VALIDATED`, `OFFLINE_TRAINED`, or `DATA_VALIDATED` (per how far the
-data lets them progress), or terminally at `REJECTED`. The Reports page reflects
-the reports the existing pipeline produces.
+The **shadow stages** (`SHADOW_CANDIDATE → SHADOW_OBSERVING → SHADOW_ELIGIBLE →
+SHADOW_APPROVED`) are now wired, completing the full ten-state lifecycle. The
+offline gates prove a model on *recorded* data; the shadow stages require it to
+prove itself **live-but-inert** — its predictions observed alongside the running
+engine without ever affecting a decision. Admission (`advance_shadow_candidate`)
+is automatic for a cost-validated candidate; the rest read an injected
+`shadow_observer` (candidate → metrics | None): enough shadow decisions across
+enough days earns `SHADOW_ELIGIBLE`, and only a baseline-beating shadow record
+earns terminal `SHADOW_APPROVED`. There is no shadow-observation pipeline yet, so
+the default observer yields `None` and candidates rest honestly at
+`SHADOW_CANDIDATE`, awaiting observation.
+
+`SHADOW_APPROVED` is the point at which a **promotion bridge** (not yet built) may
+register the model as the paper engine's approved (`SCORING`) artifact, so the
+existing ML decision policy (`app/paper/streaming_engine.py`) consults it — as a
+veto first, per governance. That bridge is the final link between the autonomous
+lifecycle and paper trading; everything upstream of it is now in place and tested.
+Until a candidate earns its way there (which needs eligible data first), no model
+influences any decision, and LIVE stays locked. The Reports page reflects the
+reports the existing pipeline produces.
 
 ## Tests
 
