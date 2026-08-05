@@ -526,6 +526,36 @@ def test_gui_close_stops_only_its_snapshot_worker(qtbot: object) -> None:
     assert win._snapshot_worker.running is False
 
 
+def test_exit_safely_button_requests_backend_shutdown_and_closes(qtbot: object) -> None:
+    """The 'Exit safely' button asks the backend to stop cleanly, then closes."""
+    from PySide6.QtWidgets import QPushButton
+
+    calls: list[str] = []
+    win = AppWindow(snapshot_provider=_rich_snapshot, start_timer=False,
+                    request_shutdown=lambda: calls.append("stop"))
+    qtbot.addWidget(win)
+    button = win.findChild(QPushButton, "exit_safely")
+    assert button is not None and button.text() == "Exit safely"
+
+    button.click()
+    assert calls == ["stop"], "clicking must send exactly one clean-shutdown request"
+    assert win._exiting is True
+
+    # Idempotent: a second activation never sends a second stop request.
+    win._on_exit_safely()
+    assert calls == ["stop"]
+
+
+def test_exit_safely_button_still_closes_without_a_shutdown_callback(qtbot: object) -> None:
+    """With no callback wired, the button must never trap the user - it still closes."""
+    from PySide6.QtWidgets import QPushButton
+
+    win = AppWindow(snapshot_provider=_rich_snapshot, start_timer=False)
+    qtbot.addWidget(win)
+    win.findChild(QPushButton, "exit_safely").click()
+    assert win._exiting is True
+
+
 @pytest.mark.parametrize("label,width,height", [
     ("1366x768", 1366, 768),
     ("1920x1080", 1920, 1080),

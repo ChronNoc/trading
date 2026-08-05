@@ -519,6 +519,15 @@ def run_assistant(config: AssistantConfig) -> int:
             return 2
         from app.gui.backend_commands import ExecutionCommander
         from app.gui.file_snapshot import FileSnapshotProvider
+        from app.runtime.process_files import StopRequest
+
+        # The GUI's "Exit safely" button writes a clean-shutdown request the
+        # supervisor honours (drain + release the lock), so closing the app never
+        # leaves a stale lock that blocks the next launch.
+        runtime_dir = config.runtime_dir
+
+        def _request_backend_shutdown() -> None:
+            StopRequest(runtime_dir).request("GUI exit button", requester="gui")
 
         exit_code = _run_gui(
             AutomaticRuntimeController.from_config(
@@ -526,6 +535,7 @@ def run_assistant(config: AssistantConfig) -> int:
             ),
             provider=FileSnapshotProvider(config.runtime_dir),
             execution_commander=ExecutionCommander(config.runtime_dir),
+            request_shutdown=_request_backend_shutdown,
         )
         print(
             "GUI closed. The capture backend is still running and recording.\n"
@@ -735,6 +745,7 @@ def _run_gui(
     feature_sink: object | None = None,
     provider: object | None = None,
     execution_commander: object | None = None,
+    request_shutdown: object | None = None,
     models_root: Path = Path("data/models"),
     model_loader: object | None = None,
     outcome_tracker: object | None = None,
@@ -768,6 +779,7 @@ def _run_gui(
             outcome_tracker=outcome_tracker,
         ),
         execution_commander=execution_commander,
+        request_shutdown=request_shutdown,
     )
     window.show()
     # A frozen UI crashes nothing, so nothing is logged and the window just stops

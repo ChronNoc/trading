@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QPushButton,
     QStackedWidget,
     QStatusBar,
     QVBoxLayout,
@@ -51,17 +52,25 @@ class AppWindow(QMainWindow):
         *,
         snapshot_provider: SnapshotProvider | None = None,
         execution_commander: object | None = None,
+        request_shutdown: Callable[[], None] | None = None,
         theme: str = "dark",
         gui_scale: float = 1.0,
         start_timer: bool = True,
     ) -> None:
-        """Create the window; ``snapshot_provider`` is owned by a background worker."""
+        """Create the window; ``snapshot_provider`` is owned by a background worker.
+
+        ``request_shutdown`` (optional) is invoked by the "Exit safely" button to
+        ask the backend to stop cleanly (draining, releasing its lock) before the
+        window closes, so a force-kill can never leave a stale lock behind.
+        """
         super().__init__()
         self.setWindowTitle("MNQ Order-Flow Assistant")
         self.resize(1280, 720)
         self.setMinimumSize(900, 640)
         self._snapshot_provider = snapshot_provider
         self._execution_commander = execution_commander
+        self._request_shutdown = request_shutdown
+        self._exiting = False
         self._snapshot_worker: SnapshotWorker | None = None
         self._snapshot = AppSnapshot()
         self._theme = theme
@@ -100,6 +109,12 @@ class AppWindow(QMainWindow):
             trust_layout.addWidget(badge)
         trust_layout.addStretch(1)
         trust_layout.addWidget(self._live_badge)
+        self.exit_button = QPushButton("Exit safely")
+        self.exit_button.setObjectName("exit_safely")
+        self.exit_button.setToolTip("Stop the backend cleanly (drain and release its lock), then close")
+        self.exit_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.exit_button.clicked.connect(self._on_exit_safely)
+        trust_layout.addWidget(self.exit_button)
         body_layout.addWidget(self.trust_strip)
 
         self.stack = QStackedWidget()
@@ -192,8 +207,28 @@ class AppWindow(QMainWindow):
         self._render_current()
         self._render_status_bar()
 
+    def _on_exit_safely(self) -> None:
+        """Request a clean backend shutdown, then close the window.
+
+        Idempotent against double-clicks. A failed or absent shutdown request must
+        never trap the user in the app - the window still closes.
+        """
+        if self._exiting:
+            return
+        self._exiting = True
+        self.exit_button.setEnabled(False)
+        self.exit_button.setText("Stopping…")
+        self._status_label.setText("Stopping the backend safely — draining and releasing the lock…")
+        if self._request_shutdown is not None:
+            try:
+                self._request_shutdown()
+            except Exception:  # noqa: BLE001 - a failed request must never trap the user
+                pass
+        self.close()
+
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API
-        """Stop only the GUI snapshot reader; the backend remains independent."""
+        """Stop the GUI snapshot reader. The backend keeps running unless the user
+        chose "Exit safely" (which already requested a clean backend shutdown)."""
         if self._snapshot_worker is not None:
             self._snapshot_worker.stop()
         super().closeEvent(event)
