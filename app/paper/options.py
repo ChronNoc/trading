@@ -237,6 +237,36 @@ def read_min_reward_risk(production_config_path: Path) -> Decimal:
     return value
 
 
+def read_target_reward_risk(production_config_path: Path) -> Decimal:
+    """Return the target-widening reward:risk multiple (default 0 = disabled).
+
+    Fail-closed: any missing/invalid/negative value leaves the strategy's own
+    target unchanged (0), never widens it by accident.
+    """
+    from decimal import InvalidOperation
+
+    if not production_config_path.is_file():
+        return Decimal("0")
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config fails closed to disabled
+        return Decimal("0")
+    if not isinstance(payload, dict):
+        return Decimal("0")
+    raw = payload.get("paper_target_reward_risk")
+    if raw is None or isinstance(raw, bool):
+        return Decimal("0")
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("0")
+    if not value.is_finite() or value < 0:
+        return Decimal("0")
+    return value
+
+
 def read_daily_limits(production_config_path: Path) -> dict[str, int]:
     """Return max_entries_per_day / max_losses_per_day (defaults 3, fail-safe)."""
     defaults = {"max_entries_per_day": 3, "max_losses_per_day": 3}

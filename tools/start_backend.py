@@ -69,6 +69,7 @@ def run_backend(
         read_momentum_enabled,
         read_stop_settings,
         read_strategy_profile,
+        read_target_reward_risk,
     )
     from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
@@ -148,6 +149,7 @@ def run_backend(
             strategy_profile=read_strategy_profile(Path("config/production_config.yaml")),
             instrument=read_instrument(Path("config/production_config.yaml")),
             min_reward_risk=read_min_reward_risk(Path("config/production_config.yaml")),
+            target_reward_risk=read_target_reward_risk(Path("config/production_config.yaml")),
             **read_stop_settings(Path("config/production_config.yaml")),
             **read_daily_limits(Path("config/production_config.yaml")),
             **read_fixed_sizing(Path("config/production_config.yaml")),

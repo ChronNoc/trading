@@ -133,6 +133,10 @@ class EpisodeConfig:
     # setups whose target is too close to the stop; the real stop/target are never
     # altered. See app/paper/execution.py::size_intent and paper_min_reward_risk.
     min_reward_risk: Decimal = Decimal("0")
+    # Widen the target to at least this multiple of the real stop distance for
+    # bigger trades (0 = use the strategy's own target). Never aims closer than the
+    # strategy's target. See app/paper/streaming_engine.py::_widen_target.
+    target_reward_risk: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

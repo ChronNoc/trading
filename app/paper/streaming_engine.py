@@ -77,6 +77,32 @@ ML_VETO_PROBABILITY_THRESHOLD = 0.35
 ML_PREDICTION_CORRELATION_WINDOW_NS = 60_000_000_000
 
 
+def _widen_target(
+    direction: Direction,
+    entry: Decimal,
+    stop: Decimal,
+    target: Decimal,
+    target_reward_risk: Decimal,
+) -> Decimal:
+    """Aim FURTHER than the structural draw-on-liquidity target for bigger trades.
+
+    When ``target_reward_risk > 0`` the target is pushed out to at least that
+    multiple of the REAL stop distance from entry, in the trade direction. It is
+    never moved CLOSER than the strategy's own target (the further of the two
+    wins), and the real stop is never touched - so a widened target only ever
+    aims for more, never fakes a level. 0 leaves the strategy's target unchanged.
+    """
+    if target_reward_risk <= 0:
+        return target
+    risk = abs(entry - stop)
+    if risk <= 0:
+        return target
+    reach = target_reward_risk * risk
+    if direction == Direction.LONG:
+        return max(target, entry + reach)
+    return min(target, entry - reach)
+
+
 @dataclass(frozen=True, slots=True)
 class ConditionResult:
     """One deterministic sub-rule outcome, always explainable."""
@@ -746,6 +772,7 @@ class DelayedPaperEngine:
             self._status.candidates += 1
 
         direction = Direction.LONG if record.direction == TradeDirection.LONG.value else Direction.SHORT
+        target = _widen_target(direction, tick.price, stop, target, self._config.target_reward_risk)
         try:
             intent = PaperOrderIntent(
                 direction=direction,

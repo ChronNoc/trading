@@ -76,3 +76,17 @@ def test_min_reward_risk_reader_is_fail_closed(tmp_path: Path) -> None:
         path = tmp_path / "bad.yaml"
         path.write_text(bad, encoding="utf-8")
         assert read_min_reward_risk(path) == Decimal("0"), bad
+
+
+def test_target_reward_risk_reader_is_fail_closed(tmp_path: Path) -> None:
+    from app.paper.options import read_target_reward_risk
+
+    assert read_target_reward_risk(tmp_path / "missing.yaml") == Decimal("0")
+    good = tmp_path / "good.yaml"
+    good.write_text("paper_target_reward_risk: 2.0\n", encoding="utf-8")
+    assert read_target_reward_risk(good) == Decimal("2.0")
+    for bad in ("paper_target_reward_risk: -1\n", "paper_target_reward_risk: abc\n",
+                "paper_target_reward_risk: true\n", "other_key: 1\n"):
+        path = tmp_path / "bad.yaml"
+        path.write_text(bad, encoding="utf-8")
+        assert read_target_reward_risk(path) == Decimal("0"), bad

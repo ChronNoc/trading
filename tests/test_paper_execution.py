@@ -433,6 +433,23 @@ def test_min_reward_risk_disabled_by_default_takes_any_setup() -> None:
     assert decision.approved is True
 
 
+def test_widen_target_aims_further_but_never_closer() -> None:
+    from app.paper.streaming_engine import _widen_target
+
+    # LONG: entry 100, stop 98 (risk 2 pts), tiny DOL target 101 -> 2R pushes to 104.
+    assert _widen_target(Direction.LONG, Decimal("100"), Decimal("98"),
+                         Decimal("101"), Decimal("2")) == Decimal("104")
+    # SHORT: entry 100, stop 102 (risk 2), DOL target 99 -> 2R pushes to 96.
+    assert _widen_target(Direction.SHORT, Decimal("100"), Decimal("102"),
+                         Decimal("99"), Decimal("2")) == Decimal("96")
+    # Never closer than the strategy's own target: a far DOL wins over a small multiple.
+    assert _widen_target(Direction.LONG, Decimal("100"), Decimal("98"),
+                         Decimal("120"), Decimal("2")) == Decimal("120")
+    # Disabled (0) leaves the strategy target unchanged.
+    assert _widen_target(Direction.LONG, Decimal("100"), Decimal("98"),
+                         Decimal("101"), Decimal("0")) == Decimal("101")
+
+
 # --- liquidation & isolation ---------------------------------------------------
 
 

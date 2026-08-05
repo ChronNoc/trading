@@ -106,6 +106,16 @@ paper_max_risk_per_trade_usd: 130
 # themselves must be widened (a strategy change). Restart to apply.
 paper_min_reward_risk: 0
 
+# paper_target_reward_risk: widen the trade TARGET to at least this multiple of
+# the real stop distance, for BIGGER trades (0 = use the strategy's own draw-on-
+# liquidity target). The target is only ever pushed FURTHER, never closer, and the
+# real stop is never touched. With the median momentum stop ~64 ticks, a value of
+# 2.0 aims ~128 ticks (~32 pts) out instead of the ~6-tick DOL target - far larger
+# winners. Trade-off: a further target is hit less often, so more exits come from
+# the trailing stop (paper_trail_* above) locking partial profit, and the win rate
+# falls even as the average winner grows. Tune to taste; 0 disables. Restart to apply.
+paper_target_reward_risk: 2.0
+
 # paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
 # observe-only shadow model's most recent scored probability (see
 # app/machine_learning/shadow_predictor.py) and may VETO a heuristic-accepted
