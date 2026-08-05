@@ -255,6 +255,7 @@ class DelayedPaperEngine:
             max_losses_per_day=self._config.max_losses_per_day,
             fixed_contracts=self._config.fixed_contracts,
             max_risk_per_trade_usd=self._config.max_risk_per_trade_usd,
+            min_reward_risk=self._config.min_reward_risk,
         )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]
@@ -779,6 +780,7 @@ class DelayedPaperEngine:
             tick_value=self._instrument.tick_value,
             fixed_contracts=self._exec_config.fixed_contracts,
             max_risk_per_trade_usd=self._exec_config.max_risk_per_trade_usd,
+            min_reward_risk=self._exec_config.min_reward_risk,
         )
         self._executor.submit(intent, decision, tick, trading_day=trading_day)
         if not decision.approved:

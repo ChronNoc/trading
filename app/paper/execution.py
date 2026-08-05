@@ -50,6 +50,7 @@ REASON_STALE_BOOK = "stale_or_crossed_book"
 REASON_CONTRACT_UNRESOLVED = "contract_unresolved"
 REASON_APPROVED = "approved"
 REASON_STOP_TOO_WIDE = "stop_exceeds_fixed_risk_cap"
+REASON_POOR_REWARD_RISK = "reward_risk_below_minimum"
 
 
 def align_to_tick(price: Decimal, *, round_up: bool) -> Decimal:
@@ -92,9 +93,16 @@ class ExecutionConfig:
     # paper_max_risk_per_trade_usd for the full explanation.
     fixed_contracts: int = 0
     max_risk_per_trade_usd: Decimal = Decimal("0")
+    # Minimum reward:risk a setup must offer to be taken (0 = disabled). The
+    # strategy's real target/stop are never altered - a setup below this bar is
+    # simply skipped, so the engine stops taking trades whose target is too close
+    # to the stop to be worth the risk after costs.
+    min_reward_risk: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate assumptions."""
+        if not self.min_reward_risk.is_finite() or self.min_reward_risk < 0:
+            raise ValueError("min_reward_risk must be a finite, non-negative ratio")
         if self.commission_per_contract < 0:
             raise ValueError("commission must be non-negative")
         if self.entry_slippage_ticks < 0 or self.stop_slippage_ticks < 0:
@@ -435,6 +443,7 @@ def size_intent(
     tick_value: Decimal = MNQ_TICK_VALUE,
     fixed_contracts: int = 0,
     max_risk_per_trade_usd: Decimal = Decimal("0"),
+    min_reward_risk: Decimal = Decimal("0"),
 ) -> RiskDecision:
     """Size an intent through the PROJECT risk engine (never bypassed).
 
@@ -456,6 +465,16 @@ def size_intent(
 
     if intent.stop_distance_ticks <= 0:
         return RiskDecision.reject(REASON_NO_STOP, "stop distance is not positive")
+
+    # Reward:risk quality gate. The strategy's real target/stop are used as-is; a
+    # setup whose reward is too small relative to its risk is skipped before any
+    # sizing, so the engine stops taking tiny-target trades that costs erase.
+    if min_reward_risk > 0:
+        reward_risk = intent.reward_points / intent.risk_points  # risk_points > 0 above
+        if reward_risk < min_reward_risk:
+            return RiskDecision.reject(
+                REASON_POOR_REWARD_RISK,
+                f"reward:risk {reward_risk:.2f} below minimum {min_reward_risk}")
 
     if fixed_contracts > 0:
         ceiling = min(fixed_contracts, max_contracts)

@@ -14,6 +14,7 @@ from app.paper.execution import (
     REASON_COOLDOWN,
     REASON_DUPLICATE,
     REASON_POSITION_OPEN,
+    REASON_POOR_REWARD_RISK,
     REASON_RISK_ZERO_SIZE,
     REASON_STALE_BOOK,
     REASON_STOP_TOO_WIDE,
@@ -396,6 +397,40 @@ def test_fixed_size_still_respects_the_account_contract_ceiling() -> None:
                            fixed_contracts=4, max_risk_per_trade_usd=Decimal("80"))
     assert decision.approved is True
     assert decision.contracts == 2
+
+
+def _poor_reward_risk_long(setup_id: str = "s1", index: int = 10) -> PaperOrderIntent:
+    # 10-point stop (40 ticks) but only a 1-point target (4 ticks): reward:risk 0.1,
+    # exactly the tiny-target geometry that costs erase.
+    return PaperOrderIntent(direction=Direction.LONG, entry_reference=Decimal("29500.00"),
+                            stop=Decimal("29490.00"), target=Decimal("29501.00"),
+                            provenance=_prov(setup_id, index))
+
+
+def test_min_reward_risk_skips_a_tiny_target_setup() -> None:
+    decision = size_intent(_poor_reward_risk_long(), balance=Decimal("25000"),
+                           drawdown_room=Decimal("1000"), max_contracts=20,
+                           commission_per_contract=Decimal("1.24"), min_reward_risk=Decimal("1.5"))
+    assert decision.approved is False
+    assert decision.reason_code == REASON_POOR_REWARD_RISK
+    assert decision.contracts == 0
+
+
+def test_min_reward_risk_allows_a_setup_that_meets_the_bar() -> None:
+    # _long() is a 10-pt stop / 20-pt target = reward:risk 2.0, above the 1.5 bar.
+    decision = size_intent(_long(), balance=Decimal("25000"), drawdown_room=Decimal("1000"),
+                           max_contracts=20, commission_per_contract=Decimal("1.24"),
+                           min_reward_risk=Decimal("1.5"))
+    assert decision.approved is True
+    assert decision.reason_code == REASON_APPROVED
+
+
+def test_min_reward_risk_disabled_by_default_takes_any_setup() -> None:
+    # min_reward_risk omitted (0): the poor 0.1 setup is NOT filtered - unchanged.
+    decision = size_intent(_poor_reward_risk_long(), balance=Decimal("25000"),
+                           drawdown_room=Decimal("1000"), max_contracts=20,
+                           commission_per_contract=Decimal("1.24"))
+    assert decision.approved is True
 
 
 # --- liquidation & isolation ---------------------------------------------------

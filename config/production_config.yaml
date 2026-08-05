@@ -96,6 +96,16 @@ paper_trail_distance_ticks: 10       # trail 2.5 pts behind the best price
 paper_fixed_contracts: 4
 paper_max_risk_per_trade_usd: 130
 
+# paper_min_reward_risk: minimum reward:risk a setup must offer to be taken
+# (target distance / stop distance). 0 = disabled (default). The strategy's real
+# stop and target are NEVER altered - a setup below this bar is simply skipped.
+# HONEST NOTE: the current momentum setups run a median reward:risk of ~0.09
+# (median stop 64 ticks vs target 6 ticks), so ANY value above ~0.1 will filter
+# out the large majority of trades. This is a QUALITY filter (fewer, better
+# trades), NOT a way to get bigger trades - for bigger trades the targets
+# themselves must be widened (a strategy change). Restart to apply.
+paper_min_reward_risk: 0
+
 # paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
 # observe-only shadow model's most recent scored probability (see
 # app/machine_learning/shadow_predictor.py) and may VETO a heuristic-accepted

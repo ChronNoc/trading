@@ -129,6 +129,10 @@ class EpisodeConfig:
     # resized. See app/paper/execution.py::size_intent.
     fixed_contracts: int = 0
     max_risk_per_trade_usd: Decimal = Decimal("0")
+    # Minimum reward:risk a setup must offer to be taken (0 = disabled). Skips
+    # setups whose target is too close to the stop; the real stop/target are never
+    # altered. See app/paper/execution.py::size_intent and paper_min_reward_risk.
+    min_reward_risk: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""

@@ -61,3 +61,18 @@ def test_fixed_sizing_reader_fails_closed_for_missing_or_unreadable_config(
 
     assert read_fixed_sizing(missing) == _DISABLED
     assert read_fixed_sizing(malformed) == _DISABLED
+
+
+def test_min_reward_risk_reader_is_fail_closed(tmp_path: Path) -> None:
+    from app.paper.options import read_min_reward_risk
+
+    assert read_min_reward_risk(tmp_path / "missing.yaml") == Decimal("0")
+    good = tmp_path / "good.yaml"
+    good.write_text("paper_min_reward_risk: 1.5\n", encoding="utf-8")
+    assert read_min_reward_risk(good) == Decimal("1.5")
+    # Every invalid form disables the filter (0), never blocks trading by accident.
+    for bad in ("paper_min_reward_risk: -1\n", "paper_min_reward_risk: abc\n",
+                "paper_min_reward_risk: true\n", "other_key: 1\n", "paper_min_reward_risk: [\n"):
+        path = tmp_path / "bad.yaml"
+        path.write_text(bad, encoding="utf-8")
+        assert read_min_reward_risk(path) == Decimal("0"), bad
