@@ -167,7 +167,7 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
         now_ns=100, software_revision="rev-a")
     grid = len(RESEARCH_GRID)
     assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0,
-                      "walk_forward_validated": 0, "stability_validated": 0}
+                      "walk_forward_validated": 0, "stability_validated": 0, "cost_validated": 0}
 
 
 # -- OFFLINE_TRAINED gate (injected trainer: no heavy ML in tests) --------------------
@@ -392,6 +392,71 @@ def test_stability_ignores_candidates_not_yet_walk_forward_validated(tmp_path: P
     store = _offline_trained_store(tmp_path, lambda c: _beats(0.8))  # OFFLINE_TRAINED only
     assert advance_stability_validation(store, now_ns=400) == 0
     assert {c.state.value for c in store.list_candidates()} == {"OFFLINE_TRAINED"}
+
+
+# -- COST_VALIDATED gate (stress the carried-forward expectancy: no ML) ---------------
+
+
+def _stability_validated_store(tmp_path: Path, *, expectancy: float = 3.0,
+                               with_expectancy: bool = True):
+    from app.research.autonomous_proposer import (
+        advance_stability_validation,
+        advance_walk_forward_validation,
+    )
+
+    def trainer(_candidate):
+        metrics = {"oos_predictions": 120.0, "beats_baseline_after_costs": 1.0,
+                   "expectancy_edge_ticks": 0.8, "taken_trades": 40.0, "stable_fold_fraction": 0.8}
+        if with_expectancy:
+            metrics["expectancy_ticks"] = expectancy
+        return metrics
+
+    store = _offline_trained_store(tmp_path, trainer)
+    advance_walk_forward_validation(store, now_ns=350)
+    advance_stability_validation(store, now_ns=360)
+    return store
+
+
+def test_cost_advances_when_the_edge_survives_stress(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_cost_validation
+
+    store = _stability_validated_store(tmp_path, expectancy=3.0)  # 3.0 - 2.0 stress = +1.0
+    passed = advance_cost_validation(store, now_ns=400)
+    assert passed == 3
+    assert {c.state.value for c in store.list_candidates()} == {"COST_VALIDATED"}
+    assert advance_cost_validation(store, now_ns=500) == 0  # idempotent
+
+
+def test_cost_rejects_when_the_edge_vanishes_under_stress(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_cost_validation
+
+    store = _stability_validated_store(tmp_path, expectancy=1.0)  # 1.0 - 2.0 stress = -1.0
+    passed = advance_cost_validation(store, now_ns=400)
+    assert passed == 0
+    assert {c.state.value for c in store.list_candidates()} == {"REJECTED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_rejected" in events
+
+
+def test_cost_defers_when_the_metric_is_absent(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_cost_validation
+
+    store = _stability_validated_store(tmp_path, with_expectancy=False)
+    passed = advance_cost_validation(store, now_ns=400)
+    assert passed == 0
+    assert {c.state.value for c in store.list_candidates()} == {"STABILITY_VALIDATED"}
+    events = {json.loads(line)["event"] for line in
+              store.activity_path.read_text(encoding="utf-8").splitlines()}
+    assert "gate_deferred" in events and "gate_rejected" not in events
+
+
+def test_cost_ignores_candidates_not_yet_stability_validated(tmp_path: Path) -> None:
+    from app.research.autonomous_proposer import advance_cost_validation
+
+    store = _walk_forward_validated_store(tmp_path, stable=0.8)  # WALK_FORWARD_VALIDATED only
+    assert advance_cost_validation(store, now_ns=400) == 0
+    assert {c.state.value for c in store.list_candidates()} == {"WALK_FORWARD_VALIDATED"}
 
 
 def test_config_reader_training_defaults_false(tmp_path: Path) -> None:

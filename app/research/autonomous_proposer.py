@@ -235,6 +235,8 @@ def default_offline_trainer(
             "beats_baseline_after_costs": 1.0 if validation["beats_baseline"] else 0.0,
             # Consistency across independent OOS days - read by STABILITY_VALIDATED.
             "stable_fold_fraction": float(validation.get("stable_fold_fraction", 0.0)),
+            # Base cost the expectancy already nets - COST_VALIDATED stresses beyond it.
+            "cost_ticks": float(validation.get("cost_ticks", 2.0)),
         }
 
     return trainer
@@ -481,6 +483,85 @@ def advance_stability_validation(
     return passed
 
 
+# COST_VALIDATED gate: the edge must SURVIVE a stressed cost assumption. The
+# walk-forward expectancy already nets a base cost; this gate additionally
+# subtracts COST_STRESS_TICKS of extra cost from the model's per-trade expectancy
+# and requires it to stay non-negative - i.e. the edge does not evaporate if real
+# costs run higher than assumed. Reads the carried-forward expectancy; no retrain.
+COST_STRESS_TICKS = 2.0
+COST_REQUIREMENT: tuple[GateRequirement, ...] = (
+    GateRequirement("expectancy_after_stress_ticks", minimum=0.0),
+)
+
+
+def advance_cost_validation(
+    store: AutonomousStore,
+    *,
+    now_ns: int,
+    limit: int | None = None,
+    owner: str = "autonomous-backend",
+) -> int:
+    """Advance STABILITY_VALIDATED candidates one step to COST_VALIDATED.
+
+    Stress-tests the carried-forward per-trade expectancy against COST_STRESS_TICKS
+    of extra cost (no re-training) and requires it to stay non-negative. Like the
+    earlier evidence gates: robust -> advances; evaluated-but-fragile -> terminal
+    REJECTED; metric absent -> deferred. Returns how many were newly cost-validated.
+    """
+    passed = 0
+    processed = 0
+    for record in store.list_candidates():
+        if record.state is not CandidateState.STABILITY_VALIDATED:
+            continue
+        if next_gate(record) is not CandidateState.COST_VALIDATED:
+            continue
+        if limit is not None and processed >= limit:
+            break
+        prior = _passed_gate_metrics(record, CandidateState.OFFLINE_TRAINED)
+        if prior is None or "expectancy_ticks" not in prior:
+            store.append_activity({
+                "event": "gate_deferred", "candidate_id": record.candidate_id,
+                "gate": CandidateState.COST_VALIDATED.value,
+                "reason": "cost metrics unavailable; retrain to populate",
+                "recorded_at_ns": now_ns})
+            continue
+        lease = store.try_acquire(record.candidate_id, owner, now_ns=now_ns)
+        if lease is None:
+            continue
+        try:
+            processed += 1
+            stressed = float(prior["expectancy_ticks"]) - COST_STRESS_TICKS
+            evidence = evaluate_requirements(
+                gate=CandidateState.COST_VALIDATED, recorded_at_ns=now_ns,
+                metrics={"expectancy_after_stress_ticks": stressed},
+                requirements=COST_REQUIREMENT,
+                evidence_refs=(f"cost_stress:{stressed:+.4f}_ticks_after_+{COST_STRESS_TICKS}",))
+            if evidence.passed:
+                store.publish(apply_gate(record, evidence), lease=lease)
+                store.append_activity({
+                    "event": "gate_passed", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.COST_VALIDATED.value,
+                    "expectancy_after_stress_ticks": stressed, "recorded_at_ns": now_ns})
+                passed += 1
+            else:
+                # Beats baseline at the assumed cost but not under stress: the edge
+                # is too thin to trust against real-world costs. Honest terminal REJECT.
+                store.publish(
+                    apply_gate(record, evidence, failure_state=CandidateState.REJECTED),
+                    lease=lease)
+                store.append_activity({
+                    "event": "gate_rejected", "candidate_id": record.candidate_id,
+                    "gate": CandidateState.COST_VALIDATED.value,
+                    "reason": evidence.failure_reason,
+                    "expectancy_after_stress_ticks": stressed, "recorded_at_ns": now_ns})
+        finally:
+            try:
+                store.release(lease)
+            except PermissionError:
+                pass
+    return passed
+
+
 def run_proposer(
     *,
     store_root: Path | str = DEFAULT_STORE_ROOT,
@@ -532,6 +613,7 @@ def run_autonomous_cycle(
     # prior state by this or an earlier cycle.
     walk_forward = advance_walk_forward_validation(store, now_ns=now_ns)
     stability = advance_stability_validation(store, now_ns=now_ns)
+    cost = advance_cost_validation(store, now_ns=now_ns)
     store.append_activity({
         "event": "autonomous_cycle_ran",
         "software_revision": software_revision,
@@ -540,8 +622,9 @@ def run_autonomous_cycle(
         "offline_trained": trained,
         "walk_forward_validated": walk_forward,
         "stability_validated": stability,
+        "cost_validated": cost,
         "recorded_at_ns": now_ns,
     })
     return {"proposed": proposed, "data_validated": validated,
             "offline_trained": trained, "walk_forward_validated": walk_forward,
-            "stability_validated": stability}
+            "stability_validated": stability, "cost_validated": cost}

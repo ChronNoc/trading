@@ -129,11 +129,20 @@ carried-forward metric (no re-training) and requires it to be at least
 consistent edge → advances; evaluated but inconsistent → terminal `REJECTED`;
 metric absent → deferred.
 
-The remaining gates (cost, shadow stages) are still pending. Until they are
-wired, candidates rest honestly at `STABILITY_VALIDATED`, `WALK_FORWARD_VALIDATED`,
-`OFFLINE_TRAINED`, or `DATA_VALIDATED` (per how far the data lets them progress),
-or terminally at `REJECTED`. The Reports page reflects the reports the existing
-pipeline produces.
+The **COST_VALIDATED** gate (`advance_cost_validation`) is now wired. The
+walk-forward expectancy already nets a base cost, but that cost is an assumption;
+a thin edge can evaporate if real commissions/slippage run higher. This gate
+subtracts an extra `COST_STRESS_TICKS` (2) from the carried-forward per-trade
+expectancy and requires the result to stay non-negative — i.e. the edge must
+survive costs running ~2× the assumed level. No re-training. Outcomes mirror the
+other evidence gates: robust → advances; evaluated-but-fragile → terminal
+`REJECTED`; metric absent → deferred.
+
+The remaining gates (the four shadow stages) are still pending. Until they are
+wired, candidates rest honestly at `COST_VALIDATED`, `STABILITY_VALIDATED`,
+`WALK_FORWARD_VALIDATED`, `OFFLINE_TRAINED`, or `DATA_VALIDATED` (per how far the
+data lets them progress), or terminally at `REJECTED`. The Reports page reflects
+the reports the existing pipeline produces.
 
 ## Tests
 
