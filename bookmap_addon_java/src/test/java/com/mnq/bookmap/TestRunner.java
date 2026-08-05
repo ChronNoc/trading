@@ -64,6 +64,7 @@ public final class TestRunner {
         testCloseIsIdempotent();
         testCloseMarksUncleanWhenTransportIsGone();
         testRuntimeFormatsDepthAndTrade();
+        testRuntimeDropsZeroSizeTrades();
         testForwarderBookmapAnnotations();
         testForwarderSettingsVersionAndDefaults();
         testForwarderSettingsMigrationAndEndpointFallback();
@@ -407,6 +408,28 @@ public final class TestRunner {
         assertContains(trade, "\"price\":\"29771.125\"", "trade real price");
         assertContains(trade, "\"aggressor_side\":\"buy\"", "trade side");
         assertContains(trade, "\"sequence_id\":1", "trade sequence");
+        testsRun++;
+    }
+
+    private void testRuntimeDropsZeroSizeTrades() throws Exception {
+        BridgeConfig config = BridgeConfig.defaults();
+        ForwarderRuntime runtime = new ForwarderRuntime(
+                config,
+                InstrumentContext.synthetic("MNQ", "MNQ", 0.25, config),
+                new CaptureTransport(),
+                Clock.fixed(Instant.parse("2026-07-10T14:30:00Z"), ZoneOffset.UTC));
+
+        // A size-0 "trade" is not a trade: it must be dropped at the source and
+        // must NOT consume a trade sequence number.
+        runtime.publishTrade(100L, 119084.5d, 0, true);
+        runtime.publishTrade(200L, 119084.5d, 3, true);
+
+        assertTrue(runtime.filteredNonTradeCount() == 1L, "one zero-size trade filtered");
+        String trade = runtime.queue().take(1, TimeUnit.SECONDS);
+        assertContains(trade, "\"type\":\"trade\"", "the real trade is forwarded");
+        // sequence_id 1 proves the dropped zero-size trade never burned sequence 1,
+        // so the next real trade leaves no false gap.
+        assertContains(trade, "\"sequence_id\":1", "real trade keeps sequence 1 - no gap");
         testsRun++;
     }
 

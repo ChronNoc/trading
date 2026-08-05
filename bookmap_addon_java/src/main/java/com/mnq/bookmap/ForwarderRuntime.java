@@ -10,6 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Owns the asynchronous WebSocket sender, queue, heartbeat, and reconnect loop. */
@@ -24,6 +25,8 @@ public final class ForwarderRuntime implements Closeable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
     private final AtomicBoolean everConnected = new AtomicBoolean(false);
+    /** Count of size-0 "trades" dropped at the source (never a trade, never sent). */
+    private final AtomicLong filteredNonTrades = new AtomicLong(0L);
     /** Bounded budget for draining the queue on shutdown. */
     private static final long SHUTDOWN_DRAIN_MILLIS = 2_000L;
     /** True when the last close() could not deliver every queued message. */
@@ -94,9 +97,23 @@ public final class ForwarderRuntime implements Closeable {
         if (!instrument.shouldForward()) {
             return;
         }
+        if (size <= 0) {
+            // A size-0 "trade" is not a trade: zero volume, no order-flow
+            // information. Drop it BEFORE the sequence generator so it neither
+            // reaches the receiver as a malformed event nor burns a trade
+            // sequence number - burning one would make the next real trade look
+            // like it had a gap, tainting an otherwise-clean session twice over.
+            filteredNonTrades.incrementAndGet();
+            return;
+        }
         long sequenceId = instrument.sequenceGenerator().next();
         String realPrice = instrument.priceConverter().toPriceString(price);
         enqueue(messageFactory.trade(timestampNs, realPrice, size, TradeSideMapper.fromBidAggressor(isBidAggressor), sequenceId));
+    }
+
+    /** How many non-forwarded size-0 "trades" were filtered (for diagnostics). */
+    public long filteredNonTradeCount() {
+        return filteredNonTrades.get();
     }
 
     public ForwardingQueue queue() {
