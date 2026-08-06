@@ -348,7 +348,7 @@ class PaperTradingScreen(DashboardScreen):
         position = Card("Simulated position and bracket", "paper_position_card"); self.position_text = _value("paper_position_text"); self.position_text.setWordWrap(True); position.body.addWidget(self.position_text); self.content_layout.addWidget(position)
         funnel = Card("Evaluation funnel and causal integrity", "paper_funnel_card"); self.funnel_text = _value("paper_funnel_text"); self.funnel_text.setWordWrap(True); funnel.body.addWidget(self.funnel_text); self.content_layout.addWidget(funnel)
         evidence = Card("Condition evidence", "paper_evidence_card"); self.evidence = EvidenceTable(("Condition", "Pass", "Fail", "Latest evidence"), "paper_evidence_table"); evidence.body.addWidget(self.evidence); self.content_layout.addWidget(evidence)
-        recent = Card("Closed simulated trades", "paper_trades_card"); self.trade_table = EvidenceTable(("Direction", "Qty", "Entry", "Exit", "Net P&L", "Reason"), "paper_trade_table"); recent.body.addWidget(self.trade_table); self.content_layout.addWidget(recent)
+        recent = Card("Closed simulated trades", "paper_trades_card"); self.trade_table = EvidenceTable(("Time (UTC)", "Direction", "Qty", "Entry", "Exit", "Net P&L", "Reason"), "paper_trade_table"); recent.body.addWidget(self.trade_table); self.content_layout.addWidget(recent)
 
     def render(self, snapshot: AppSnapshot) -> None:
         paper = snapshot.paper
@@ -359,9 +359,10 @@ class PaperTradingScreen(DashboardScreen):
         else:
             position_lines = [f"{paper.open_position} @ {paper.position_entry}", f"Stop {paper.position_stop}   Target {paper.position_target}   Unrealized {_money(paper.unrealized_pnl)}"]
         self.position_text.setText("\n".join(position_lines))
-        self.funnel_text.setText(f"{paper.evaluations} evaluated  →  {paper.candidates} qualified  →  {paper.risk_rejected} blocked by risk  →  {paper.trades} closed\nAnalysis window {paper.window_span_seconds:.0f}s · causality gaps {paper.causality_breaks} · analysis skips {paper.analysis_events_skipped:,}\n{paper.empty_reason}")
+        blocked_by = "   ".join(f"{name}: {count:,}" for name, count in paper.risk_rejections[:3])
+        self.funnel_text.setText(f"{paper.evaluations} evaluated  →  {paper.candidates} qualified  →  {paper.risk_rejected} blocked by risk  →  {paper.trades} closed" + (f"\nBlocked by:  {blocked_by}" if blocked_by else "") + f"\nAnalysis window {paper.window_span_seconds:.0f}s · causality gaps {paper.causality_breaks} · analysis skips {paper.analysis_events_skipped:,}\n{paper.empty_reason}")
         self.evidence.set_rows(tuple((name, f"{passes:,}", f"{failures:,}", evidence) for name, passes, failures, evidence in paper.condition_stats))
-        self.trade_table.set_rows(tuple((row.direction + (" [FIXTURE]" if row.is_synthetic_fixture else ""), str(row.contracts), row.entry, row.exit, row.net_pnl, row.close_reason) for row in paper.recent_trades))
+        self.trade_table.set_rows(tuple((row.opened_at, row.direction + (" [FIXTURE]" if row.is_synthetic_fixture else ""), str(row.contracts), row.entry, row.exit, row.net_pnl, row.close_reason) for row in paper.recent_trades))
         lines = [f"Mode: {paper.mode}   Profile: {paper.profile_name}", f"Balance {_money(paper.balance)} (start {_money(paper.starting_balance)})   Target {_money(paper.profit_target)} — {paper.target_progress:.0%}", f"Drawdown room {_money(paper.drawdown_room)}   Net P&L {_money(paper.net_pnl)}", f"Trades {paper.trades}   Wins {paper.wins}   Losses {paper.losses}", "", "Position:", *[f"  {line}" for line in position_lines], "", f"Analysis window: {paper.window_span_seconds:.0f}s of market time"]
         if paper.causality_breaks: lines.append(f"CAUSALITY: {paper.causality_breaks} gap(s), {paper.analysis_events_skipped:,} event(s) skipped for analysis - entries blocked until re-warmed")
         if paper.condition_stats: lines += ["", "Condition evidence (worst failures first):", *[f"  {name}: {passes:,} pass / {failures:,} fail — {evidence}" for name, passes, failures, evidence in paper.condition_stats[:8]]]

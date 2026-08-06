@@ -218,12 +218,15 @@ class TradeRow:
     net_pnl: str
     close_reason: str
     is_synthetic_fixture: bool = False
+    # Market (delayed) time the position was OPENED, formatted UTC, or "".
+    opened_at: str = ""
 
     @property
     def label(self) -> str:
         """Return a single-line description of the trade."""
         tag = " [FIXTURE]" if self.is_synthetic_fixture else ""
-        return (f"{self.direction} {self.contracts} @ {self.entry} → {self.exit}  "
+        when = f"{self.opened_at}  " if self.opened_at else ""
+        return (f"{when}{self.direction} {self.contracts} @ {self.entry} → {self.exit}  "
                 f"{self.net_pnl}  ({self.close_reason}){tag}")
 
 

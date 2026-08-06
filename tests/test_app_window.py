@@ -835,13 +835,15 @@ def test_paper_screen_lists_closed_trades_newest_first(qtbot: object) -> None:
         trades=2, wins=1, losses=1,
         recent_trades=(
             TradeRow(direction="long", contracts=2, entry="29501.00", exit="29520.00",
-                     net_pnl="+38.26", close_reason="target"),
+                     net_pnl="+38.26", close_reason="target", opened_at="2026-08-06 22:35:10"),
             TradeRow(direction="short", contracts=1, entry="29499.75", exit="29510.00",
-                     net_pnl="-21.74", close_reason="stop"),
+                     net_pnl="-21.74", close_reason="stop", opened_at="2026-08-06 22:41:02"),
         ),
     )
     assert "long 2 @ 29501.00 → 29520.00  +38.26  (target)" in body
     assert "short 1 @ 29499.75 → 29510.00  -21.74  (stop)" in body
+    # The exact entry time (when the deal was taken) is shown for each trade.
+    assert "2026-08-06 22:35:10" in body and "2026-08-06 22:41:02" in body
 
 
 def test_paper_screen_labels_synthetic_fixture_trades(qtbot: object) -> None:

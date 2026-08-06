@@ -355,12 +355,22 @@ class SnapshotSource:
                 )
                 for c in recent[-1].conditions
             )
+        from datetime import datetime, timezone
+
+        def _opened_at(ns: int) -> str:
+            # The delayed MARKET time the position opened (UTC), exact to the second.
+            if not ns:
+                return ""
+            return datetime.fromtimestamp(ns / 1_000_000_000, timezone.utc).strftime(
+                "%Y-%m-%d %H:%M:%S")
+
         rows = tuple(
             TradeRow(
                 direction=trade.direction.value, contracts=trade.contracts,
                 entry=str(trade.entry_price), exit=str(trade.exit_price),
                 net_pnl=f"{trade.net_pnl:+.2f}", close_reason=trade.close_reason.value,
                 is_synthetic_fixture=trade.is_synthetic_fixture,
+                opened_at=_opened_at(trade.opened_ts_ns),
             )
             for trade in reversed(trades)  # newest first
         )
