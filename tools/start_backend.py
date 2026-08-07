@@ -5,9 +5,15 @@
 Owns EVERYTHING stateful: the WebSocket receiver, recording, session rotation,
 the analysis feed, the paper engine and ledger, and automatic research. It
 publishes an atomically-replaced ``runtime/status.json`` heartbeat (encoded
-AppSnapshot + PID) about twice a second; the GUI process only ever reads that
-file. Closing or restarting the GUI therefore cannot interrupt capture -
-structurally, not by convention.
+AppSnapshot + PID); the GUI process only ever reads that file. Closing or
+restarting the GUI therefore cannot interrupt capture - structurally, not by
+convention.
+
+The heartbeat is published by a dedicated :class:`HeartbeatWriter` thread from a
+cheap cached snapshot, NOT by the main loop's expensive snapshot build. That
+decoupling is what keeps a busy, healthy backend from looking dead to the
+supervisor under real-time load (the build/GIL contention used to push the write
+past the staleness window and trigger a needless, data-losing restart).
 
 Lifecycle contract:
 
@@ -31,6 +37,11 @@ from typing import Sequence
 
 STATUS_INTERVAL_SECONDS = 0.5
 STOP_POLL_SECONDS = 1.0
+# The dedicated heartbeat thread republishes liveness this often. Comfortably
+# under app.runtime.process_files.HEARTBEAT_STALE_SECONDS (6.0s): several beats
+# fit inside the staleness window, so even a few delayed beats under load cannot
+# make the backend look dead.
+HEARTBEAT_INTERVAL_SECONDS = 1.0
 
 
 def run_backend(
@@ -74,6 +85,7 @@ def run_backend(
     from app.research.episode_builder import EpisodeConfig
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
+    from app.runtime.heartbeat import HeartbeatWriter, SnapshotCache
     from app.runtime.process_files import ProcessIdentity, SingletonLock, StatusFile, StopRequest
     from app.runtime.server_state import ReceiverStatusHolder
     from app.runtime.shutdown import ShutdownSignal
@@ -271,12 +283,30 @@ def run_backend(
 
     started = time.monotonic()
     clean = True
-    status_failures = 0
+    # Liveness is published by a dedicated thread from a cheap cached snapshot,
+    # so a busy main loop or GIL contention under real-time load can never make
+    # a healthy, recording backend look dead to the supervisor. The main loop
+    # only REFRESHES the cache (best-effort); the heartbeat thread does the
+    # atomic status write on its own reliable cadence.
+    try:
+        initial_snapshot = encode_snapshot(source())
+    except Exception as error:  # noqa: BLE001 - never fail startup on a snapshot build
+        logger.error("initial snapshot build failed; heartbeat starts on next build: %s", error)
+        initial_snapshot = ""
+    snapshot_cache = SnapshotCache(initial_snapshot)
+    heartbeat = HeartbeatWriter(
+        status, identity, snapshot_cache.get,
+        interval_seconds=HEARTBEAT_INTERVAL_SECONDS, logger=logger,
+    )
+    heartbeat.start()
     try:
         while True:
             if not receiver.is_alive():
                 logger.error("authoritative receiver thread exited unexpectedly")
                 clean = False
+                # Stop the heartbeat before the terminal write, or a late RUNNING
+                # beat could overwrite the FAILED_RECEIVER state.
+                heartbeat.stop()
                 try:
                     status.write(
                         encode_snapshot(source()),
@@ -286,16 +316,13 @@ def run_backend(
                 except Exception as error:  # noqa: BLE001
                     logger.error("failed to publish receiver failure: %s", error)
                 break
+            # Refresh the snapshot the heartbeat publishes. A failed build keeps
+            # the last good snapshot, so the heartbeat stays fresh and a broken
+            # snapshot never stalls capture or trips a needless recovery.
             try:
-                status.write(encode_snapshot(source()), identity=identity)
-                status_failures = 0
-            except Exception as error:  # noqa: BLE001 - a bad heartbeat must not kill capture
-                status_failures += 1
-                logger.error("status write failed: %s", error)
-                if status_failures >= 3:
-                    logger.error("status publication failed three consecutive times; restarting backend")
-                    clean = False
-                    break
+                snapshot_cache.set(encode_snapshot(source()))
+            except Exception as error:  # noqa: BLE001 - a bad snapshot must not kill capture
+                logger.error("snapshot build failed (heartbeat keeps last good): %s", error)
             now = time.monotonic()
             if now - last_disk_check >= 10.0:
                 last_disk_check = now
@@ -339,9 +366,13 @@ def run_backend(
             if max_seconds is not None and time.monotonic() - started >= max_seconds:
                 break
             time.sleep(STATUS_INTERVAL_SECONDS)
+        heartbeat.stop()
         drained = _shutdown_receiver(shutdown, receiver, timeout=20.0)
         clean = clean and drained
     finally:
+        # Idempotent: guarantees no RUNNING beat races the terminal status write
+        # below, whatever path exited the loop.
+        heartbeat.stop()
         try:
             status.write(
                 encode_snapshot(source()),
