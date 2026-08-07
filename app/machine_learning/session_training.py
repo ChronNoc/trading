@@ -22,12 +22,12 @@ any other session, and no profitability is asserted anywhere.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
 from app.machine_learning.feature_contract import (
-    FEATURE_COLUMNS,
+    FEATURE_COLUMNS,  # re-exported: consumers import it from this module
     FEATURE_CONTRACT_VERSION,
     CausalFeaturePipeline,
     feature_contract_sha256,

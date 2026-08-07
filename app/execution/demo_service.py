@@ -28,7 +28,7 @@ from __future__ import annotations
 import os
 import threading
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Callable
 
 STATE_DISCONNECTED = "DISCONNECTED"

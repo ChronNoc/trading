@@ -16,7 +16,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping
 
 # Stage status vocabulary (STAGE 3 spec).
 STATUS_NOT_STARTED = "not_started"

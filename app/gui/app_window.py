@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 from app.gui.screens import SCREEN_ORDER, build_screens
 from app.gui.snapshot_worker import SnapshotWorker
 from app.gui.theme import DASHBOARD_THEMES
-from app.gui.view_models import AppSnapshot, Health
+from app.gui.view_models import AppSnapshot
 from app.gui.widgets import StatusBadge
 
 SnapshotProvider = Callable[[], AppSnapshot]

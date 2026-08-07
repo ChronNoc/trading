@@ -26,7 +26,7 @@ import threading
 import time
 import re
 from collections import Counter, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Mapping
 
@@ -37,7 +37,6 @@ from app.paper.models import (
     Direction,
     PaperOrderIntent,
     PaperTrade,
-    RiskDecision,
     SetupProvenance,
 )
 from app.research.causal_context import (

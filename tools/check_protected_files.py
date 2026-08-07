@@ -9,7 +9,6 @@ file ``.protected-change-approved`` present at the repo root. Run in CI:
 from __future__ import annotations
 
 import subprocess
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 

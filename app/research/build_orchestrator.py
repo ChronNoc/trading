@@ -20,7 +20,6 @@ import traceback
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from app.research.episode_builder import (
     BUILDER_VERSION,

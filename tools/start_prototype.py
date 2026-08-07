@@ -9,8 +9,8 @@ import os
 import sys
 import threading
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.database.recorder import MarketSessionRecorder
@@ -22,11 +22,10 @@ from app.prototype.scenarios import (
     empty_prototype_dashboard_snapshot,
 )
 from app.runtime.controller import AutomaticRuntimeController
-from bookmap_addon.events import is_control_event, is_market_event
+from bookmap_addon.events import is_market_event
 from tools.start_assistant import AssistantStartupError, find_repo_root, validate_runtime_environment
 from tools.start_receiver import ReceiverServerConfig, start_receiver_websocket_server, startup_message
 from tools.synthetic_bookmap_feed import (
-    DEFAULT_URL,
     SUPPORTED_SPEEDS,
     PrototypePlaybackController,
     SyntheticBookmapFeed,

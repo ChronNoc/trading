@@ -10,7 +10,6 @@ from app.execution.orders import (
     AckLogger,
     AccountRef,
     BrokerAcknowledgement,
-    ExecutionRejectedError,
     OrderAction,
     OrderType,
     RiskApproval,

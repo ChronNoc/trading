@@ -20,7 +20,6 @@ from app.machine_learning.feature_contract import (
     feature_contract_sha256,
 )
 from app.machine_learning.session_training import (
-    SessionDatasetSummary,
     SessionTrainingConfig,
     build_session_training_rows,
 )

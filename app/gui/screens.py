@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -23,7 +22,7 @@ from app.gui.autonomous_view import (
     read_autonomous_snapshot,
 )
 from app.gui.charts import AggressorBar, ChartPanel, HistoryChart
-from app.gui.view_models import AppSnapshot, Capability, Health
+from app.gui.view_models import AppSnapshot, Health
 from app.gui.widgets import (
     Card,
     EvidenceTable,

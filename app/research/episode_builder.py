@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import deque
 from dataclasses import asdict, dataclass, field, replace
 from decimal import ROUND_FLOOR, Decimal
 from pathlib import Path
@@ -22,7 +21,6 @@ from app.market.features import calculate_short_term_volatility
 from app.market.state import MarketState
 from app.research.causal_context import (
     CausalLevelTracker,
-    DerivedContext,
     derive_strategy_context,
     trading_day_for_timestamp,
 )
