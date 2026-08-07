@@ -899,11 +899,11 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
         SessionRow(session_id="session_20260806T212114Z", started_at="2026-08-06 21:21:14",
                    provenance="bookmap_l2", status="continuity: bounded queue overflow",
                    eligible=False, depth_updates=346_433, market_trades=27_479,
-                   paper_trades=9, net_pnl="86.06"),
+                   paper_trades=9, net_pnl="86.06", regime="Overnight"),
         SessionRow(session_id="session_20260805T202123Z", started_at="2026-08-05 20:21:23",
                    provenance="bookmap_l2", status="unclean shutdown",
                    eligible=False, depth_updates=24_739_006, market_trades=1_161_574,
-                   paper_trades=171, net_pnl="-1100.28"),
+                   paper_trades=171, net_pnl="-1100.28", regime="New York open"),
     )
     snapshot = replace(_rich_snapshot(), sessions=sessions, sessions_total=264)
     window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
@@ -913,13 +913,16 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
 
     table = window.stack.currentWidget().findChild(EvidenceTable, "sessions_catalog_table")
     assert table.rowCount() == 2
-    # Newest first; paper-trade count then signed simulated P&L are the last columns.
+    # Columns: Session, Started, Regime, Provenance, Status, Depth, Market trades,
+    # Paper trades, Paper P&L. Newest first; regime tags the session's character.
     assert table.item(0, 0).text() == "session_20260806T212114Z"
-    assert table.item(0, 6).text() == "9"
-    assert table.item(0, 7).text() == "+$86.06"
+    assert table.item(0, 2).text() == "Overnight"
+    assert table.item(0, 7).text() == "9"
+    assert table.item(0, 8).text() == "+$86.06"
     assert table.item(1, 0).text() == "session_20260805T202123Z"
-    assert table.item(1, 6).text() == "171"
-    assert table.item(1, 7).text() == "-$1,100.28"
+    assert table.item(1, 2).text() == "New York open"
+    assert table.item(1, 7).text() == "171"
+    assert table.item(1, 8).text() == "-$1,100.28"
 
     summary = window.findChild(QLabel, "sessions_catalog_summary").text()
     assert "264 recorded session(s)" in summary

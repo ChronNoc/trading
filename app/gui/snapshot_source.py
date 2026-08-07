@@ -102,6 +102,8 @@ class SnapshotSource:
         self._sessions_cache: tuple = ()
         self._sessions_total = 0
         self._sessions_scanned_at = -1.0
+        self._regime_resolver = None
+        self._regime_resolver_loaded = False
         self._model_approval_path = model_approval_path
         self._model_cache_key: tuple[object, ...] | None = None
         self._model_cache = ModelSnapshot()
@@ -192,10 +194,39 @@ class SnapshotSource:
                 paper_trades=paper.get(entry.session_id, (0, Decimal("0")))[0],
                 net_pnl=(str(paper[entry.session_id][1])
                          if entry.session_id in paper else ""),
+                regime=self._session_regime(entry.utc_start),
             )
             for entry in ordered[:limit]
         )
         return rows, len(entries)
+
+    def _session_regime(self, utc_start: str) -> str:
+        """Map a session's UTC start to its trading-session window (regime bucket).
+
+        This is the time-of-day regime ("New York open", "Overnight", ...) that
+        per-regime model work will later train against; volatility bucketing is a
+        future refinement. A missing config or unparseable timestamp yields "" so
+        the catalog never breaks over a tag.
+        """
+        if not self._regime_resolver_loaded:
+            self._regime_resolver_loaded = True
+            try:
+                from app.market.session_context import SessionContextResolver
+
+                self._regime_resolver = SessionContextResolver.from_yaml()
+            except Exception:  # noqa: BLE001 - a missing session config must not break the catalog
+                self._regime_resolver = None
+        if self._regime_resolver is None or not utc_start:
+            return ""
+        try:
+            from datetime import datetime, timezone
+
+            instant = datetime.fromisoformat(str(utc_start).replace("Z", "+00:00"))
+            if instant.tzinfo is None:
+                instant = instant.replace(tzinfo=timezone.utc)
+            return self._regime_resolver.resolve(instant).display_name
+        except Exception:  # noqa: BLE001 - an odd timestamp must not break the catalog
+            return ""
 
     def _paper_stats_by_session(self) -> dict[str, tuple[int, Decimal]]:
         """Per session id: (count, summed net P&L) of real (non-fixture) paper trades.

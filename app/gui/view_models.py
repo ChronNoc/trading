@@ -462,6 +462,7 @@ class SessionRow:
     market_trades: int = 0
     paper_trades: int = 0
     net_pnl: str = ""
+    regime: str = ""
 
 
 @dataclass(frozen=True, slots=True)
