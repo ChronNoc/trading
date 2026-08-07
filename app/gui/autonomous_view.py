@@ -23,6 +23,7 @@ from pathlib import Path
 
 DEFAULT_STORE_ROOT = Path("data/autonomous")
 DEFAULT_REPORTS_ROOT = Path("data/reports")
+DEFAULT_MODELS_ROOT = Path("data/models")
 
 # Governed lifecycle order for the task board (kept independent of the backend
 # enum import so this stays a light, Qt-free read layer).
@@ -72,6 +73,40 @@ class ReportView:
 
 
 @dataclass(frozen=True, slots=True)
+class ValidationAttemptView:
+    """One challenger validation attempt (offline walk-forward only)."""
+
+    attempt_id: str
+    model_type: str
+    state: str
+    oos_predictions: int
+    evaluated_days: int
+    total_rows: int
+    beats_baseline: bool
+    note: str
+
+
+@dataclass(frozen=True, slots=True)
+class ModelEvidence:
+    """Honest ML scoreboard: what training/validation has actually produced.
+
+    Out-of-sample predictions are the real signal; in-sample per-session labels
+    are plumbing only (descriptive, never validated). This view never claims a
+    working model - it reports the counts as they are so "0 predictions" reads
+    as "not proven yet", not as success.
+    """
+
+    attempts: tuple[ValidationAttemptView, ...] = ()
+    attempts_total: int = 0
+    validated_count: int = 0
+    best_oos_predictions: int = 0
+    sessions_seen: int = 0
+    sessions_trainable: int = 0
+    in_sample_labels: int = 0
+    headline: str = "No challenger validation has run yet."
+
+
+@dataclass(frozen=True, slots=True)
 class AutonomousSnapshot:
     """Immutable view of autonomous state + reports for the GUI."""
 
@@ -85,6 +120,7 @@ class AutonomousSnapshot:
     reports: tuple[ReportView, ...] = ()
     disk_bytes: int = 0
     note: str = ""
+    model_evidence: ModelEvidence = field(default_factory=ModelEvidence)
 
 
 def _iso(ns: int) -> str:
@@ -234,13 +270,88 @@ def _read_reports(reports_root: Path, *, limit: int = 400) -> list[ReportView]:
     return reports
 
 
+def _evidence_headline(total: int, validated: int, best_oos: int) -> str:
+    if total == 0:
+        return "No challenger validation has run yet (needs eligible sessions to train on)."
+    if validated > 0:
+        return f"{validated} of {total} attempt(s) validated out-of-sample."
+    if best_oos == 0:
+        return (f"No validated model yet - 0 out-of-sample predictions across {total} attempt(s). "
+                "Blocked on eligible recorded sessions, not on code.")
+    return f"{total} attempt(s); best {best_oos} out-of-sample prediction(s); none passed the gates yet."
+
+
+def _read_model_evidence(models_root: Path) -> ModelEvidence:
+    """Read the challenger validation attempts + in-sample training plumbing.
+
+    Reports the numbers as they are - a REJECTED attempt with 0 out-of-sample
+    predictions is shown as exactly that, so the panel can never look like a
+    working model when none has been validated.
+    """
+    attempts: list[ValidationAttemptView] = []
+    attempts_dir = models_root / "attempts"
+    if attempts_dir.is_dir():
+        files = sorted(attempts_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in files:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            validation = payload.get("validation")
+            if not isinstance(validation, dict):
+                validation = {}
+            attempts.append(ValidationAttemptView(
+                attempt_id=str(payload.get("attempt_id", path.stem))[:24],
+                model_type=str(payload.get("model_type", "?")),
+                state=str(validation.get("validation_state", "UNKNOWN")),
+                oos_predictions=int(validation.get("oos_predictions", 0) or 0),
+                evaluated_days=int(validation.get("evaluated_days", 0) or 0),
+                total_rows=int(validation.get("total_rows", 0) or 0),
+                beats_baseline=bool(validation.get("beats_baseline", False)),
+                note=str(validation.get("note", "")),
+            ))
+
+    validated = sum(1 for attempt in attempts if attempt.state == "VALIDATED")
+    best_oos = max((attempt.oos_predictions for attempt in attempts), default=0)
+
+    sessions_seen = sessions_trainable = in_sample_labels = 0
+    per_session_dir = models_root / "per_session"
+    if per_session_dir.is_dir():
+        for report_path in per_session_dir.glob("*/report.json"):
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(report, dict):
+                continue
+            sessions_seen += 1
+            if report.get("trained"):
+                sessions_trainable += 1
+            in_sample_labels += int(report.get("wins", 0) or 0) + int(report.get("losses", 0) or 0)
+
+    return ModelEvidence(
+        attempts=tuple(attempts[:20]),
+        attempts_total=len(attempts),
+        validated_count=validated,
+        best_oos_predictions=best_oos,
+        sessions_seen=sessions_seen,
+        sessions_trainable=sessions_trainable,
+        in_sample_labels=in_sample_labels,
+        headline=_evidence_headline(len(attempts), validated, best_oos),
+    )
+
+
 def read_autonomous_snapshot(
     store_root: Path | str = DEFAULT_STORE_ROOT,
     reports_root: Path | str = DEFAULT_REPORTS_ROOT,
+    models_root: Path | str = DEFAULT_MODELS_ROOT,
 ) -> AutonomousSnapshot:
     """Read real autonomous state + reports into an immutable snapshot."""
     store_root = Path(store_root)
     reports_root = Path(reports_root)
+    models_root = Path(models_root)
 
     store_present = (store_root / "candidates").is_dir()
     candidates, counts = _read_candidates(store_root)
@@ -276,4 +387,5 @@ def read_autonomous_snapshot(
         reports=tuple(reports),
         disk_bytes=_disk_bytes(store_root),
         note=note,
+        model_evidence=_read_model_evidence(models_root),
     )

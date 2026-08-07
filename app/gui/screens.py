@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.autonomous_view import (
+    DEFAULT_MODELS_ROOT,
     DEFAULT_REPORTS_ROOT,
     DEFAULT_STORE_ROOT,
     AutonomousSnapshot,
@@ -528,10 +529,12 @@ class _AutonomousReader(QObject):
 
     ready = Signal(object)
 
-    def __init__(self, store_root: object, reports_root: object) -> None:
+    def __init__(self, store_root: object, reports_root: object,
+                 models_root: object = DEFAULT_MODELS_ROOT) -> None:
         super().__init__()
         self._store_root = store_root
         self._reports_root = reports_root
+        self._models_root = models_root
         self._busy = False
 
     def request(self) -> None:
@@ -550,11 +553,12 @@ class _ReadTask(QRunnable):
         # before or during this background run.
         self._store_root = reader._store_root
         self._reports_root = reader._reports_root
+        self._models_root = reader._models_root
 
     def run(self) -> None:  # executes on a worker thread
         view: AutonomousSnapshot | None = None
         try:
-            view = read_autonomous_snapshot(self._store_root, self._reports_root)
+            view = read_autonomous_snapshot(self._store_root, self._reports_root, self._models_root)
         except Exception:  # noqa: BLE001 - a bad read must never crash the GUI
             view = None
         try:
@@ -573,7 +577,8 @@ class AutonomousIntelligenceScreen(DashboardScreen):
     REFRESH_MS = 5000
 
     def __init__(self, store_root: object = DEFAULT_STORE_ROOT,
-                 reports_root: object = DEFAULT_REPORTS_ROOT) -> None:
+                 reports_root: object = DEFAULT_REPORTS_ROOT,
+                 models_root: object = DEFAULT_MODELS_ROOT) -> None:
         super().__init__(
             "screen_autonomous", "Autonomous Intelligence",
             "Governed, shadow-only candidate research. No autonomous change ever reaches "
@@ -591,6 +596,19 @@ class AutonomousIntelligenceScreen(DashboardScreen):
         self.note.setWordWrap(True)
         status.body.addWidget(self.note)
         self.content_layout.addWidget(status)
+
+        evidence = Card("Model validation evidence · out-of-sample, honest", "autonomous_evidence_card")
+        self.evidence_summary = _value("autonomous_evidence_summary")
+        self.evidence_summary.setWordWrap(True)
+        evidence.body.addWidget(self.evidence_summary)
+        self.evidence_table = EvidenceTable(
+            ("Attempt", "Model", "State", "OOS preds", "Eval days", "Rows", "Beats baseline"),
+            "autonomous_evidence_table")
+        evidence.body.addWidget(self.evidence_table)
+        self.evidence_footnote = _value("autonomous_evidence_footnote")
+        self.evidence_footnote.setWordWrap(True)
+        evidence.body.addWidget(self.evidence_footnote)
+        self.content_layout.addWidget(evidence)
 
         board = Card("Governed task board (candidate lifecycle)", "autonomous_board_card")
         self.board_table = EvidenceTable(("Lifecycle state", "Candidates"), "autonomous_board_table")
@@ -610,7 +628,7 @@ class AutonomousIntelligenceScreen(DashboardScreen):
         timeline.body.addWidget(self.timeline_table)
         self.content_layout.addWidget(timeline)
 
-        self._reader = _AutonomousReader(store_root, reports_root)
+        self._reader = _AutonomousReader(store_root, reports_root, models_root)
         self._reader.ready.connect(self.apply_view)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._reader.request)
@@ -643,6 +661,19 @@ class AutonomousIntelligenceScreen(DashboardScreen):
         self.disk_tile.set_value(f"{view.disk_bytes / 1024:.0f} KB" if view.disk_bytes else "0 KB",
                                  "append-only evidence")
         self.note.setText(view.note)
+        evidence = view.model_evidence
+        self.evidence_summary.setText(evidence.headline)
+        self.evidence_table.set_rows(tuple(
+            (a.attempt_id, a.model_type, a.state, str(a.oos_predictions), str(a.evaluated_days),
+             f"{a.total_rows:,}", "yes" if a.beats_baseline else "no")
+            for a in evidence.attempts)
+            or (("—", "—", "no validation attempts yet", "0", "0", "0", "no"),))
+        self.evidence_footnote.setText(
+            f"Out-of-sample predictions are the real signal ({evidence.best_oos_predictions} best across "
+            f"{evidence.attempts_total} attempt(s)). In-sample plumbing: "
+            f"{evidence.sessions_trainable}/{evidence.sessions_seen} sessions trained, "
+            f"{evidence.in_sample_labels:,} labels — descriptive only, never validated. "
+            "A model influences paper only after it passes every gate; none has.")
         self.board_table.set_rows(tuple(
             (state, str(count)) for state, count in view.counts_by_state.items())
             or (("no candidates proposed yet", "0"),))
@@ -657,6 +688,13 @@ class AutonomousIntelligenceScreen(DashboardScreen):
             f"Candidates: {view.candidate_count}   Completed: {view.completed_count}",
             "Shadow-only — no runtime authority; LIVE locked.",
             view.note,
+            "",
+            "Model validation evidence (out-of-sample):",
+            f"  {evidence.headline}",
+            f"  attempts {evidence.attempts_total}   validated {evidence.validated_count}   "
+            f"best OOS predictions {evidence.best_oos_predictions}",
+            f"  in-sample plumbing: {evidence.sessions_trainable}/{evidence.sessions_seen} sessions "
+            f"trained, {evidence.in_sample_labels:,} labels (descriptive only)",
             "",
             "Task board:",
             *[f"  {state}: {count}" for state, count in view.counts_by_state.items()],

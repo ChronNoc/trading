@@ -648,3 +648,61 @@ def _candidate_with(**kwargs: object) -> CandidateRecord:
     }
     defining.update(kwargs)
     return propose_candidate(**defining)
+
+
+def test_model_evidence_reports_zero_oos_honestly(tmp_path) -> None:
+    """The ML evidence panel must show a REJECTED, 0-OOS attempt as 'not proven'."""
+    from app.gui.autonomous_view import read_autonomous_snapshot
+
+    attempts = tmp_path / "models" / "attempts"
+    attempts.mkdir(parents=True)
+    (attempts / "attempt-abc.json").write_text(json.dumps({
+        "attempt_id": "attempt-abc",
+        "model_type": "logistic_regression",
+        "validation": {
+            "validation_state": "REJECTED", "oos_predictions": 0, "evaluated_days": 0,
+            "total_rows": 0, "beats_baseline": False, "note": "insufficient walk-forward data",
+        },
+    }), encoding="utf-8")
+    session_dir = tmp_path / "models" / "per_session" / "session_x"
+    session_dir.mkdir(parents=True)
+    (session_dir / "report.json").write_text(
+        json.dumps({"trained": True, "wins": 12, "losses": 8}), encoding="utf-8")
+
+    snap = read_autonomous_snapshot(
+        store_root=tmp_path / "store", reports_root=tmp_path / "reports",
+        models_root=tmp_path / "models",
+    )
+    evidence = snap.model_evidence
+    assert evidence.attempts_total == 1
+    assert evidence.validated_count == 0
+    assert evidence.best_oos_predictions == 0
+    assert "0 out-of-sample predictions" in evidence.headline
+    assert evidence.attempts[0].state == "REJECTED"
+    assert evidence.attempts[0].oos_predictions == 0
+    # in-sample plumbing is counted but never presented as validation
+    assert evidence.sessions_seen == 1 and evidence.sessions_trainable == 1
+    assert evidence.in_sample_labels == 20
+
+
+def test_model_evidence_reflects_a_validated_attempt(tmp_path) -> None:
+    """The panel is not hardcoded to pessimism - a real OOS pass is shown as such."""
+    from app.gui.autonomous_view import read_autonomous_snapshot
+
+    attempts = tmp_path / "models" / "attempts"
+    attempts.mkdir(parents=True)
+    (attempts / "a.json").write_text(json.dumps({
+        "attempt_id": "a", "model_type": "xgboost",
+        "validation": {"validation_state": "VALIDATED", "oos_predictions": 250,
+                       "evaluated_days": 6, "total_rows": 900, "beats_baseline": True},
+    }), encoding="utf-8")
+
+    snap = read_autonomous_snapshot(
+        store_root=tmp_path / "store", reports_root=tmp_path / "reports",
+        models_root=tmp_path / "models",
+    )
+    evidence = snap.model_evidence
+    assert evidence.validated_count == 1
+    assert evidence.best_oos_predictions == 250
+    assert "validated out-of-sample" in evidence.headline
+    assert evidence.attempts[0].beats_baseline is True

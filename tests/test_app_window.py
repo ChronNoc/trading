@@ -393,9 +393,9 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     """Card surfaces and headings must not pin dark colors in light mode."""
     cards = window.findChildren(Card)
     # 31 original cards + 6 for the two GOAL C pages (Autonomous Intelligence: 4,
-    # Reports: 2) + 1 for the Sessions & Replay catalog. All built with the same
-    # Card widget, so they follow the theme.
-    assert len(cards) == 38
+    # Reports: 2) + 1 for the Sessions & Replay catalog + 1 for the Autonomous
+    # model-validation-evidence card. All built with the same Card widget.
+    assert len(cards) == 39
     assert all(card.styleSheet() == "" for card in cards)
     assert all(card.graphicsEffect() is not None for card in cards)
 
@@ -405,7 +405,7 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
         for label in card.findChildren(QLabel)
         if label.property("role") == "section_title"
     ]
-    assert len(headings) == 38
+    assert len(headings) == 39
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")
