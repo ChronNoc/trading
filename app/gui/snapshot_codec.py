@@ -21,7 +21,7 @@ from enum import Enum
 
 from app.gui.view_models import AppSnapshot
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def encode_snapshot(snapshot: AppSnapshot) -> str:

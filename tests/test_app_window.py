@@ -393,8 +393,9 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     """Card surfaces and headings must not pin dark colors in light mode."""
     cards = window.findChildren(Card)
     # 31 original cards + 6 for the two GOAL C pages (Autonomous Intelligence: 4,
-    # Reports: 2). All built with the same Card widget, so they follow the theme.
-    assert len(cards) == 37
+    # Reports: 2) + 1 for the Sessions & Replay catalog. All built with the same
+    # Card widget, so they follow the theme.
+    assert len(cards) == 38
     assert all(card.styleSheet() == "" for card in cards)
     assert all(card.graphicsEffect() is not None for card in cards)
 
@@ -404,7 +405,7 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
         for label in card.findChildren(QLabel)
         if label.property("role") == "section_title"
     ]
-    assert len(headings) == 37
+    assert len(headings) == 38
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")
@@ -450,8 +451,12 @@ def test_reusable_dashboard_widgets_defer_palette_to_themes(window: AppWindow) -
     assert all(meter.value.property("role") == "meter_value" for meter in meters)
     assert all(meter.accessibleName() for meter in meters)
 
+    # Every capability screen now renders real content (the Sessions & Replay
+    # page was the last placeholder, replaced by the recorded-session catalog),
+    # so no CapabilityEmptyState is live in the window. The primitive stays
+    # available and themed - asserted via the QFrame[role="empty_state"] selector
+    # below - and any instance that reappears must still carry the role.
     empty_states = window.findChildren(CapabilityEmptyState)
-    assert empty_states
     assert all(state.property("role") == "empty_state" for state in empty_states)
 
     tables = window.findChildren(EvidenceTable)
@@ -877,6 +882,44 @@ def test_paper_screen_warns_when_market_events_were_dropped(qtbot: object) -> No
     body = _paper_body(qtbot, malformed_events=7)
     assert "7 market event(s) could not be parsed" in body
     assert "incomplete" in body
+
+
+def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> None:
+    """Past sessions - and how many paper trades each took - must be visible.
+
+    A short live session showing only a handful of trades is explained here by
+    prior sessions that took many, so '8 trades' never looks like a silent bug.
+    """
+    from dataclasses import replace
+
+    from app.gui.view_models import SessionRow
+
+    sessions = (
+        SessionRow(session_id="session_20260806T212114Z", started_at="2026-08-06 21:21:14",
+                   provenance="bookmap_l2", status="continuity: bounded queue overflow",
+                   eligible=False, depth_updates=346_433, market_trades=27_479, paper_trades=9),
+        SessionRow(session_id="session_20260805T202123Z", started_at="2026-08-05 20:21:23",
+                   provenance="bookmap_l2", status="unclean shutdown",
+                   eligible=False, depth_updates=24_739_006, market_trades=1_161_574, paper_trades=171),
+    )
+    snapshot = replace(_rich_snapshot(), sessions=sessions, sessions_total=264)
+    window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Sessions and Replay")
+    window.refresh_from_snapshot()
+
+    table = window.stack.currentWidget().findChild(EvidenceTable, "sessions_catalog_table")
+    assert table.rowCount() == 2
+    # Newest first; the per-session paper-trade count is the rightmost column.
+    assert table.item(0, 0).text() == "session_20260806T212114Z"
+    assert table.item(0, 6).text() == "9"
+    assert table.item(1, 0).text() == "session_20260805T202123Z"
+    assert table.item(1, 6).text() == "171"
+
+    summary = window.findChild(QLabel, "sessions_catalog_summary").text()
+    assert "264 recorded session(s)" in summary
+    body = window.stack.currentWidget().body.text()
+    assert "171 paper trades" in body
 
 
 # --- the profitability meter must be visible in the GUI ---------------------------

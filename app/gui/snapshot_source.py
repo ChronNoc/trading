@@ -79,6 +79,8 @@ class SnapshotSource:
         model_approval_path: Path = Path("config/model_approval.yaml"),
         model_loader: object | None = None,
         outcome_tracker: object | None = None,
+        raw_root: Path | None = None,
+        paper_ledger_path: Path | None = None,
     ) -> None:
         """Bind live components and the lightweight offline model-state source."""
         self._controller = controller
@@ -93,6 +95,13 @@ class SnapshotSource:
         self._models_root = models_root
         self._model_loader = model_loader
         self._outcome_tracker = outcome_tracker
+        # Session catalog (Sessions & Replay). Disabled unless a raw_root is given
+        # (the backend passes it), so tests never scan the real data/raw tree.
+        self._raw_root = raw_root
+        self._ledger_path = paper_ledger_path
+        self._sessions_cache: tuple = ()
+        self._sessions_total = 0
+        self._sessions_scanned_at = -1.0
         self._model_approval_path = model_approval_path
         self._model_cache_key: tuple[object, ...] | None = None
         self._model_cache = ModelSnapshot()
@@ -132,11 +141,82 @@ class SnapshotSource:
                 components=self._components(),
                 capabilities=self._capabilities(),
                 challengers=self._challengers(),
+                sessions=self._sessions()[0],
+                sessions_total=self._sessions()[1],
                 next_action=self._next_action(),
                 blocker=self._blocker(),
             )
         finally:
             self._frame_cache = None
+
+    def _sessions(self, *, limit: int = 60, ttl_seconds: float = 30.0) -> tuple[tuple, int]:
+        """Recorded capture sessions (newest first, bounded) + the full count.
+
+        Disabled (empty) unless a raw_root was provided (the backend supplies it).
+        The raw tree is scanned at most once every ``ttl_seconds`` and cached, so a
+        per-frame snapshot never rescans hundreds of manifests; a read error keeps
+        the last good cache.
+        """
+        if self._raw_root is None:
+            return (), 0
+        import time as _time
+
+        now = _time.monotonic()
+        if self._sessions_scanned_at >= 0 and now - self._sessions_scanned_at < ttl_seconds:
+            return self._sessions_cache, self._sessions_total
+        try:
+            self._sessions_cache, self._sessions_total = self._build_sessions(limit)
+        except Exception:  # noqa: BLE001 - a catalog read must never break the snapshot
+            pass
+        self._sessions_scanned_at = now
+        return self._sessions_cache, self._sessions_total
+
+    def _build_sessions(self, limit: int) -> tuple[tuple, int]:
+        from app.gui.view_models import SessionRow
+        from app.research.session_catalog import build_catalog
+
+        entries = build_catalog(self._raw_root)  # type: ignore[arg-type]
+        paper = self._paper_trades_by_session()
+        ordered = sorted(entries, key=lambda entry: entry.session_id, reverse=True)  # newest first
+        rows = tuple(
+            SessionRow(
+                session_id=entry.session_id,
+                started_at=(entry.utc_start or "")[:19].replace("T", " "),
+                provenance=entry.provenance,
+                status=("order-flow eligible" if entry.eligible_for_order_flow_replay
+                        else "recording" if entry.active
+                        else (entry.reasons[0] if entry.reasons else "ineligible")),
+                eligible=entry.eligible_for_order_flow_replay,
+                depth_updates=entry.depth_updates,
+                market_trades=entry.trades,
+                paper_trades=paper.get(entry.session_id, 0),
+            )
+            for entry in ordered[:limit]
+        )
+        return rows, len(entries)
+
+    def _paper_trades_by_session(self) -> dict[str, int]:
+        """Count real (non-fixture) paper trades per session id, from the ledger."""
+        import json
+        from collections import Counter
+
+        path = self._ledger_path
+        counts: Counter[str] = Counter()
+        if path is None or not path.is_file():
+            return {}
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if not isinstance(row, dict) or row.get("is_synthetic_fixture"):
+                    continue
+                sid = str(row.get("session_id") or "")
+                if sid:
+                    counts[sid] += 1
+        except (OSError, ValueError):
+            return dict(counts)
+        return dict(counts)
 
     def _cached(self, key: str, loader: Callable[[], object | None]) -> object | None:
         """Return one value per snapshot frame, or load directly outside a frame."""

@@ -233,6 +233,7 @@ def run_backend(
         analysis_feed=feed, feature_sink=feature_sink, demo_service=demo_service,
         models_root=config.models_root,
         model_loader=model_loader, outcome_tracker=outcome_tracker,
+        raw_root=config.output_root, paper_ledger_path=config.paper_ledger_path,
     )
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)

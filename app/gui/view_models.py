@@ -444,6 +444,24 @@ class ChallengerSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionRow:
+    """One recorded capture session, for the Sessions & Replay catalog.
+
+    Derived from the immutable session manifest (never fabricated), plus the count
+    of paper trades the ledger recorded for that session.
+    """
+
+    session_id: str
+    started_at: str = ""
+    provenance: str = ""
+    status: str = ""
+    eligible: bool = False
+    depth_updates: int = 0
+    market_trades: int = 0
+    paper_trades: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class AppSnapshot:
     """The single immutable object the GUI renders. Built off-thread."""
 
@@ -459,6 +477,10 @@ class AppSnapshot:
     components: tuple[ComponentHealth, ...] = ()
     capabilities: tuple[tuple[str, Capability, str], ...] = ()
     challengers: tuple[ChallengerSummary, ...] = ()
+    # Recorded capture sessions (newest first, bounded) + the full count, so the
+    # Sessions & Replay page can list previous sessions and their trade activity.
+    sessions: tuple[SessionRow, ...] = ()
+    sessions_total: int = 0
     next_action: str = ""
     blocker: str = ""
 
