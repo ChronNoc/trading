@@ -143,6 +143,78 @@ def test_stop_request_round_trip(tmp_path: Path) -> None:
     assert stop.pending() is False
 
 
+def test_recovery_bounce_is_not_read_as_an_external_stop(tmp_path: Path) -> None:
+    """The supervisor's OWN recovery stop must not look like a user stop.
+
+    Reading it as one is the real defect that made the backend "start, then stop
+    2s later, and never restart" under load: the recovery bounce aborts its own
+    recovery. A human GUI/CLI stop (or any other source) is external and stops.
+    """
+    from app.runtime.process_files import SUPERVISOR_RECOVERY_REQUESTER
+
+    stop = StopRequest(tmp_path)
+    assert stop.externally_requested() is False  # nothing pending
+    stop.request("recovery bounce", requester=SUPERVISOR_RECOVERY_REQUESTER)
+    assert stop.pending() is True
+    assert stop.externally_requested() is False  # internal → keep recovering
+    for role in ("gui", "cli", "pytest", ""):  # "" = legacy/unattributed = external
+        stop.request("x", requester=role)
+        assert stop.externally_requested() is True, role
+
+
+def test_recover_backend_leaves_an_internal_stop(tmp_path: Path) -> None:
+    """A recovery bounce writes a stop the supervisor must not quit on."""
+    from tools.backend_supervisor import _recover_backend
+
+    class _DeadBackend:
+        pid = 0
+        alive = False
+        nonce = "dead"
+
+    _recover_backend(tmp_path, _DeadBackend())
+    stop = StopRequest(tmp_path)
+    assert stop.pending() is True
+    assert stop.externally_requested() is False
+
+
+def test_supervise_survives_internal_stops_and_quits_only_on_external(
+    tmp_path: Path, monkeypatch: "pytest.MonkeyPatch",
+) -> None:
+    """supervise() keeps recovering through its own bounces; a user stop ends it.
+
+    The backend is forced permanently unhealthy so every loop takes the recovery
+    path. ``ensure_backend`` is the deterministic clock: on its 2nd call it
+    plants an INTERNAL stop (a bounce the killed backend never consumed) and the
+    loop must NOT give up; on its 5th it plants a GUI stop and the loop must
+    return 0.
+    """
+    import tools.backend_supervisor as bs
+    from app.runtime import process_files as pf
+
+    runtime = tmp_path / "runtime"
+    spec = bs.BackendSpec(port=0, output_root=str(tmp_path / "raw"))
+    stop = StopRequest(runtime)
+    calls = {"ensure": 0}
+
+    def fake_ensure_backend(_runtime: Path, **_kwargs: object) -> bool:
+        calls["ensure"] += 1
+        if calls["ensure"] == 2:
+            stop.request("recovery bounce", requester=pf.SUPERVISOR_RECOVERY_REQUESTER)
+        elif calls["ensure"] >= 5:
+            stop.request("user exit", requester="gui")
+        return False
+
+    monkeypatch.setattr(bs, "ensure_backend", fake_ensure_backend)
+    monkeypatch.setattr(pf.StatusFile, "backend_alive", lambda self, **k: False)
+    monkeypatch.setattr(bs.time, "sleep", lambda *_a, **_k: None)
+
+    assert bs.supervise(runtime, spec=spec) == 0
+    # It ran past the internal stop (planted at ensure #2) to at least ensure #5,
+    # proving the internal bounce did not end the loop; the GUI stop did.
+    assert calls["ensure"] >= 5
+    assert stop.externally_requested() is True
+
+
 def test_status_rejects_an_incompatible_backend_configuration(tmp_path: Path) -> None:
     status = StatusFile(tmp_path)
     expected = configuration_fingerprint({"port": 8765, "mode": "paper"})

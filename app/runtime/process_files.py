@@ -31,6 +31,13 @@ STATUS_DOCUMENT_VERSION = 2
 STOP_REQUEST_VERSION = 1
 HEARTBEAT_STALE_SECONDS = 6.0
 
+# Requester stamped on the stop the SUPERVISOR writes to bounce a hung backend
+# during recovery. It is the ONE stop a supervisor must not read as an external
+# request to shut the whole service down - otherwise the supervisor aborts its
+# own recovery and refuses to restart the backend. See
+# ``StopRequest.externally_requested``.
+SUPERVISOR_RECOVERY_REQUESTER = "backend_supervisor"
+
 
 def pid_alive(pid: int) -> bool:
     """Return whether ``pid`` currently refers to a running process."""
@@ -469,6 +476,29 @@ class StopRequest:
     def clear(self) -> None:
         """Consume the request once honoured."""
         self._path.unlink(missing_ok=True)
+
+    def requester(self) -> str | None:
+        """Return who asked to stop, ``""`` for an unattributed/legacy request, or None."""
+        payload = self.read()
+        if payload is None:
+            return None
+        value = payload.get("requester", "")
+        return str(value)
+
+    def externally_requested(self) -> bool:
+        """Return whether a stop came from OUTSIDE the supervisor's own recovery.
+
+        The supervisor must give up (stop and not restart) only for an external
+        stop - a human's GUI/CLI request, or any non-recovery source. Its own
+        recovery bounce (the stop it writes to replace a hung backend) carries
+        :data:`SUPERVISOR_RECOVERY_REQUESTER` and must never be mistaken for one,
+        or the supervisor aborts its own recovery. An unattributed/legacy request
+        is treated as external (fail safe: honour an unexplained stop).
+        """
+        requester = self.requester()
+        if requester is None:
+            return False
+        return requester != SUPERVISOR_RECOVERY_REQUESTER
 
 
 def _atomic_write_json(path: Path, payload: Mapping[str, object]) -> None:

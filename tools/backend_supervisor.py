@@ -237,12 +237,12 @@ def ensure_backend(
 
 def _recover_backend(runtime_dir: Path, identity: object, *, grace_seconds: float = 8.0) -> None:
     """Request graceful stop, then terminate only the verified same process."""
-    from app.runtime.process_files import StopRequest
+    from app.runtime.process_files import SUPERVISOR_RECOVERY_REQUESTER, StopRequest
 
     pid = int(getattr(identity, "pid", 0))
     StopRequest(runtime_dir).request(
         "supervisor recovery: stale heartbeat or incompatible configuration",
-        requester="backend_supervisor",
+        requester=SUPERVISOR_RECOVERY_REQUESTER,
     )
     deadline = time.monotonic() + grace_seconds
     while time.monotonic() < deadline:
@@ -282,6 +282,14 @@ def supervise(
         return 3
     status = StatusFile(runtime_dir)
     stop = StopRequest(runtime_dir)
+    # A freshly launched supervisor exists to RUN the backend. Any stop request
+    # already on disk is from a previous lifecycle - a prior exit, or a recovery
+    # bounce a force-killed backend never consumed - and must not kill the
+    # backend we are about to start. A live user stop can only arrive AFTER we
+    # are running and is honoured below.
+    if stop.pending():
+        _log(runtime_dir, "clearing a stale stop request from a previous lifecycle")
+        stop.clear()
     restarts = 0
     backoff = BACKOFF_INITIAL_SECONDS
     try:
@@ -292,7 +300,7 @@ def supervise(
             _log(runtime_dir, "initial handshake incomplete; supervisor continues recovering")
         while True:
             time.sleep(2.0)
-            if stop.pending():
+            if stop.externally_requested():
                 _log(runtime_dir, "intentional stop requested; supervisor will not restart backend")
                 return 0
             document = status.read()
@@ -313,9 +321,16 @@ def supervise(
                 _recover_backend(runtime_dir, holder)
             time.sleep(backoff)
             backoff = min(BACKOFF_MAX_SECONDS, backoff * 2)
-            if stop.pending():
+            if stop.externally_requested():
                 _log(runtime_dir, "intentional stop requested during recovery; not respawning")
                 return 0
+            # The recovery bounce above writes an internal stop to unstick a hung
+            # backend. A force-killed backend never consumes it, so clear that
+            # non-external stop here - otherwise the replacement backend reads it
+            # on its first poll and stops immediately (the "starts, then stops 2s
+            # later" failure). A user stop was already handled just above.
+            if stop.pending():
+                stop.clear()
             if not ensure_backend(runtime_dir, spec=spec, wait_seconds=STARTUP_HANDSHAKE_SECONDS):
                 _log(runtime_dir, "replacement backend did not complete its health handshake")
     finally:
