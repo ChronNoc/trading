@@ -448,7 +448,9 @@ class SessionRow:
     """One recorded capture session, for the Sessions & Replay catalog.
 
     Derived from the immutable session manifest (never fabricated), plus the count
-    of paper trades the ledger recorded for that session.
+    and summed net P&L of the paper trades the ledger recorded for that session.
+    ``net_pnl`` is a signed decimal string of SIMULATED paper P&L (delayed data,
+    never real profit); "" means the session recorded no real paper trades.
     """
 
     session_id: str
@@ -459,6 +461,7 @@ class SessionRow:
     depth_updates: int = 0
     market_trades: int = 0
     paper_trades: int = 0
+    net_pnl: str = ""
 
 
 @dataclass(frozen=True, slots=True)

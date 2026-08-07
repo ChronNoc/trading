@@ -176,7 +176,7 @@ class SnapshotSource:
         from app.research.session_catalog import build_catalog
 
         entries = build_catalog(self._raw_root)  # type: ignore[arg-type]
-        paper = self._paper_trades_by_session()
+        paper = self._paper_stats_by_session()
         ordered = sorted(entries, key=lambda entry: entry.session_id, reverse=True)  # newest first
         rows = tuple(
             SessionRow(
@@ -189,19 +189,25 @@ class SnapshotSource:
                 eligible=entry.eligible_for_order_flow_replay,
                 depth_updates=entry.depth_updates,
                 market_trades=entry.trades,
-                paper_trades=paper.get(entry.session_id, 0),
+                paper_trades=paper.get(entry.session_id, (0, Decimal("0")))[0],
+                net_pnl=(str(paper[entry.session_id][1])
+                         if entry.session_id in paper else ""),
             )
             for entry in ordered[:limit]
         )
         return rows, len(entries)
 
-    def _paper_trades_by_session(self) -> dict[str, int]:
-        """Count real (non-fixture) paper trades per session id, from the ledger."""
+    def _paper_stats_by_session(self) -> dict[str, tuple[int, Decimal]]:
+        """Per session id: (count, summed net P&L) of real (non-fixture) paper trades.
+
+        Money stays Decimal end-to-end (the ledger stores net_pnl as a string); a
+        malformed row is skipped, never guessed, so the total is only ever the sum
+        of well-formed real trades.
+        """
         import json
-        from collections import Counter
 
         path = self._ledger_path
-        counts: Counter[str] = Counter()
+        stats: dict[str, tuple[int, Decimal]] = {}
         if path is None or not path.is_file():
             return {}
         try:
@@ -212,11 +218,17 @@ class SnapshotSource:
                 if not isinstance(row, dict) or row.get("is_synthetic_fixture"):
                     continue
                 sid = str(row.get("session_id") or "")
-                if sid:
-                    counts[sid] += 1
+                if not sid:
+                    continue
+                try:
+                    pnl = Decimal(str(row.get("net_pnl", "0")))
+                except (ArithmeticError, ValueError):
+                    continue
+                count, total = stats.get(sid, (0, Decimal("0")))
+                stats[sid] = (count + 1, total + pnl)
         except (OSError, ValueError):
-            return dict(counts)
-        return dict(counts)
+            return stats
+        return stats
 
     def _cached(self, key: str, loader: Callable[[], object | None]) -> object | None:
         """Return one value per snapshot frame, or load directly outside a frame."""

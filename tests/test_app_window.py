@@ -885,10 +885,11 @@ def test_paper_screen_warns_when_market_events_were_dropped(qtbot: object) -> No
 
 
 def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> None:
-    """Past sessions - and how many paper trades each took - must be visible.
+    """Past sessions - trade count AND simulated P&L per session - must be visible.
 
     A short live session showing only a handful of trades is explained here by
-    prior sessions that took many, so '8 trades' never looks like a silent bug.
+    prior sessions that took many, so '8 trades' never looks like a silent bug;
+    and each session's made/lost figure is shown as signed simulated paper P&L.
     """
     from dataclasses import replace
 
@@ -897,10 +898,12 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
     sessions = (
         SessionRow(session_id="session_20260806T212114Z", started_at="2026-08-06 21:21:14",
                    provenance="bookmap_l2", status="continuity: bounded queue overflow",
-                   eligible=False, depth_updates=346_433, market_trades=27_479, paper_trades=9),
+                   eligible=False, depth_updates=346_433, market_trades=27_479,
+                   paper_trades=9, net_pnl="86.06"),
         SessionRow(session_id="session_20260805T202123Z", started_at="2026-08-05 20:21:23",
                    provenance="bookmap_l2", status="unclean shutdown",
-                   eligible=False, depth_updates=24_739_006, market_trades=1_161_574, paper_trades=171),
+                   eligible=False, depth_updates=24_739_006, market_trades=1_161_574,
+                   paper_trades=171, net_pnl="-1100.28"),
     )
     snapshot = replace(_rich_snapshot(), sessions=sessions, sessions_total=264)
     window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
@@ -910,16 +913,20 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
 
     table = window.stack.currentWidget().findChild(EvidenceTable, "sessions_catalog_table")
     assert table.rowCount() == 2
-    # Newest first; the per-session paper-trade count is the rightmost column.
+    # Newest first; paper-trade count then signed simulated P&L are the last columns.
     assert table.item(0, 0).text() == "session_20260806T212114Z"
     assert table.item(0, 6).text() == "9"
+    assert table.item(0, 7).text() == "+$86.06"
     assert table.item(1, 0).text() == "session_20260805T202123Z"
     assert table.item(1, 6).text() == "171"
+    assert table.item(1, 7).text() == "-$1,100.28"
 
     summary = window.findChild(QLabel, "sessions_catalog_summary").text()
     assert "264 recorded session(s)" in summary
     body = window.stack.currentWidget().body.text()
     assert "171 paper trades" in body
+    # the made/lost figure is surfaced and honestly labelled simulated
+    assert "-$1,100.28" in body and "not real profit" in body
 
 
 # --- the profitability meter must be visible in the GUI ---------------------------
