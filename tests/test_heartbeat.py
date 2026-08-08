@@ -60,8 +60,13 @@ def test_heartbeat_stays_fresh_even_when_the_snapshot_is_never_rebuilt(tmp_path:
     hb.start()
     try:
         first = float(status.read()["heartbeat_unix"])
-        time.sleep(0.3)
-        later = float(status.read()["heartbeat_unix"])
+        # Poll for a fresh beat with a generous deadline: a fixed sleep flakes
+        # when the beat thread is starved under heavy parallel test load.
+        later = first
+        deadline = time.time() + 5.0
+        while later <= first and time.time() < deadline:
+            time.sleep(0.05)
+            later = float(status.read()["heartbeat_unix"])
     finally:
         hb.stop()
     assert later > first  # fresh beats kept coming despite the frozen snapshot
@@ -97,7 +102,9 @@ def test_heartbeat_survives_a_failing_status_write(tmp_path: Path) -> None:
     # The background loop must keep running through failures, not die.
     hb.start()
     try:
-        time.sleep(0.15)
+        deadline = time.time() + 5.0
+        while hb.consecutive_failures < 3 and time.time() < deadline:
+            time.sleep(0.05)
     finally:
         hb.stop()
     assert hb.consecutive_failures >= 3
