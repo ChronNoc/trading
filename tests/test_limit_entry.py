@@ -23,7 +23,10 @@ from app.paper.execution import (
     MarketTick,
     PaperExecutor,
 )
-from app.paper.models import CloseReason, Direction, OrderStatus, PaperOrderIntent, RiskDecision, SetupProvenance
+from app.paper.models import (
+    CloseReason, Direction, OrderStatus, PaperOrder, PaperOrderIntent, RiskDecision, SetupProvenance,
+)
+from app.paper.streaming_engine import _pending_order_text
 
 SEC = 1_000_000_000
 
@@ -273,6 +276,19 @@ def test_read_scalping_cadence_fails_closed_on_a_bad_time_stop(tmp_path: Path) -
         tmp_path, "paper_entry_cooldown_seconds: 0\npaper_time_stop_seconds: 0\n"))
     assert cfg["entry_cooldown_seconds"] == Decimal("0")
     assert cfg["time_stop_seconds"] == Decimal("900")
+
+
+def test_pending_order_text_shows_a_resting_limit_price() -> None:
+    """A limit-scalper must be able to SEE the order working the book."""
+    market_order = PaperOrder(intent=_long(), contracts=4, status=OrderStatus.PENDING,
+                              created_event_index=10, created_ts_ns=10 * SEC)
+    assert "awaiting causal fill" in _pending_order_text(market_order)
+    limit_order = PaperOrder(intent=_long(), contracts=4, status=OrderStatus.PENDING,
+                             created_event_index=10, created_ts_ns=10 * SEC,
+                             entry_limit_price=Decimal("29500.00"))
+    text = _pending_order_text(limit_order)
+    assert "resting @ 29500.00" in text
+    assert "limit" in text
 
 
 def test_a_short_cooldown_lets_the_next_scalp_enter_quickly() -> None:

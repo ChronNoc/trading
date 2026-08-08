@@ -163,6 +163,22 @@ class EvaluationRecord:
         return ""
 
 
+def _pending_order_text(order: object) -> str:
+    """One-line pending-order description for the GUI.
+
+    A passive (maker) limit shows the price it is RESTING at, so a limit-scalper
+    can see the order working the book; a market order just awaits its causal
+    fill. Duck-typed to avoid importing the order model into this hot path.
+    """
+    direction = getattr(getattr(order, "intent", None), "direction", None)
+    label = getattr(direction, "value", "?")
+    contracts = getattr(order, "contracts", 0)
+    resting = getattr(order, "entry_limit_price", None)
+    if resting is not None:
+        return f"{label} {contracts} resting @ {resting} (limit)"
+    return f"{label} {contracts} awaiting causal fill"
+
+
 @dataclass(slots=True)
 class PaperEngineStatus:
     """Live status for the GUI. Never blocks the caller."""
@@ -846,9 +862,7 @@ class DelayedPaperEngine:
             if trades:
                 self._status.last_close_reason = trades[-1].close_reason.value
             if pending is not None:
-                self._status.pending_order = (
-                    f"{pending.intent.direction.value} {pending.contracts} awaiting causal fill"
-                )
+                self._status.pending_order = _pending_order_text(pending)
             elif position is None:
                 self._status.pending_order = self._status.pending_order or "none"
             if position is None:
