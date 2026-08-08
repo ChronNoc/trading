@@ -51,6 +51,7 @@ REASON_CONTRACT_UNRESOLVED = "contract_unresolved"
 REASON_APPROVED = "approved"
 REASON_STOP_TOO_WIDE = "stop_exceeds_fixed_risk_cap"
 REASON_POOR_REWARD_RISK = "reward_risk_below_minimum"
+REASON_LIMIT_UNFILLED = "limit_entry_unfilled_cancelled"
 
 
 def align_to_tick(price: Decimal, *, round_up: bool) -> Decimal:
@@ -98,6 +99,30 @@ class ExecutionConfig:
     # simply skipped, so the engine stops taking trades whose target is too close
     # to the stop to be worth the risk after costs.
     min_reward_risk: Decimal = Decimal("0")
+    # --- entry order type (market taker vs passive limit maker) ----------------
+    # "market" (default): crosses the spread and pays it PLUS entry_slippage_ticks
+    # - a liquidity-taking entry, filled immediately on the next causal event.
+    # "limit": rests a passive maker order at the near touch (joining the bid to
+    # buy / the ask to sell), fills AT that price when the market trades to it -
+    # no spread paid, no adverse entry slippage - and is CANCELLED unfilled if the
+    # price runs away or the timeout elapses, so a missed scalp is never counted
+    # as a trade. This mirrors live limit-scalping on Tradovate, where entries are
+    # passive; it turns the ~1.5-tick taker entry cost into a maker fill, which is
+    # decisive for scalps whose target is only a few ticks.
+    entry_order_type: str = "market"
+    # How far behind the near touch the resting limit sits, in ticks (more
+    # passive = better price, fewer fills). 0 joins the touch; buy = bid - offset,
+    # sell = ask + offset.
+    entry_limit_offset_ticks: Decimal = Decimal("0")
+    # Cancel a resting entry this long after placement (0 = no time cap).
+    entry_limit_timeout_ns: int = 0
+    # Cancel a resting entry once the market has moved this many ticks AWAY from
+    # the limit - the setup ran without us (0 = no distance cap).
+    entry_limit_cancel_ticks: Decimal = Decimal("0")
+    # Require the market to trade strictly THROUGH the limit (not merely reach it)
+    # before filling - the most conservative queue-position assumption. Default
+    # False fills when the opposite touch reaches the limit price.
+    entry_require_trade_through: bool = False
 
     def __post_init__(self) -> None:
         """Validate assumptions."""
@@ -123,6 +148,21 @@ class ExecutionConfig:
             raise ValueError(
                 "max_risk_per_trade_usd must be positive when fixed_contracts is set",
             )
+        if self.entry_order_type not in {"market", "limit"}:
+            raise ValueError("entry_order_type must be 'market' or 'limit'")
+        for name in ("entry_limit_offset_ticks", "entry_limit_cancel_ticks"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if self.entry_limit_timeout_ns < 0:
+            raise ValueError("entry_limit_timeout_ns must be non-negative")
+        if (self.entry_order_type == "limit"
+                and self.entry_limit_timeout_ns <= 0
+                and self.entry_limit_cancel_ticks <= 0):
+            # Without a cap an unfilled resting order would block every future
+            # entry forever (one pending order at a time).
+            raise ValueError(
+                "limit entries require entry_limit_timeout_ns or "
+                "entry_limit_cancel_ticks so an unfilled order cannot block forever")
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +206,10 @@ class PaperExecutor:
         self.position: PaperPosition | None = None
         self.trades: list[PaperTrade] = []
         self.rejections: list[PaperOrder] = []
+        # Resting limit entries that expired unfilled (missed scalps). Tracked
+        # separately from risk rejections so the honest "we didn't get filled"
+        # count never masquerades as a risk block or as a trade.
+        self.cancellations: list[PaperOrder] = []
         self._last_entry_ts_ns: int = 0
         self._seen_setup_ids: set[str] = set()
         self._day: str = ""
@@ -216,6 +260,11 @@ class PaperExecutor:
         if not decision.approved:
             self.rejections.append(order)
             return order
+        if self._config.entry_order_type == "limit":
+            # Capture the resting price now, from the touch at signal time. The
+            # order fills AT this price when the market trades to it (maker), or
+            # is cancelled unfilled - never at a worse, spread-crossing price.
+            order.entry_limit_price = self._resting_limit_price(intent.direction, tick)
         self.pending = order
         self._fill_eligible_from = tick.event_index + 1  # strict causality
         self._seen_setup_ids.add(intent.provenance.setup_id)
@@ -259,7 +308,10 @@ class PaperExecutor:
         Returns the closed trade when this event closed one.
         """
         if self.pending is not None and tick.event_index >= self._fill_eligible_from:
-            self._fill_pending(tick)
+            if self._config.entry_order_type == "limit":
+                self._advance_limit_entry(tick)
+            else:
+                self._fill_pending(tick)
         if self.position is not None:
             self.position.observe(tick.price)
             return self._manage_position(tick)
@@ -281,10 +333,81 @@ class PaperExecutor:
         return align_to_tick(raw, round_up=is_long)
 
     def _fill_pending(self, tick: MarketTick) -> None:
+        """Fill a market (taker) entry immediately, paying the spread + slippage."""
         order = self.pending
         assert order is not None
+        fill_price = self._entry_fill_price(order.intent.direction, tick)
+        self._open_position(order, fill_price, tick)
+
+    def _resting_limit_price(self, direction: Direction, tick: MarketTick) -> Decimal:
+        """Return the tick-aligned price a passive maker entry rests at.
+
+        Joins the near touch (bid to buy, ask to sell) and steps
+        ``entry_limit_offset_ticks`` further back into the book. The price is
+        snapped to the grid on the PASSIVE side so it is a real, joinable level
+        and never better than the touch it joins. Falls back to the tick price on
+        a trade-only event that carries no book.
+        """
+        is_long = direction is Direction.LONG
+        touch = (tick.best_bid if is_long else tick.best_ask) or tick.price
+        offset = self._config.entry_limit_offset_ticks * MNQ_TICK_SIZE
+        raw = touch - offset if is_long else touch + offset
+        return align_to_tick(raw, round_up=not is_long)
+
+    def _advance_limit_entry(self, tick: MarketTick) -> None:
+        """Fill a resting maker entry when price reaches it, else cancel/hold.
+
+        The fill is AT the resting price (no spread, no adverse entry slippage) -
+        the maker benefit. A buy resting at the bid fills when the OFFER reaches
+        that price (a seller is now at our level); a sell resting at the ask fills
+        when the BID reaches it. Adverse selection is not hidden: we open at the
+        limit exactly as price trades to (and often through) it, so a runner that
+        continues to the stop is booked as the loss it is. If the market instead
+        runs away or the timeout elapses, the order is CANCELLED - a missed scalp,
+        never a trade.
+        """
+        order = self.pending
+        assert order is not None and order.entry_limit_price is not None
+        limit = order.entry_limit_price
+        is_long = order.intent.direction is Direction.LONG
+        opposite = (tick.best_ask if is_long else tick.best_bid)
+        if opposite is None:
+            opposite = tick.price  # trade-only event: the print is the evidence
+        if self._config.entry_require_trade_through:
+            reached = opposite < limit if is_long else opposite > limit
+        else:
+            reached = opposite <= limit if is_long else opposite >= limit
+        if reached:
+            self._open_position(order, limit, tick)
+            return
+        if self._limit_should_cancel(order, limit, tick):
+            order.status = OrderStatus.CANCELLED
+            order.reason_code = REASON_LIMIT_UNFILLED
+            order.reason = "resting limit entry expired unfilled (missed scalp)"
+            self.cancellations.append(order)
+            self.pending = None
+
+    def _limit_should_cancel(self, order: PaperOrder, limit: Decimal, tick: MarketTick) -> bool:
+        """Return whether a resting entry should be abandoned unfilled."""
+        cfg = self._config
+        if (cfg.entry_limit_timeout_ns > 0
+                and tick.ts_ns - order.created_ts_ns >= cfg.entry_limit_timeout_ns):
+            return True
+        if cfg.entry_limit_cancel_ticks > 0:
+            is_long = order.intent.direction is Direction.LONG
+            touch = (tick.best_bid if is_long else tick.best_ask)
+            if touch is not None:
+                # How far the market has pulled AWAY from our resting price in the
+                # direction that leaves us behind (bid rising above a buy, ask
+                # falling below a sell) - the setup ran without us.
+                away = (touch - limit) if is_long else (limit - touch)
+                if away >= cfg.entry_limit_cancel_ticks * MNQ_TICK_SIZE:
+                    return True
+        return False
+
+    def _open_position(self, order: PaperOrder, fill_price: Decimal, tick: MarketTick) -> None:
+        """Turn a filled order into the open position (shared by market/limit)."""
         intent = order.intent
-        fill_price = self._entry_fill_price(intent.direction, tick)
         order.fill = Fill(price=fill_price, quantity=order.contracts,
                           ts_ns=tick.ts_ns, event_index=tick.event_index)
         order.status = OrderStatus.FILLED

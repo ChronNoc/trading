@@ -159,6 +159,10 @@ class PaperOrder:
     fill: Fill | None = None
     reason_code: str = ""
     reason: str = ""
+    # For a passive (maker) limit entry: the price the order rests at. A market
+    # entry leaves this None. The order fills AT this price when the market trades
+    # to it, so no spread or entry slippage is paid.
+    entry_limit_price: Decimal | None = None
 
     @property
     def is_open(self) -> bool:

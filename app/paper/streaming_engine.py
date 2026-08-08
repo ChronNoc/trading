@@ -281,6 +281,14 @@ class DelayedPaperEngine:
             fixed_contracts=self._config.fixed_contracts,
             max_risk_per_trade_usd=self._config.max_risk_per_trade_usd,
             min_reward_risk=self._config.min_reward_risk,
+            entry_order_type=self._config.entry_order_type,
+            entry_limit_offset_ticks=self._config.entry_limit_offset_ticks,
+            entry_limit_timeout_ns=int(
+                self._config.entry_limit_timeout_seconds * Decimal(1_000_000_000)),
+            entry_limit_cancel_ticks=self._config.entry_limit_cancel_ticks,
+            entry_require_trade_through=self._config.entry_require_trade_through,
+            cooldown_ns=int(self._config.entry_cooldown_seconds * Decimal(1_000_000_000)),
+            time_stop_ns=int(self._config.time_stop_seconds * Decimal(1_000_000_000)),
         )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]

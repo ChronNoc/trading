@@ -73,11 +73,13 @@ def run_backend(
     from app.paper.streaming_engine import DelayedPaperEngine
     from app.paper.options import (
         read_daily_limits,
+        read_entry_settings,
         read_fixed_sizing,
         read_instrument,
         read_min_reward_risk,
         read_ml_decision_policy_enabled,
         read_momentum_enabled,
+        read_scalping_cadence,
         read_stop_settings,
         read_strategy_profile,
         read_target_reward_risk,
@@ -165,6 +167,8 @@ def run_backend(
             **read_stop_settings(Path("config/production_config.yaml")),
             **read_daily_limits(Path("config/production_config.yaml")),
             **read_fixed_sizing(Path("config/production_config.yaml")),
+            **read_entry_settings(Path("config/production_config.yaml")),
+            **read_scalping_cadence(Path("config/production_config.yaml")),
         ),
         model_loader=model_loader,
     )

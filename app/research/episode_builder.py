@@ -135,6 +135,21 @@ class EpisodeConfig:
     # bigger trades (0 = use the strategy's own target). Never aims closer than the
     # strategy's target. See app/paper/streaming_engine.py::_widen_target.
     target_reward_risk: Decimal = Decimal("0")
+    # --- entry order type (paper engine only; see ExecutionConfig) -------------
+    # "market" (default) takes liquidity and pays the spread + slippage. "limit"
+    # rests a passive maker order at the near touch, fills at that price when the
+    # market trades to it (no spread paid), and cancels unfilled if price runs
+    # away or the timeout elapses - live limit-scalping semantics.
+    entry_order_type: str = "market"
+    entry_limit_offset_ticks: Decimal = Decimal("0")
+    entry_limit_timeout_seconds: Decimal = Decimal("0")
+    entry_limit_cancel_ticks: Decimal = Decimal("0")
+    entry_require_trade_through: bool = False
+    # Scalping cadence (paper engine). The defaults - 300s between entries, a 900s
+    # time stop - suit swing trades and throttle a scalper to one trade every five
+    # minutes. Exposed so limit-scalping can take frequent, fast trades. Seconds.
+    entry_cooldown_seconds: Decimal = Decimal("300")
+    time_stop_seconds: Decimal = Decimal("900")
 
     def __post_init__(self) -> None:
         """Validate all assumptions before replay starts."""
@@ -172,6 +187,22 @@ class EpisodeConfig:
             raise ValueError(
                 "max_risk_per_trade_usd must be positive when fixed_contracts is set",
             )
+        if self.entry_order_type not in {"market", "limit"}:
+            raise ValueError("entry_order_type must be 'market' or 'limit'")
+        for name in ("entry_limit_offset_ticks", "entry_limit_cancel_ticks",
+                     "entry_limit_timeout_seconds"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if (self.entry_order_type == "limit"
+                and self.entry_limit_timeout_seconds <= 0
+                and self.entry_limit_cancel_ticks <= 0):
+            raise ValueError(
+                "limit entries require entry_limit_timeout_seconds or "
+                "entry_limit_cancel_ticks so an unfilled order cannot block forever")
+        if self.entry_cooldown_seconds < 0:
+            raise ValueError("entry_cooldown_seconds must be non-negative")
+        if self.time_stop_seconds <= 0:
+            raise ValueError("time_stop_seconds must be positive")
 
     @property
     def slippage_model(self) -> SlippageModel:

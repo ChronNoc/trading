@@ -558,7 +558,8 @@ def run_assistant(config: AssistantConfig) -> int:
     from app.paper.options import (read_momentum_enabled, read_strategy_profile,
                                     read_instrument, read_stop_settings,
                                     read_daily_limits, read_ml_decision_policy_enabled,
-                                    read_fixed_sizing)
+                                    read_fixed_sizing, read_entry_settings,
+                                    read_scalping_cadence)
     from app.research.episode_builder import EpisodeConfig
 
     # Built BEFORE the paper engine so the engine can be given a reference to
@@ -579,6 +580,8 @@ def run_assistant(config: AssistantConfig) -> int:
             **read_stop_settings(Path("config/production_config.yaml")),
             **read_daily_limits(Path("config/production_config.yaml")),
             **read_fixed_sizing(Path("config/production_config.yaml")),
+            **read_entry_settings(Path("config/production_config.yaml")),
+            **read_scalping_cadence(Path("config/production_config.yaml")),
         ),
         model_loader=model_loader,
     )

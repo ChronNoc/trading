@@ -116,6 +116,45 @@ paper_min_reward_risk: 0
 # falls even as the average winner grows. Tune to taste; 0 disables. Restart to apply.
 paper_target_reward_risk: 2.0
 
+# paper_entry_order_type: how the PAPER engine simulates the ENTRY fill.
+#   "market" (default): takes liquidity - buys the offer / sells the bid and pays
+#     the spread plus ~1 tick adverse slippage. Immediate fill, but on a few-tick
+#     scalp that entry cost can erase the whole edge.
+#   "limit": passive MAKER scalp. Rests at the near touch (joins the bid to buy /
+#     the ask to sell), fills AT that price when the market trades to it - no
+#     spread paid, no adverse entry slippage - and is CANCELLED unfilled if price
+#     runs away or the timeout elapses (a missed scalp is never counted as a
+#     trade). This mirrors live limit-scalping on Tradovate. Adverse selection is
+#     NOT hidden: a fill that immediately runs to the stop is booked as the loss.
+# Ships "market" (the conservative taker assumption). When set to "limit" you MUST
+# give it a timeout or a cancel distance below, or the setting is ignored (an
+# unfilled resting order could otherwise block every future entry). Restart to apply.
+paper_entry_order_type: market
+# paper_entry_limit_offset_ticks: how far behind the near touch the resting limit
+#   sits (0 = join the touch; higher = better price, fewer fills).
+paper_entry_limit_offset_ticks: 0
+# paper_entry_limit_timeout_seconds: cancel a resting entry this many seconds after
+#   it is placed (0 = no time cap). A scalp should fill fast; ~30-60s is typical.
+paper_entry_limit_timeout_seconds: 45
+# paper_entry_limit_cancel_ticks: cancel a resting entry once the market has moved
+#   this many ticks AWAY from the limit - the setup ran without us (0 = no cap).
+paper_entry_limit_cancel_ticks: 3
+# paper_entry_require_trade_through: require the market to trade strictly THROUGH
+#   the limit (not merely touch it) before filling - the most conservative queue
+#   assumption. Default false fills when the opposite touch reaches the limit.
+paper_entry_require_trade_through: false
+
+# Scalping cadence. The defaults suit swing trades and throttle a scalper hard:
+#   paper_entry_cooldown_seconds: minimum seconds between entries (default 300 =
+#     one trade every 5 minutes). For scalping set this low (e.g. 5-30); 0 allows
+#     back-to-back trades. The daily caps and account drawdown still apply.
+#   paper_time_stop_seconds: flatten a position still open after this long
+#     (default 900 = 15 min). A scalp should resolve in seconds to a couple of
+#     minutes; set it short so stale scalps are closed, not carried.
+# Both take effect on restart.
+paper_entry_cooldown_seconds: 300
+paper_time_stop_seconds: 900
+
 # paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
 # observe-only shadow model's most recent scored probability (see
 # app/machine_learning/shadow_predictor.py) and may VETO a heuristic-accepted

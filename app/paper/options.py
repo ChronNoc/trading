@@ -267,6 +267,105 @@ def read_target_reward_risk(production_config_path: Path) -> Decimal:
     return value
 
 
+_ENTRY_DEFAULTS: dict[str, object] = {
+    "entry_order_type": "market",
+    "entry_limit_offset_ticks": Decimal("0"),
+    "entry_limit_timeout_seconds": Decimal("0"),
+    "entry_limit_cancel_ticks": Decimal("0"),
+    "entry_require_trade_through": False,
+}
+
+
+def read_entry_settings(production_config_path: Path) -> dict[str, object]:
+    """Return the entry-order-type settings (default: market/taker).
+
+    ``paper_entry_order_type: limit`` enables passive maker scalping - rest at the
+    near touch, fill at that price, cancel unfilled. Fail-closed: unreadable
+    config, an unknown type, or a limit request with NO timeout and NO cancel
+    distance all fall back to market, so a config typo can neither block the paper
+    engine nor leave a resting order able to stall it forever.
+    """
+    from decimal import InvalidOperation
+
+    defaults = dict(_ENTRY_DEFAULTS)
+    if not production_config_path.is_file():
+        return defaults
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return defaults
+    if not isinstance(payload, dict):
+        return defaults
+    if str(payload.get("paper_entry_order_type", "market")).strip().lower() != "limit":
+        return defaults  # market, or any unknown value -> taker default
+
+    def _non_negative(key: str) -> Decimal:
+        raw = payload.get(key)
+        if raw is None or isinstance(raw, bool):
+            return Decimal("0")
+        try:
+            value = Decimal(str(raw))
+        except (InvalidOperation, TypeError, ValueError):
+            return Decimal("0")
+        return value if value.is_finite() and value >= 0 else Decimal("0")
+
+    timeout = _non_negative("paper_entry_limit_timeout_seconds")
+    cancel = _non_negative("paper_entry_limit_cancel_ticks")
+    if timeout <= 0 and cancel <= 0:
+        # A limit with no cap could block every future entry; refuse to enable it.
+        return defaults
+    return {
+        "entry_order_type": "limit",
+        "entry_limit_offset_ticks": _non_negative("paper_entry_limit_offset_ticks"),
+        "entry_limit_timeout_seconds": timeout,
+        "entry_limit_cancel_ticks": cancel,
+        "entry_require_trade_through": payload.get("paper_entry_require_trade_through") is True,
+    }
+
+
+def read_scalping_cadence(production_config_path: Path) -> dict[str, Decimal]:
+    """Return entry cooldown / time-stop in seconds (defaults 300 / 900).
+
+    Fail-closed to the swing-safe defaults: any missing/invalid value keeps the
+    default rather than accidentally removing the cooldown or the time cap. A
+    zero cooldown IS honoured (back-to-back scalps); the time stop stays positive.
+    """
+    from decimal import InvalidOperation
+
+    defaults = {"entry_cooldown_seconds": Decimal("300"), "time_stop_seconds": Decimal("900")}
+    if not production_config_path.is_file():
+        return defaults
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return defaults
+    if not isinstance(payload, dict):
+        return defaults
+
+    def _finite(key: str) -> Decimal | None:
+        raw = payload.get(key)
+        if raw is None or isinstance(raw, bool):
+            return None
+        try:
+            value = Decimal(str(raw))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+        return value if value.is_finite() else None
+
+    result = dict(defaults)
+    cooldown = _finite("paper_entry_cooldown_seconds")
+    if cooldown is not None and cooldown >= 0:
+        result["entry_cooldown_seconds"] = cooldown
+    time_stop = _finite("paper_time_stop_seconds")
+    if time_stop is not None and time_stop > 0:
+        result["time_stop_seconds"] = time_stop
+    return result
+
+
 def read_daily_limits(production_config_path: Path) -> dict[str, int]:
     """Return max_entries_per_day / max_losses_per_day (defaults 3, fail-safe)."""
     defaults = {"max_entries_per_day": 3, "max_losses_per_day": 3}
