@@ -436,6 +436,13 @@ class BuildResult:
     accepted_candidates: int = 0
     duplicate_candidates: int = 0
     entry_rejections: int = 0
+    # Accepted setups whose passive maker limit was never reached before its
+    # window elapsed - honest no-fills (a subset of entry_rejections), tracked so
+    # a maker build's fill rate is visible and the label set stays truthful.
+    maker_entry_unfilled: int = 0
+    # Entry fill model used ("market" or a "limit:..." tag), recorded in the build
+    # summary so a mode change forces a rebuild (see build_orchestrator).
+    entry_mode: str = "market"
     completed: int = 0
     ambiguous: int = 0
     unfinished: int = 0
@@ -480,6 +487,27 @@ class _Pending:
     stop_touched: bool = False
     last_trade_price: Decimal | None = None
     last_event_index: int = 0
+    # Passive (maker) entry: the price the order rests at (captured once, from the
+    # near touch) and the wall-time deadline after which an unfilled rest cancels.
+    maker_limit_price: Decimal | None = None
+    maker_entry_deadline_ns: int = 0
+
+
+def entry_mode_tag(cfg: EpisodeConfig) -> str:
+    """Stable, JSON-safe tag of the entry fill model, for build idempotency.
+
+    "market" for the taker default; a "limit:..." tag encoding the maker
+    parameters otherwise, so switching mode (or tuning it) invalidates a prior
+    build and forces the episodes to be relabelled with the new fill economics.
+    """
+    if cfg.entry_order_type != "limit":
+        return "market"
+    return (
+        f"limit:off={cfg.entry_limit_offset_ticks}"
+        f",to={cfg.entry_limit_timeout_seconds}"
+        f",cx={cfg.entry_limit_cancel_ticks}"
+        f",tt={cfg.entry_require_trade_through}"
+    )
 
 
 def build_episodes(
@@ -501,6 +529,7 @@ def build_episodes(
     tracker = level_tracker or CausalLevelTracker()
     result = BuildResult(session_id=session_id, provenance=provenance)
     result.source_file_hashes = _source_hashes(session_dir)
+    result.entry_mode = entry_mode_tag(cfg)
 
     events_iter, replay_stats = stream_session_events_with_stats(session_dir)
     result.ordering_mode = replay_stats.ordering_mode
@@ -668,10 +697,14 @@ def _advance_pending(
             if event.kind != "trade" or event_index <= item.decision_event_index:
                 remaining.append(item)
                 continue
-            if _attempt_entry(item, decisions[item.audit_index], state, event, event_index, window, cfg):
+            attempt = _attempt_maker_entry if cfg.entry_order_type == "limit" else _attempt_entry
+            audit = decisions[item.audit_index]
+            if attempt(item, audit, state, event, event_index, window, cfg):
                 remaining.append(item)
             else:
                 result.entry_rejections += 1
+                if audit.entry_status == "rejected_unfilled_maker":
+                    result.maker_entry_unfilled += 1
             continue
 
         if event.kind != "trade":
@@ -751,6 +784,95 @@ def _attempt_entry(
     item.deadline_ns = event.timestamp_ns + cfg.timeout_seconds * _NS_PER_SECOND
     audit.entry_status = "filled"
     return True
+
+
+def _attempt_maker_entry(
+    item: _Pending,
+    audit: DecisionAudit,
+    state: MarketState,
+    event: ReplayEvent,
+    event_index: int,
+    window: Sequence[MarketState],  # unused; signature parity with _attempt_entry
+    cfg: EpisodeConfig,
+) -> bool:
+    """Rest a passive maker limit at the near touch; fill AT it, no spread.
+
+    Mirrors the live paper engine's limit entry so offline training labels use the
+    SAME fill economics: the order rests at the near touch (bid to buy / ask to
+    sell, ``entry_limit_offset_ticks`` deeper), fills AT that price - with NO
+    adverse entry slippage, because we provided liquidity - when a later trade
+    reaches it, and is CANCELLED unfilled once its window elapses or price runs
+    ``entry_limit_cancel_ticks`` away. A setup whose limit is never reached is a
+    NO-FILL, not an episode, so the labelled set is exactly the trades a maker
+    would actually have been filled on - adverse selection included, never hidden.
+
+    Returns True to keep the item pending (still resting, or now filled) and False
+    when it is abandoned unfilled. ``return None`` is never used here.
+    """
+    if item.maker_limit_price is None:
+        touch = state.best_bid if item.direction == "long" else state.best_ask
+        if touch is None:
+            # No usable book yet; wait unless the entry window has elapsed.
+            deadline = item.decision_ts_ns + int(cfg.entry_limit_timeout_seconds * _NS_PER_SECOND)
+            if cfg.entry_limit_timeout_seconds > 0 and event.timestamp_ns >= deadline:
+                audit.entry_status = "rejected_unfilled_maker"
+                audit.reasons.append("resting limit never saw a usable book before its window elapsed")
+                return False
+            return True
+        offset = cfg.entry_limit_offset_ticks * cfg.tick_size
+        item.maker_limit_price = (touch - offset) if item.direction == "long" else (touch + offset)
+        item.maker_entry_deadline_ns = (
+            item.decision_ts_ns + int(cfg.entry_limit_timeout_seconds * _NS_PER_SECOND)
+            if cfg.entry_limit_timeout_seconds > 0 else 0
+        )
+        # The capturing event never also fills: judge fills from the NEXT trade.
+        return True
+
+    limit = item.maker_limit_price
+    trade_price = Decimal(str(event.payload["price"]))
+    if item.direction == "long":
+        reached = trade_price < limit if cfg.entry_require_trade_through else trade_price <= limit
+    else:
+        reached = trade_price > limit if cfg.entry_require_trade_through else trade_price >= limit
+    if reached:
+        valid_bracket = (
+            item.stop < limit < item.target
+            if item.direction == "long"
+            else item.target < limit < item.stop
+        )
+        if not valid_bracket:
+            audit.entry_status = "rejected_fill_outside_bracket"
+            audit.reasons.append("resting maker entry was not between the fixed stop and target")
+            return False
+        item.awaiting_entry = False
+        item.entry_reference_price = limit
+        item.entry = limit  # maker fill AT the limit: no adverse entry slippage
+        item.entry_ts_ns = event.timestamp_ns
+        item.entry_event_index = event_index
+        item.deadline_ns = event.timestamp_ns + cfg.timeout_seconds * _NS_PER_SECOND
+        audit.entry_status = "filled"
+        return True
+
+    if _maker_entry_cancelled(item, event.timestamp_ns, trade_price, cfg):
+        audit.entry_status = "rejected_unfilled_maker"
+        audit.reasons.append("resting limit entry expired unfilled (missed scalp)")
+        return False
+    return True  # keep resting
+
+
+def _maker_entry_cancelled(item: _Pending, ts_ns: int, trade_price: Decimal, cfg: EpisodeConfig) -> bool:
+    """Return whether a resting maker entry should be abandoned unfilled."""
+    if item.maker_entry_deadline_ns and ts_ns >= item.maker_entry_deadline_ns:
+        return True
+    if cfg.entry_limit_cancel_ticks > 0 and item.maker_limit_price is not None:
+        away = (
+            (trade_price - item.maker_limit_price)
+            if item.direction == "long"
+            else (item.maker_limit_price - trade_price)
+        )
+        if away >= cfg.entry_limit_cancel_ticks * cfg.tick_size:
+            return True
+    return False
 
 
 def _observe_trade_touch(
@@ -1075,6 +1197,8 @@ def write_episode_artifacts(
         "accepted_candidates": result.accepted_candidates,
         "duplicate_candidates": result.duplicate_candidates,
         "entry_rejections": result.entry_rejections,
+        "maker_entry_unfilled": result.maker_entry_unfilled,
+        "entry_mode": result.entry_mode,
         "completed": result.completed,
         "ambiguous": result.ambiguous,
         "unfinished": result.unfinished,

@@ -21,14 +21,28 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.paper.options import read_entry_settings
 from app.research.episode_builder import (
     BUILDER_VERSION,
     STRATEGY_VERSION,
+    EpisodeConfig,
     _source_hashes,
     build_episodes,
+    entry_mode_tag,
     write_episode_artifacts,
 )
 from app.research.session_catalog import SessionEntry, build_catalog
+
+# The offline build matches the LIVE paper engine's entry mode, so training
+# labels use the same fill economics (taker vs passive maker) the engine trades
+# with. Only the entry settings are read here; all other builder parameters keep
+# their defaults.
+PRODUCTION_CONFIG = Path("config/production_config.yaml")
+
+
+def _episode_config() -> EpisodeConfig:
+    """Return the offline EpisodeConfig with the configured entry fill mode."""
+    return EpisodeConfig(**read_entry_settings(PRODUCTION_CONFIG))  # type: ignore[arg-type]
 
 OUTCOME_BUILT = "built"
 OUTCOME_SKIPPED_UP_TO_DATE = "skipped_up_to_date"
@@ -55,6 +69,7 @@ def build_signature(session_dir: Path) -> dict[str, object]:
         "source_file_hashes": _source_hashes(session_dir),
         "builder_version": BUILDER_VERSION,
         "strategy_version": STRATEGY_VERSION,
+        "entry_mode": entry_mode_tag(_episode_config()),
     }
 
 
@@ -81,6 +96,8 @@ def needs_build(session_id: str, session_dir: Path, processed_root: Path) -> tup
         return True, "strategy version changed"
     if prior.get("source_file_hashes") != signature["source_file_hashes"]:
         return True, "source data changed"
+    if prior.get("entry_mode") != signature["entry_mode"]:
+        return True, "entry mode changed"
     return False, "up to date"
 
 
@@ -100,7 +117,8 @@ def build_finalized_session(
     if not required:
         return BuildStatus(entry.session_id, OUTCOME_SKIPPED_UP_TO_DATE, reason)
     try:
-        result = build_episodes(session_dir, session_id=entry.session_id, provenance=entry.provenance)
+        result = build_episodes(session_dir, session_id=entry.session_id,
+                                provenance=entry.provenance, config=_episode_config())
         write_episode_artifacts(result, processed_root=processed_root, labels_root=labels_root)
         _write_status(processed_root, entry.session_id, OUTCOME_BUILT, reason, error="")
         return BuildStatus(

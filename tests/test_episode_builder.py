@@ -13,6 +13,8 @@ import pytest
 
 import app.research.episode_builder as builder_module
 from app.database.recorder import MarketSessionRecorder
+from app.market.state import MarketState
+from app.research.replay_loader import ReplayEvent
 from app.research.causal_context import DerivedContext
 from app.research.episode_builder import (
     BuildResult,
@@ -431,3 +433,106 @@ def _trade(
 
 def _ns(value: datetime) -> int:
     return int(value.timestamp()) * 1_000_000_000
+
+
+# --- passive (maker) offline entry -------------------------------------------
+# The offline builder can label entries at the maker touch (no spread), matching
+# the live paper engine, with honest no-fills (a setup whose limit is never
+# reached is not an episode). These unit-test the entry state machine directly.
+
+_SEC_NS = 1_000_000_000
+_LIMIT_CFG = EpisodeConfig(entry_order_type="limit", entry_limit_timeout_seconds=Decimal("45"),
+                           entry_limit_cancel_ticks=Decimal("8"))
+
+
+class _StubAudit:
+    def __init__(self) -> None:
+        self.entry_status = ""
+        self.reasons: list[str] = []
+
+
+def _book(bid: str, ask: str) -> MarketState:
+    state = MarketState()
+    state = state.update({"type": "depth_update", "side": "bid", "price": bid,
+                          "previous_size": "0", "new_size": "100", "timestamp": 1000})
+    return state.update({"type": "depth_update", "side": "ask", "price": ask,
+                         "previous_size": "0", "new_size": "100", "timestamp": 1000})
+
+
+def _mk_trade(price: str, ts_ns: int) -> ReplayEvent:
+    return ReplayEvent(timestamp_ns=ts_ns, kind="trade",
+                       payload={"price": price, "instrument": "MNQ", "size": "1",
+                                "aggressor_side": "sell", "sequence_id": 1, "timestamp_ns": ts_ns})
+
+
+def _maker_pending(direction: str = "long") -> "builder_module._Pending":
+    stop, target = (Decimal("29490"), Decimal("29520")) if direction == "long" \
+        else (Decimal("29510"), Decimal("29480"))
+    return builder_module._Pending(
+        setup_id="s", direction=direction, defended_price=Decimal("29500"),
+        stop=stop, target=target, decision_ts_ns=1_000, decision_event_index=5,
+        start_event_index=1, decision_hash="h", source_hasher=hashlib.sha256(), audit_index=0)
+
+
+def _attempt(item, audit, state, event, cfg=_LIMIT_CFG, idx=6):  # noqa: ANN001
+    return builder_module._attempt_maker_entry(item, audit, state, event, idx, (), cfg)
+
+
+def test_maker_offline_entry_fills_at_the_touch_without_slippage() -> None:
+    item, audit = _maker_pending("long"), _StubAudit()
+    book = _book("29500.00", "29500.25")
+    # First trade only CAPTURES the resting price (the bid); it never also fills.
+    assert _attempt(item, audit, book, _mk_trade("29500.12", 2_000)) is True
+    assert item.maker_limit_price == Decimal("29500.00")
+    assert item.awaiting_entry is True
+    # A later trade reaches the bid -> maker fill AT 29500.00, no adverse slippage.
+    assert _attempt(item, audit, book, _mk_trade("29500.00", 3_000)) is True
+    assert item.awaiting_entry is False
+    assert item.entry == Decimal("29500.00")
+    assert audit.entry_status == "filled"
+
+
+def test_maker_offline_short_fills_at_the_ask() -> None:
+    item, audit = _maker_pending("short"), _StubAudit()
+    book = _book("29499.75", "29500.00")
+    _attempt(item, audit, book, _mk_trade("29499.88", 2_000))          # capture ask
+    assert item.maker_limit_price == Decimal("29500.00")
+    assert _attempt(item, audit, book, _mk_trade("29500.00", 3_000)) is True
+    assert item.awaiting_entry is False
+    assert item.entry == Decimal("29500.00")
+
+
+def test_maker_offline_unfilled_on_timeout_is_not_an_episode() -> None:
+    item, audit = _maker_pending("long"), _StubAudit()
+    book = _book("29500.00", "29500.25")
+    _attempt(item, audit, book, _mk_trade("29500.12", 2_000))          # capture
+    # Price stays above the bid; a trade past the 45s window abandons the rest.
+    assert _attempt(item, audit, book, _mk_trade("29500.25", 2_000 + 46 * _SEC_NS)) is False
+    assert item.awaiting_entry is True  # never filled -> no episode
+    assert audit.entry_status == "rejected_unfilled_maker"
+
+
+def test_maker_offline_unfilled_when_price_runs_away() -> None:
+    cfg = EpisodeConfig(entry_order_type="limit", entry_limit_timeout_seconds=Decimal("0"),
+                        entry_limit_cancel_ticks=Decimal("2"))
+    item, audit = _maker_pending("long"), _StubAudit()
+    book = _book("29500.00", "29500.25")
+    _attempt(item, audit, book, _mk_trade("29500.12", 2_000), cfg=cfg)  # capture 29500
+    # Price runs 3 ticks (0.75) up, away from the resting bid -> abandoned.
+    assert _attempt(item, audit, book, _mk_trade("29500.75", 3_000), cfg=cfg) is False
+    assert audit.entry_status == "rejected_unfilled_maker"
+
+
+def test_maker_offline_require_trade_through_needs_a_through_print() -> None:
+    cfg = EpisodeConfig(entry_order_type="limit", entry_limit_timeout_seconds=Decimal("45"),
+                        entry_require_trade_through=True)
+    item, audit = _maker_pending("long"), _StubAudit()
+    book = _book("29500.00", "29500.25")
+    _attempt(item, audit, book, _mk_trade("29500.12", 2_000), cfg=cfg)  # capture
+    # A mere touch at the bid does not fill under the strict rule.
+    assert _attempt(item, audit, book, _mk_trade("29500.00", 3_000), cfg=cfg) is True
+    assert item.awaiting_entry is True
+    # Trading strictly through the bid fills, at the limit.
+    assert _attempt(item, audit, book, _mk_trade("29499.75", 4_000), cfg=cfg) is True
+    assert item.awaiting_entry is False
+    assert item.entry == Decimal("29500.00")

@@ -96,3 +96,20 @@ def test_source_data_change_forces_rebuild(tmp_path: Path) -> None:
 
     required, reason = needs_build(entry.session_id, entry.manifest_path.parent, processed)
     assert required and "source data" in reason
+
+
+def test_entry_mode_change_forces_rebuild(tmp_path: Path) -> None:
+    """Switching the offline entry fill model (taker <-> maker) relabels episodes."""
+    raw, processed, labels = tmp_path / "raw", tmp_path / "processed", tmp_path / "labels"
+    _finalized_session(raw)
+    run_pending_builds(raw, processed, labels)
+    entry = next(e for e in build_catalog(raw) if not e.active and e.eligible_for_analysis)
+
+    summary_path = processed / f"{entry.session_id}.build.json"
+    prior = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert prior["entry_mode"] == "market"  # ships taker by default
+    prior["entry_mode"] = "limit:off=0,to=45,cx=3,tt=False"
+    summary_path.write_text(json.dumps(prior), encoding="utf-8")
+
+    required, reason = needs_build(entry.session_id, entry.manifest_path.parent, processed)
+    assert required and "entry mode" in reason
