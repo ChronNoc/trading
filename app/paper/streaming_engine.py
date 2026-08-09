@@ -233,6 +233,9 @@ class PaperEngineStatus:
     wins: int = 0
     losses: int = 0
     last_close_reason: str = ""
+    # Resting limit (maker) entries that expired unfilled - missed scalps. Always
+    # 0 for market entries; lets a limit-scalper see the fill rate at a glance.
+    missed_scalps: int = 0
 
     @property
     def warmup_fraction(self) -> float:
@@ -859,6 +862,7 @@ class DelayedPaperEngine:
             self._status.trades = len(trades)
             self._status.wins = sum(1 for t in trades if t.won)
             self._status.losses = sum(1 for t in trades if not t.won)
+            self._status.missed_scalps = len(executor.cancellations)
             if trades:
                 self._status.last_close_reason = trades[-1].close_reason.value
             if pending is not None:

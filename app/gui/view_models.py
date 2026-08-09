@@ -263,6 +263,9 @@ class PaperSnapshot:
     risk_rejections: tuple[tuple[str, int], ...] = ()
     recent_trades: tuple[TradeRow, ...] = ()
     malformed_events: int = 0
+    # Passive limit (maker) entries that expired unfilled - missed scalps. 0 for
+    # market entries; a limit-scalper reads it as the cost of being passive.
+    missed_scalps: int = 0
     # (condition, passes, failures, last observed-vs-required evidence) -
     # the honest answer to "why zero candidates", worst failures first.
     condition_stats: tuple[tuple[str, int, int, str], ...] = ()

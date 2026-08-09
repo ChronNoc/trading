@@ -530,6 +530,7 @@ class SnapshotSource:
             risk_rejections=tuple(risk_rejections),
             recent_trades=rows,
             malformed_events=status.malformed_events,
+            missed_scalps=status.missed_scalps,
             condition_stats=tuple(self._paper_engine.condition_stats())  # type: ignore[attr-defined]
             if hasattr(self._paper_engine, "condition_stats") else (),
             analysis_events_skipped=status.analysis_events_skipped,

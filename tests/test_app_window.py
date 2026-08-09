@@ -832,6 +832,16 @@ def test_paper_screen_shows_pending_order_when_flat(qtbot: object) -> None:
     assert "awaiting causal fill" in body
 
 
+def test_paper_screen_shows_missed_scalps_for_limit_entries(qtbot: object) -> None:
+    """A limit-scalper must see the fill rate: how many resting entries expired."""
+    assert "Limit missed 5" in _paper_body(qtbot, missed_scalps=5)
+
+
+def test_paper_screen_hides_missed_scalps_when_none(qtbot: object) -> None:
+    """Market entries never miss; the line must not clutter the screen with 0."""
+    assert "Limit missed" not in _paper_body(qtbot, missed_scalps=0)
+
+
 def test_paper_screen_lists_closed_trades_newest_first(qtbot: object) -> None:
     from app.gui.view_models import TradeRow
 
