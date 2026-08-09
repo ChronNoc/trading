@@ -43,10 +43,13 @@ EXECUTION = "Execution"
 DIAGNOSTICS = "Diagnostics and Settings"
 AUTONOMOUS = "Autonomous Intelligence"
 REPORTS = "Reports"
+# Isolated experimental tab (paper-only). See app/labs/bidirectional. It appends
+# after the existing pages and never alters any of them.
+BIDIRECTIONAL_LAB = "Bidirectional Paper Trading Lab"
 SCREEN_ORDER = (
     OVERVIEW, LIVE_ORDER_FLOW, PAPER_TRADING, SESSIONS_REPLAY,
     RESEARCH_HEALTH, RISK_LUCID, EXECUTION, DIAGNOSTICS,
-    AUTONOMOUS, REPORTS,
+    AUTONOMOUS, REPORTS, BIDIRECTIONAL_LAB,
 )
 
 _HEALTH_TEXT = {
@@ -786,4 +789,12 @@ def build_screens() -> dict[str, Screen]:
         RESEARCH_HEALTH: ResearchHealthScreen(), RISK_LUCID: RiskLucidScreen(),
         EXECUTION: ExecutionScreen(), DIAGNOSTICS: DiagnosticsScreen(),
         AUTONOMOUS: AutonomousIntelligenceScreen(), REPORTS: ReportsScreen(),
+        BIDIRECTIONAL_LAB: _bidirectional_lab_screen(),
     }
+
+
+def _bidirectional_lab_screen() -> Screen:
+    """Import the isolated lab screen lazily so screens.py has no lab dependency."""
+    from app.gui.bidirectional_lab_screen import BidirectionalLabScreen
+
+    return BidirectionalLabScreen()  # type: ignore[return-value]

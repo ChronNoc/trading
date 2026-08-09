@@ -122,8 +122,23 @@ def test_sidebar_preserves_the_eight_originals_and_adds_the_autonomy_pages(
     ]
     # Parity: every original screen still exists, in its original order.
     assert names[:8] == original_eight
-    # GOAL C: the Autonomous Intelligence page and Reports tab are added.
-    assert names == original_eight + ["Autonomous Intelligence", "Reports"]
+    # GOAL C adds two pages; the isolated paper lab appends after them.
+    assert names == original_eight + [
+        "Autonomous Intelligence", "Reports", "Bidirectional Paper Trading Lab",
+    ]
+
+
+def test_bidirectional_lab_tab_is_present_and_self_driven(window: AppWindow) -> None:
+    """The isolated paper lab tab appears, is navigable, and ignores the live snapshot."""
+    from PySide6.QtWidgets import QPlainTextEdit, QPushButton
+
+    assert "Bidirectional Paper Trading Lab" in window._screens
+    window.navigate_to("Bidirectional Paper Trading Lab")
+    assert window.current_screen_name == "Bidirectional Paper Trading Lab"
+    screen = window._screens["Bidirectional Paper Trading Lab"]
+    screen.render(window._snapshot)  # self-driven: a no-op, must never raise
+    assert screen.findChild(QPushButton, "lab_run") is not None
+    assert screen.findChild(QPlainTextEdit, "lab_results") is not None
 
 
 def test_status_badges_use_consolidated_accessible_styles(window: AppWindow) -> None:

@@ -64,7 +64,7 @@ def test_reports_are_categorised_dated_and_provenance_tagged(tmp_path: Path) -> 
 
 
 def test_build_screens_preserves_all_originals_and_adds_two(qapp) -> None:
-    from app.gui.screens import AUTONOMOUS, REPORTS, SCREEN_ORDER, build_screens
+    from app.gui.screens import AUTONOMOUS, BIDIRECTIONAL_LAB, REPORTS, SCREEN_ORDER, build_screens
 
     screens = build_screens()
     originals = ["Overview", "Live Order Flow", "Paper Trading", "Sessions and Replay",
@@ -73,7 +73,9 @@ def test_build_screens_preserves_all_originals_and_adds_two(qapp) -> None:
     for name in originals:
         assert name in screens, f"original screen removed: {name}"
     assert AUTONOMOUS in screens and REPORTS in screens
-    assert len(screens) == 10 and len(SCREEN_ORDER) == 10
+    # The isolated paper lab appends after the GOAL C pages, altering none of them.
+    assert BIDIRECTIONAL_LAB in screens
+    assert len(screens) == 11 and len(SCREEN_ORDER) == 11
     # Every screen is reachable from the nav order.
     assert set(SCREEN_ORDER) == set(screens)
 
