@@ -17,6 +17,42 @@ def _avg(values: list[Decimal]) -> Decimal:
     return sum(values, Decimal("0")) / Decimal(len(values)) if values else Decimal("0")
 
 
+def open_positions(engine: LabEngine) -> list[dict[str, object]]:
+    """The live open legs (long/short) with their current management state."""
+    tick = engine.tick
+    rows: list[dict[str, object]] = []
+    for leg in engine.open_legs:
+        rows.append({
+            "setup_id": leg.setup_id,
+            "side": leg.side,
+            "qty": leg.qty,
+            "entry": str(leg.entry_price),
+            "stop": str(leg.stop),
+            "break_even": leg.break_even_active,
+            "trailing": leg.trailing_active,
+            "mfe_ticks": str((leg.mfe_points / tick).quantize(Decimal("0.1"))),
+            "mae_ticks": str((leg.mae_points / tick).quantize(Decimal("0.1"))),
+            "unrealized": str(engine.leg_unrealized_pnl(leg).quantize(Decimal("0.01"))),
+        })
+    return rows
+
+
+def recent_trades(engine: LabEngine, limit: int = 30) -> list[dict[str, object]]:
+    """The most recent closed legs (newest first) for the live orders view."""
+    rows: list[dict[str, object]] = []
+    for leg in reversed(engine.closed_legs[-limit:]):
+        rows.append({
+            "setup_id": leg.setup_id,
+            "side": leg.side,
+            "qty": leg.qty,
+            "entry": str(leg.entry_price),
+            "exit": str(leg.exit_price) if leg.exit_price is not None else "",
+            "reason": leg.exit_reason,
+            "net": str(leg.net_pnl.quantize(Decimal("0.01"))),
+        })
+    return rows
+
+
 def compute_statistics(engine: LabEngine) -> dict[str, object]:
     """Return a structured, section-keyed statistics snapshot (all realised)."""
     closed = engine.closed_legs

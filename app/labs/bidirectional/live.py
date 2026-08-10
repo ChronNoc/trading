@@ -29,7 +29,7 @@ from app.labs.bidirectional.config import (
 )
 from app.labs.bidirectional.engine import LabEngine
 from app.labs.bidirectional.market import MarketEvent
-from app.labs.bidirectional.statistics import compute_statistics
+from app.labs.bidirectional.statistics import compute_statistics, open_positions, recent_trades
 
 CONFIG_NAME = "bidirectional_lab_config.json"
 STATE_NAME = "bidirectional_lab_state.json"
@@ -196,6 +196,8 @@ class LabLiveRunner:
             "updated_unix": time.time(),
             "enabled": self._enabled,
             "stats": stats,
+            "positions": open_positions(engine),
+            "recent_trades": recent_trades(engine),
             "levels": [
                 {"id": st.spec.activation_id, "price": str(st.spec.price), "status": st.status,
                  "activations": st.activations, "setups": len(st.setup_ids)}

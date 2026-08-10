@@ -168,6 +168,10 @@ class LabEngine:
     def gross_exposure_contracts(self) -> int:
         return sum(leg.qty for leg in self.open_legs)
 
+    def leg_unrealized_pnl(self, leg: Leg) -> Decimal:
+        """Unrealized P&L of one open leg at the current mark (paper)."""
+        return self._leg_unrealized(leg)
+
     # -- activation-level management (all paper) ------------------------------
 
     def arm(self, spec: ActivationSpec) -> _LevelState:

@@ -62,7 +62,7 @@ def _run_replay(p: dict) -> dict:
     )
     from app.labs.bidirectional.engine import LabEngine
     from app.labs.bidirectional.feed import replay_market_events
-    from app.labs.bidirectional.statistics import compute_statistics
+    from app.labs.bidirectional.statistics import compute_statistics, open_positions, recent_trades
 
     session_dir: Path = p["session_dir"]
     account = AccountConfig(
@@ -95,11 +95,14 @@ def _run_replay(p: dict) -> dict:
 
     stats = compute_statistics(engine)
     levels = [
-        (st.spec.activation_id, str(st.spec.price), st.status, st.activations, len(st.setup_ids))
+        {"id": st.spec.activation_id, "price": str(st.spec.price), "status": st.status,
+         "activations": st.activations, "setups": len(st.setup_ids)}
         for st in engine.levels.values()
     ]
     return {
         "stats": stats,
+        "positions": open_positions(engine),
+        "recent_trades": recent_trades(engine),
         "levels": levels,
         "log_tail": [f"{e.ts_ns}  {e.text}" for e in engine.log[-400:]],
         "warning": "" if saw_book else (
@@ -241,6 +244,22 @@ class BidirectionalLabScreen(QWidget):
         self.results_view.setObjectName("lab_results")
         self.results_view.setMinimumHeight(220)
         layout.addWidget(self.results_view)
+        layout.addWidget(QLabel("Open orders (live positions)"))
+        self.positions_table = QTableWidget(0, 9)
+        self.positions_table.setObjectName("lab_positions")
+        self.positions_table.setHorizontalHeaderLabels(
+            ["Setup", "Side", "Qty", "Entry", "Stop", "BE", "Trail", "MFE(t)", "Unreal $"])
+        self.positions_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.positions_table.setMinimumHeight(120)
+        layout.addWidget(self.positions_table)
+        layout.addWidget(QLabel("Recent orders (newest first)"))
+        self.recent_table = QTableWidget(0, 7)
+        self.recent_table.setObjectName("lab_recent")
+        self.recent_table.setHorizontalHeaderLabels(
+            ["Setup", "Side", "Qty", "Entry", "Exit", "Reason", "Net $"])
+        self.recent_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.recent_table.setMinimumHeight(120)
+        layout.addWidget(self.recent_table)
         self.levels_status = QTableWidget(0, 5)
         self.levels_status.setHorizontalHeaderLabels(["ID", "Price", "Status", "Activations", "Setups"])
         self.levels_status.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -323,18 +342,49 @@ class BidirectionalLabScreen(QWidget):
         self.warning_label.setText(warning)
         self.warning_label.setVisible(bool(warning))
         self.results_view.setPlainText(_format_stats(result["stats"]))
-        rows = result["levels"]
-        self.levels_status.setRowCount(len(rows))
-        for r, (aid, price, status, acts, setups) in enumerate(rows):
-            for c, value in enumerate((aid, price, status, str(acts), str(setups))):
-                self.levels_status.setItem(r, c, QTableWidgetItem(value))
+        self._render_positions(result.get("positions", []))
+        self._render_recent(result.get("recent_trades", []))
+        self._render_levels(result.get("levels", []))
         self.log_view.setPlainText("\n".join(result["log_tail"]))
         self.status_label.setText("Done.")
+
+    def _render_levels(self, rows: list) -> None:
+        self.levels_status.setRowCount(len(rows))
+        for r, lvl in enumerate(rows):
+            values = (lvl.get("id", ""), lvl.get("price", ""), lvl.get("status", ""),
+                      str(lvl.get("activations", 0)), str(lvl.get("setups", 0)))
+            for c, value in enumerate(values):
+                self.levels_status.setItem(r, c, QTableWidgetItem(str(value)))
+
+    def _render_positions(self, rows: list) -> None:
+        self.positions_table.setRowCount(len(rows))
+        for r, pos in enumerate(rows):
+            values = (
+                str(pos.get("setup_id", "")), str(pos.get("side", "")), str(pos.get("qty", "")),
+                str(pos.get("entry", "")), str(pos.get("stop", "")),
+                "yes" if pos.get("break_even") else "-", "yes" if pos.get("trailing") else "-",
+                str(pos.get("mfe_ticks", "")), str(pos.get("unrealized", "")),
+            )
+            for c, value in enumerate(values):
+                self.positions_table.setItem(r, c, QTableWidgetItem(value))
+
+    def _render_recent(self, rows: list) -> None:
+        self.recent_table.setRowCount(len(rows))
+        for r, trade in enumerate(rows):
+            values = (
+                str(trade.get("setup_id", "")), str(trade.get("side", "")), str(trade.get("qty", "")),
+                str(trade.get("entry", "")), str(trade.get("exit", "")),
+                str(trade.get("reason", "")), str(trade.get("net", "")),
+            )
+            for c, value in enumerate(values):
+                self.recent_table.setItem(r, c, QTableWidgetItem(value))
 
     def _on_reset(self) -> None:
         self.results_view.clear()
         self.log_view.clear()
         self.levels_status.setRowCount(0)
+        self.positions_table.setRowCount(0)
+        self.recent_table.setRowCount(0)
         self.warning_label.hide()
         self.status_label.setText("Idle.")
 
@@ -404,15 +454,12 @@ class BidirectionalLabScreen(QWidget):
             self.status_label.setText("Armed live. No results published yet (backend tap enabled?).")
             return
         self.results_view.setPlainText(_format_stats(state["stats"]))
-        rows = state.get("levels", [])
-        self.levels_status.setRowCount(len(rows))
-        for r, lvl in enumerate(rows):
-            values = (lvl.get("id", ""), lvl.get("price", ""), lvl.get("status", ""),
-                      str(lvl.get("activations", 0)), str(lvl.get("setups", 0)))
-            for c, value in enumerate(values):
-                self.levels_status.setItem(r, c, QTableWidgetItem(str(value)))
+        self._render_positions(state.get("positions", []))
+        self._render_recent(state.get("recent_trades", []))
+        self._render_levels(state.get("levels", []))
         self.log_view.setPlainText("\n".join(state.get("log_tail", [])))
-        self.status_label.setText("Live (Bookmap) — updating.")
+        open_n = len(state.get("positions", []))
+        self.status_label.setText(f"Live (Bookmap) — updating. {open_n} open leg(s).")
 
     # -- Screen contract --------------------------------------------------------
 

@@ -325,6 +325,48 @@ def test_statistics_are_computable_and_honest() -> None:
     assert stats["general"]["net_pnl"] == e.realized_pnl
 
 
+def test_open_positions_and_recent_trades_expose_the_live_orders() -> None:
+    """The live orders view: one open surviving leg with mgmt state, one closed loser."""
+    from app.labs.bidirectional.statistics import open_positions, recent_trades
+
+    e = _armed_pair(stop_ticks="2", commission_per_contract="0.62")
+    e.on_event(_ev(3, "19999.00", "19998.75", "19999.00"))  # long stops, short survives
+    positions = open_positions(e)
+    assert len(positions) == 1
+    survivor = positions[0]
+    assert survivor["side"] == "short"
+    assert survivor["qty"] == 100
+    # unrealized is a numeric string the GUI renders as-is (survivor is in profit here)
+    assert D(str(survivor["unrealized"])) > 0
+    assert set(survivor) >= {"setup_id", "side", "qty", "entry", "stop",
+                             "break_even", "trailing", "mfe_ticks", "unrealized"}
+
+    trades = recent_trades(e)
+    assert len(trades) == 1  # the stopped long is the only closed leg so far
+    assert trades[0]["side"] == "long"
+    assert trades[0]["reason"] == "stop"
+    assert D(str(trades[0]["net"])) < 0  # honest: the loser is a loss net of costs
+
+
+def test_live_publish_payload_includes_positions_and_recent_trades(tmp_path: pathlib.Path) -> None:
+    from app.labs.bidirectional.live import LabConfigFile, LabLiveRunner, LabStateFile
+
+    LabConfigFile(tmp_path).write({
+        "enabled": True, "levels": ["20000.00"], "long": 100, "short": 100,
+        "stop_ticks": "2", "commission": "0.62",
+    })
+    runner = LabLiveRunner(tmp_path)
+    runner.observe(_trade("20010.00", 1), _FakeState(1, "20009.75", "20010.00"))  # arm
+    runner.observe(_trade("20000.00", 2), _FakeState(2, "19999.75", "20000.00"))  # trigger pair
+    runner.observe(_trade("19999.00", 3), _FakeState(3, "19998.75", "19999.00"))  # long stops
+    runner._publish()  # bypass the time-throttled publish so the assertions see final state
+    published = LabStateFile(tmp_path).read()
+    assert published is not None
+    assert "positions" in published and "recent_trades" in published
+    assert any(p["side"] == "short" for p in published["positions"])
+    assert any(t["side"] == "long" and t["reason"] == "stop" for t in published["recent_trades"])
+
+
 # --- HARD SAFETY RULE: no live execution -------------------------------------
 
 
