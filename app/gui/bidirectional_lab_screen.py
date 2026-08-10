@@ -139,6 +139,7 @@ class BidirectionalLabScreen(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("screen_bidirectional_lab")
+        self._ready = False
         self._worker: _ReplayWorker | None = None
         self._live_timer = QTimer(self)
         self._live_timer.setInterval(1000)
@@ -163,11 +164,48 @@ class BidirectionalLabScreen(QWidget):
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
-        body.addWidget(self._build_essentials_group())
-        body.addWidget(self._build_advanced_group())
+        # Order matters: advanced holds tick_size etc., which the auto-price needs.
+        self._quick_group = self._build_quick_group()
+        self._options_group = self._build_options_group()
+        self._advanced_group = self._build_advanced_group()
+        body.addWidget(self._quick_group)
+        body.addWidget(self._options_group)
+        body.addWidget(self._advanced_group)
+        body.addWidget(self._build_results_group())
+
+        # Default to recorded data so "Run test" gives an instant result, and pick
+        # a starting price automatically so the only thing to change is the units.
+        self._on_source_changed(0)
+        self._ready = True
+        QTimer.singleShot(200, self._prefill_auto_price)
+
+    # -- quick test (the only thing most people touch) --------------------------
+
+    def _build_quick_group(self) -> QGroupBox:
+        box = QGroupBox("Run a test")
+        v = QVBoxLayout(box)
+        intro = QLabel("Set how many contracts you want, then press Run test. A price is already "
+                       "chosen for you — you don't need to touch anything else. Paper money only.")
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color:#666;")
+        v.addWidget(intro)
+
+        row = QHBoxLayout()
+        units = QLabel("Units (contracts on each side):")
+        self.size_qty = _int_spin(1, 1_000_000, 100, step=10)
+        self.size_qty.setMinimumWidth(130)
+        row.addWidget(units)
+        row.addWidget(self.size_qty)
+        row.addStretch(1)
+        v.addLayout(row)
+
+        self.price_note = QLabel("")
+        self.price_note.setStyleSheet("color:#666;")
+        self.price_note.setWordWrap(True)
+        v.addWidget(self.price_note)
 
         controls = QHBoxLayout()
-        self.run_button = QPushButton("Start")
+        self.run_button = QPushButton("Run test")
         self.run_button.setObjectName("lab_run")
         self.run_button.clicked.connect(self._on_run)
         self.stop_live_button = QPushButton("Stop")
@@ -182,38 +220,23 @@ class BidirectionalLabScreen(QWidget):
         controls.addStretch(1)
         self.status_label = QLabel("")
         controls.addWidget(self.status_label)
-        body.addLayout(controls)
+        v.addLayout(controls)
+        return box
 
-        body.addWidget(self._build_results_group())
-
-        # Default to the live Bookmap feed - that's what "watch it live" means.
-        self.source_combo.setCurrentIndex(1)
-        self._on_source_changed(1)
-
-    # -- set-up (the only things most people touch) -----------------------------
-
-    def _build_essentials_group(self) -> QGroupBox:
-        box = QGroupBox("Set it up")
-        v = QVBoxLayout(box)
-        how = QLabel("How it works: when the price reaches a price you list below, the bot instantly "
-                     "opens a BUY and a SELL of the same size, puts a tight stop on each, and lets the "
-                     "winning side keep running. Paper money — nothing real is ordered.")
-        how.setWordWrap(True)
-        how.setStyleSheet("color:#666;")
-        v.addWidget(how)
+    def _build_options_group(self) -> QGroupBox:
+        inner = QWidget()
+        v = QVBoxLayout(inner)
+        v.setContentsMargins(0, 0, 0, 0)
 
         form = QFormLayout()
         self.source_combo = QComboBox()
         self.source_combo.addItems(["Recorded data (test on a past session)", "Live (Bookmap, right now)"])
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         form.addRow("Run on", self.source_combo)
-        self.size_qty = _int_spin(1, 1_000_000, 100, step=10)
-        form.addRow("Contracts on each side", self.size_qty)
         self.stop_ticks = _float_spin(1, 10000, 2, decimals=2, step=1)
         form.addRow("Stop size (ticks — 1 tick = 0.25 pts)", self.stop_ticks)
         v.addLayout(form)
 
-        # Recorded-session picker: only relevant when running on past data.
         self.session_row = QWidget()
         srow = QFormLayout(self.session_row)
         srow.setContentsMargins(0, 0, 0, 0)
@@ -222,10 +245,11 @@ class BidirectionalLabScreen(QWidget):
             self.session_combo.addItem(path.name, path)
         if self.session_combo.count() == 0:
             self.session_combo.addItem("(no recorded sessions found under data/raw)", None)
+        self.session_combo.currentIndexChanged.connect(self._on_session_changed)
         srow.addRow("Recorded session", self.session_combo)
         v.addWidget(self.session_row)
 
-        v.addWidget(QLabel("Prices to trade at (type a price, one per row):"))
+        v.addWidget(QLabel("Prices to trade at (leave blank to use the auto price):"))
         self.levels_table = QTableWidget(0, 1)
         self.levels_table.setHorizontalHeaderLabels(["Price"])
         self.levels_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -240,7 +264,27 @@ class BidirectionalLabScreen(QWidget):
         row.addWidget(remove)
         row.addStretch(1)
         v.addLayout(row)
-        return box
+        return _collapsible_group(
+            "More options (price, stop, live vs recorded) — optional", inner, expanded=False)
+
+    def _set_price_note(self, price: object) -> None:
+        self.price_note.setText(f"Price set for you: {price}  (change it under 'More options' if you want).")
+
+    def _prefill_auto_price(self) -> None:
+        """Put one sensible starting price in for the user (recorded mode only)."""
+        if self.source_combo.currentIndex() != 0 or self.levels_table.rowCount() != 0:
+            return
+        session_dir = self.session_combo.currentData()
+        if session_dir is None:
+            return
+        auto = _auto_price_from_session(Path(session_dir), _dec(self.tick_size.value()))
+        if auto is not None:
+            self._add_level_row(str(auto))
+            self._set_price_note(auto)
+
+    def _on_session_changed(self, index: int) -> None:  # noqa: ARG002
+        self.levels_table.setRowCount(0)
+        self._prefill_auto_price()
 
     def _build_advanced_group(self) -> QGroupBox:
         inner = QWidget()
@@ -402,12 +446,17 @@ class BidirectionalLabScreen(QWidget):
             return
         session_dir = self.session_combo.currentData()
         if session_dir is None:
-            self.status_label.setText("Pick a recorded session first.")
+            self.status_label.setText("Pick a recorded session first (under More options).")
             return
         levels = self._collect_levels()
-        if not levels:
-            self.status_label.setText("Add at least one price to trade at.")
-            return
+        if not levels:  # nothing typed - choose a sensible price automatically
+            auto = _auto_price_from_session(Path(session_dir), _dec(self.tick_size.value()))
+            if auto is None:
+                self.status_label.setText("Couldn't read a price from this session.")
+                return
+            self._add_level_row(str(auto))
+            self._set_price_note(auto)
+            levels = [auto]
         size = int(self.size_qty.value())
         params = {
             "session_dir": Path(session_dir), "levels": levels,
@@ -460,13 +509,17 @@ class BidirectionalLabScreen(QWidget):
 
     def _on_source_changed(self, index: int) -> None:
         live = index == 1
-        self.run_button.setText("Start (Live)" if live else "Start (test)")
+        self.run_button.setText("Go live" if live else "Run test")
         self.session_row.setVisible(not live)
         if not live:
             self._on_stop_live()
-        self.status_label.setText(
-            "Live: type your price(s), then press Start (Live). Needs Bookmap running and feeding."
-            if live else "Test mode: pick a saved session and price(s), then press Start (test).")
+            if self._ready:
+                self._prefill_auto_price()
+            self.status_label.setText("")
+        else:
+            self.price_note.setText("Live: type a price under 'More options', then press Go live "
+                                    "(needs Bookmap running and feeding).")
+            self.status_label.setText("")
 
     def _config_payload(self, enabled: bool) -> dict:
         size = int(self.size_qty.value())
@@ -599,6 +652,31 @@ def _recorded_sessions() -> list[Path]:
         return list(reversed(recorded_session_dirs(_RAW_ROOT)))[:60]
     except Exception:  # noqa: BLE001 - a missing data dir just means an empty picker
         return []
+
+
+def _auto_price_from_session(session_dir: Path, tick: Decimal, *, sample: int = 600) -> Decimal | None:
+    """Pick a sensible starting price from a recorded session (median of early ticks).
+
+    Read-only and best-effort: any failure just means "no auto price" and the user
+    can type one under More options. The median of the opening ticks is a price the
+    market actually trades around, so a level set there is reliably reached.
+    """
+    try:
+        from statistics import median
+
+        from app.labs.bidirectional.feed import replay_market_events
+        from app.labs.bidirectional.market import nearest_tick
+
+        prices: list[Decimal] = []
+        for event in replay_market_events(session_dir, max_events=sample):
+            price = event.last if event.last is not None else event.mid
+            if price is not None:
+                prices.append(price)
+        if not prices:
+            return None
+        return nearest_tick(median(prices), tick if tick > 0 else Decimal("0.25"))
+    except Exception:  # noqa: BLE001 - best-effort convenience only
+        return None
 
 
 def _int_spin(lo: int, hi: int, value: int, *, step: int = 1) -> QSpinBox:
