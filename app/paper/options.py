@@ -29,6 +29,26 @@ def read_momentum_enabled(production_config_path: Path) -> bool:
     return payload.get("paper_momentum_setup_enabled") is True
 
 
+def read_bidirectional_lab_enabled(production_config_path: Path) -> bool:
+    """Whether the backend runs the READ-ONLY Bidirectional Paper Lab live tap.
+
+    Missing/unreadable/missing-key means FALSE (the live stream is untouched).
+    The tap only observes events and publishes its own isolated paper state; it
+    never routes an order or changes runtime/strategy behaviour.
+    """
+    if not production_config_path.is_file():
+        return False
+    try:
+        import yaml
+
+        payload = yaml.safe_load(production_config_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config must fail closed
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return payload.get("paper_bidirectional_lab_live_enabled") is True
+
+
 def read_autonomous_enabled(production_config_path: Path) -> bool:
     """Whether the backend proposes shadow-only autonomous research candidates.
 

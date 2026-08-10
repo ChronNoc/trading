@@ -377,5 +377,72 @@ def test_importing_the_lab_pulls_in_no_live_execution_in_a_clean_interpreter() -
     assert "LEAK:\n" in result.stdout + "\n" or result.stdout.strip().endswith("LEAK:"), result.stdout
 
 
+# --- live tap (read-only feed sink) ------------------------------------------
+
+
+class _FakeState:
+    """Minimal stand-in for the backend MarketState the feed sink receives."""
+
+    def __init__(self, ts: int, bid: str | None, ask: str | None) -> None:
+        self.timestamp_ns = ts
+        self.best_bid = D(bid) if bid else None
+        self.best_ask = D(ask) if ask else None
+
+
+def _trade(price: str, ts: int) -> dict:
+    return {"timestamp_ns": ts, "sequence_id": 1, "price": price, "size": "1"}
+
+
+def test_market_event_from_stream_distinguishes_trade_and_depth() -> None:
+    from app.labs.bidirectional.live import market_event_from_stream
+
+    st = _FakeState(1000, "19999.75", "20000.00")
+    trade = market_event_from_stream(_trade("20000.00", 1000), st)
+    assert trade.kind == "trade" and trade.last == D("20000.00")
+    assert trade.bid == D("19999.75") and trade.ask == D("20000.00")
+    depth = market_event_from_stream(
+        {"type": "depth_update", "side": "bid", "price": "19999.75", "new_size": "5", "timestamp": 1000}, st)
+    assert depth.kind == "depth" and depth.last is None and depth.bid == D("19999.75")
+
+
+def test_lab_config_and_state_files_round_trip(tmp_path: pathlib.Path) -> None:
+    from app.labs.bidirectional.live import LabConfigFile, LabStateFile
+
+    cfg = LabConfigFile(tmp_path)
+    cfg.write({"enabled": True, "levels": ["20000"]})
+    assert cfg.read()["enabled"] is True
+    state = LabStateFile(tmp_path)
+    state.write({"stats": {"x": 1}})
+    assert state.read()["stats"]["x"] == 1
+
+
+def test_live_runner_arms_from_config_triggers_and_publishes(tmp_path: pathlib.Path) -> None:
+    from app.labs.bidirectional.live import LabConfigFile, LabLiveRunner, LabStateFile
+
+    LabConfigFile(tmp_path).write({
+        "enabled": True, "starting_balance": "100000", "tick_size": "0.25", "tick_value": "0.50",
+        "commission": "0", "stop_slip": "0", "long": 100, "short": 100, "stop_ticks": "2",
+        "be_trigger": "0", "trail_dist": "0", "one_shot": True, "levels": ["20000.00"],
+    })
+    runner = LabLiveRunner(tmp_path)
+    runner.observe(_trade("20010.00", 1), _FakeState(1, "20009.75", "20010.00"))  # loads config + primes
+    runner.observe(_trade("20000.00", 2), _FakeState(2, "19999.75", "20000.00"))  # reaches the level
+    assert runner._engine is not None
+    assert len(runner._engine.setups) == 1  # atomic paired setup created from the live stream
+    runner._publish()
+    published = LabStateFile(tmp_path).read()
+    assert published["stats"]["general"]["total_setups"] == 1
+    assert published["levels"][0]["status"] in ("COMPLETED", "TRIGGERED")
+
+
+def test_disabled_config_does_not_trade(tmp_path: pathlib.Path) -> None:
+    from app.labs.bidirectional.live import LabConfigFile, LabLiveRunner
+
+    LabConfigFile(tmp_path).write({"enabled": False, "levels": ["20000.00"], "stop_ticks": "2"})
+    runner = LabLiveRunner(tmp_path)
+    runner.observe(_trade("20000.00", 1), _FakeState(1, "19999.75", "20000.00"))
+    assert runner._engine is None  # never armed while disabled
+
+
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__, "-q"]))

@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -115,6 +115,9 @@ class BidirectionalLabScreen(QWidget):
         super().__init__()
         self.setObjectName("screen_bidirectional_lab")
         self._worker: _ReplayWorker | None = None
+        self._live_timer = QTimer(self)
+        self._live_timer.setInterval(1000)
+        self._live_timer.timeout.connect(self._poll_live_state)
 
         outer = QVBoxLayout(self)
         title = QLabel("Bidirectional Paper Trading Lab")
@@ -142,7 +145,12 @@ class BidirectionalLabScreen(QWidget):
         self.run_button.clicked.connect(self._on_run)
         self.reset_button = QPushButton("Reset")
         self.reset_button.clicked.connect(self._on_reset)
+        self.stop_live_button = QPushButton("Stop Live")
+        self.stop_live_button.setObjectName("lab_stop_live")
+        self.stop_live_button.clicked.connect(self._on_stop_live)
+        self.stop_live_button.hide()
         controls.addWidget(self.run_button)
+        controls.addWidget(self.stop_live_button)
         controls.addWidget(self.reset_button)
         controls.addStretch(1)
         self.status_label = QLabel("Idle. Configure levels and press Run Replay.")
@@ -153,8 +161,12 @@ class BidirectionalLabScreen(QWidget):
     # -- config -----------------------------------------------------------------
 
     def _build_config_group(self) -> QGroupBox:
-        box = QGroupBox("Session and account (paper)")
+        box = QGroupBox("Data source and account (paper)")
         form = QFormLayout(box)
+        self.source_combo = QComboBox()
+        self.source_combo.addItems(["Recorded replay", "Live (Bookmap)"])
+        self.source_combo.currentIndexChanged.connect(self._on_source_changed)
+        form.addRow("Data source", self.source_combo)
         self.session_combo = QComboBox()
         for path in _recorded_sessions():
             self.session_combo.addItem(path.name, path)
@@ -269,6 +281,9 @@ class BidirectionalLabScreen(QWidget):
     # -- run --------------------------------------------------------------------
 
     def _on_run(self) -> None:
+        if self.source_combo.currentIndex() == 1:  # Live (Bookmap)
+            self._arm_live()
+            return
         if self._worker is not None and self._worker.isRunning():
             return
         session_dir = self.session_combo.currentData()
@@ -322,6 +337,82 @@ class BidirectionalLabScreen(QWidget):
         self.levels_status.setRowCount(0)
         self.warning_label.hide()
         self.status_label.setText("Idle.")
+
+    # -- live (Bookmap) mode ----------------------------------------------------
+
+    def _on_source_changed(self, index: int) -> None:
+        live = index == 1
+        self.run_button.setText("Arm Live" if live else "Run Replay")
+        self.session_combo.setEnabled(not live)
+        self.max_events.setEnabled(not live)
+        if not live:
+            self._on_stop_live()
+        self.status_label.setText(
+            "Live: set levels, press Arm Live. The backend must have the lab live tap enabled "
+            "(paper_bidirectional_lab_live_enabled) and be receiving Bookmap." if live
+            else "Idle. Configure levels and press Run Replay.")
+
+    def _config_payload(self, enabled: bool) -> dict:
+        return {
+            "enabled": enabled,
+            "starting_balance": str(self.starting_balance.value()),
+            "tick_size": str(self.tick_size.value()), "tick_value": str(self.tick_value.value()),
+            "commission": str(self.commission.value()), "entry_slip": str(self.entry_slip.value()),
+            "exit_slip": str(self.exit_slip.value()), "stop_slip": str(self.stop_slip.value()),
+            "long": int(self.long_qty.value()), "short": int(self.short_qty.value()),
+            "stop_ticks": str(self.stop_ticks.value()), "be_trigger": str(self.be_trigger.value()),
+            "be_offset": str(self.be_offset.value()), "trail_act": str(self.trail_act.value()),
+            "trail_dist": str(self.trail_dist.value()),
+            "one_shot": self.one_shot.currentIndex() == 1,
+            "levels": [str(p) for p in self._collect_levels()],
+        }
+
+    def _arm_live(self) -> None:
+        levels = self._collect_levels()
+        if not levels:
+            self.status_label.setText("Add at least one activation price to arm live.")
+            return
+        try:
+            from app.labs.bidirectional.live import LabConfigFile
+
+            LabConfigFile("runtime").write(self._config_payload(enabled=True))
+        except Exception as error:  # noqa: BLE001
+            self.status_label.setText(f"Could not arm live: {error}")
+            return
+        self.stop_live_button.show()
+        self._live_timer.start()
+        self.status_label.setText("Armed live. Waiting for the backend to publish results …")
+
+    def _on_stop_live(self) -> None:
+        self._live_timer.stop()
+        self.stop_live_button.hide()
+        try:
+            from app.labs.bidirectional.live import LabConfigFile
+
+            LabConfigFile("runtime").write(self._config_payload(enabled=False))
+        except Exception:  # noqa: BLE001 - stopping must never raise
+            pass
+
+    def _poll_live_state(self) -> None:
+        try:
+            from app.labs.bidirectional.live import LabStateFile
+
+            state = LabStateFile("runtime").read()
+        except Exception:  # noqa: BLE001
+            state = None
+        if not state or "stats" not in state:
+            self.status_label.setText("Armed live. No results published yet (backend tap enabled?).")
+            return
+        self.results_view.setPlainText(_format_stats(state["stats"]))
+        rows = state.get("levels", [])
+        self.levels_status.setRowCount(len(rows))
+        for r, lvl in enumerate(rows):
+            values = (lvl.get("id", ""), lvl.get("price", ""), lvl.get("status", ""),
+                      str(lvl.get("activations", 0)), str(lvl.get("setups", 0)))
+            for c, value in enumerate(values):
+                self.levels_status.setItem(r, c, QTableWidgetItem(str(value)))
+        self.log_view.setPlainText("\n".join(state.get("log_tail", [])))
+        self.status_label.setText("Live (Bookmap) — updating.")
 
     # -- Screen contract --------------------------------------------------------
 

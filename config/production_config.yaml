@@ -155,6 +155,14 @@ paper_entry_require_trade_through: false
 paper_entry_cooldown_seconds: 300
 paper_time_stop_seconds: 900
 
+# paper_bidirectional_lab_live_enabled: when true, the backend runs the isolated
+# Bidirectional Paper Trading Lab's READ-ONLY live tap - it observes the live
+# Bookmap market stream (tick resolution) to drive its own separate paper
+# experiment, publishing state for the "Bidirectional Paper Trading Lab" tab to
+# display live. It never routes an order and never changes the strategy, ML,
+# runtime, or capture behaviour. Off by default; requires an app restart.
+paper_bidirectional_lab_live_enabled: true
+
 # paper_ml_decision_policy_enabled: when true, the PAPER engine consults the
 # observe-only shadow model's most recent scored probability (see
 # app/machine_learning/shadow_predictor.py) and may VETO a heuristic-accepted

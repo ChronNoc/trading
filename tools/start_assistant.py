@@ -287,6 +287,13 @@ async def run_headless_assistant(
     if paper_engine is not None:
         feed.add_sink(lambda event, state: paper_engine.ingest(event, state))
         feed.add_gap_sink(paper_engine.notify_causality_gap)
+    # Optional, opt-in, READ-ONLY: the Bidirectional Paper Trading Lab observes
+    # the live stream to drive its own isolated paper experiment. It never writes
+    # back to the feed, the recorder, the strategy, or runtime state; disabled by
+    # default so existing behaviour is unchanged.
+    lab_runner = _maybe_build_lab_runner(config)
+    if lab_runner is not None:
+        feed.add_sink(lambda event, state: lab_runner.observe(event, state))
     feed.start()
 
     def _make_session_pipeline() -> RecorderPipeline:
@@ -472,6 +479,27 @@ def _build_research_service(
         )
     except Exception as error:  # pragma: no cover - never block the app on research
         print(f"Research service unavailable: {error}", file=sys.stderr, flush=True)
+        return None
+
+
+def _maybe_build_lab_runner(config: "AssistantConfig") -> object | None:
+    """Build the READ-ONLY Bidirectional Paper Lab live tap when opted in.
+
+    Returns None (the default) unless ``paper_bidirectional_lab_live_enabled`` is
+    true in production_config, so the live stream is unaffected otherwise. The
+    runner only observes events and publishes its own paper state to a runtime
+    file; it imports no execution code and can never place an order.
+    """
+    from app.paper.options import read_bidirectional_lab_enabled
+
+    if not read_bidirectional_lab_enabled(Path("config/production_config.yaml")):
+        return None
+    try:
+        from app.labs.bidirectional.live import LabLiveRunner
+
+        return LabLiveRunner(config.runtime_dir)
+    except Exception as error:  # noqa: BLE001 - an optional experiment never breaks capture
+        print(f"Bidirectional lab live tap unavailable: {error}", file=sys.stderr, flush=True)
         return None
 
 
