@@ -322,6 +322,11 @@ def _resolve(pending: _Pending, price: Decimal, ts_ns: int) -> int | None:
 
 
 def _trade_price(event: object) -> Decimal | None:
+    # Offline twin of app.market.state.trade_print_price: both resolve a triple
+    # barrier against the executed trade print (with a book-mid fallback for
+    # non-trade events) so offline labels and online shadow outcomes never
+    # resolve against different prices. Replay carries the event kind
+    # explicitly, so gate on it here rather than re-sniffing the raw schema.
     kind = getattr(event, "kind", "")
     if kind != "trade":
         return None

@@ -78,6 +78,34 @@ def test_target_resolution_writes_win_with_causal_only_prices(tmp_path: Path) ->
     assert record["decision_impact"] == "none"
 
 
+def test_trade_print_resolves_barrier_even_when_mid_has_not_crossed(tmp_path: Path) -> None:
+    """Online resolution judges the barrier against the executed trade print,
+    matching offline labelling - a book mid that has not crossed must not hide
+    a target the trade itself printed through."""
+    journal = OutcomeJournal(tmp_path / "outcomes.jsonl")
+    tracker = PendingOutcomeTracker(journal=journal, horizon_seconds=60.0)
+    tracker.bind_session("session-one")
+    tracker.register(
+        _prediction(timestamp_ns=1_000_000_000), entry_price=Decimal("29500.00"),
+        direction="long", target_ticks=Decimal("6"), stop_ticks=Decimal("6"),
+        tick_size=Decimal("0.25"),
+    )
+    # The book mid sits at 29500.125 (bid 29500.00 / ask 29500.25): neither the
+    # +6-tick target (29501.50) nor the -6-tick stop is crossed on the mid. A
+    # trade then prints at the target. Mid-only resolution (the old bug) would
+    # leave this pending; resolving on the print records the target win, the
+    # same label offline training would assign.
+    state = _state_at_price(Decimal("29500.00"), 2_000_000_000)
+    trade_event = {
+        "type": "trade", "timestamp_ns": 2_000_000_000, "price": "29501.50",
+        "size": "1", "aggressor_side": "buy", "instrument": "MNQ", "sequence_id": 1,
+    }
+    tracker.observe_market(trade_event, state)
+    snapshot = tracker.snapshot()
+    assert snapshot.resolved_target == 1
+    assert snapshot.pending == 0
+
+
 def test_stop_resolution_writes_loss(tmp_path: Path) -> None:
     journal = OutcomeJournal(tmp_path / "outcomes.jsonl")
     tracker = PendingOutcomeTracker(journal=journal, horizon_seconds=60.0)

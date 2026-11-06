@@ -144,6 +144,27 @@ def _looks_like_trade(raw_event: RawEvent) -> bool:
     )
 
 
+def trade_print_price(raw_event: RawEvent) -> Decimal | None:
+    """Return the executed trade price when ``raw_event`` is a trade, else None.
+
+    A depth-update event also carries a ``price`` - a resting order-book level,
+    not an execution - so only a genuine trade event yields a price here. This
+    is the single shared price source a triple barrier is resolved against:
+    offline label construction (``app.machine_learning.session_training``) and
+    online shadow-outcome resolution (``app.machine_learning.outcome_journal``)
+    both resolve on the trade print and fall back to the book mid only when an
+    event is not a trade, so the two can never silently resolve against
+    different prices.
+    """
+    event_type = str(raw_event.get("type", "")).lower()
+    if event_type != "trade" and not _looks_like_trade(raw_event):
+        return None
+    try:
+        return _coerce_decimal(raw_event.get("price"), "price")
+    except ValueError:
+        return None
+
+
 def _update_depth_side(
     current_depth: tuple[DepthLevel, ...],
     price: Decimal,

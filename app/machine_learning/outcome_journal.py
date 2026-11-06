@@ -29,13 +29,14 @@ from __future__ import annotations
 import json
 import os
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
 from app.machine_learning.shadow_predictor import JournalRecovery, ShadowPrediction
 from app.machine_learning.triple_barrier import barrier_prices, resolve_barrier_detail
-from app.market.state import MarketState
+from app.market.state import MarketState, trade_print_price
 from app.strategy.order_flow import _reference_price
 
 OUTCOME_JOURNAL_SCHEMA_VERSION = 1
@@ -288,10 +289,16 @@ class PendingOutcomeTracker:
         state)``); a malformed state must never stop resolution of the rest
         of this analysis chain.
         """
-        del event
         if not isinstance(state, MarketState):
             return
-        price = _reference_price(state)
+        # Resolve against the executed trade print when this event is a trade,
+        # exactly as offline label construction does (session_training); fall
+        # back to the book mid only for non-trade events. Mid-only resolution
+        # here would silently disagree with the training labels this journal
+        # exists to mirror.
+        price = trade_print_price(event) if isinstance(event, Mapping) else None
+        if price is None:
+            price = _reference_price(state)
         if price is None:
             return
         timestamp_ns = state.timestamp_ns
