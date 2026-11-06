@@ -263,6 +263,10 @@ def test_overflow_beyond_max_pending_drops_the_oldest_prediction(tmp_path: Path)
     snapshot = tracker.snapshot()
     assert snapshot.pending == 2
     assert snapshot.dropped_overflow == 1
+    # An overflow eviction is counted only as an overflow drop, never also as
+    # an unresolved drop: the GUI sums the two as the total dropped, so they
+    # must stay disjoint.
+    assert snapshot.dropped_unresolved == 0
 
 
 def test_short_direction_barriers_resolve_correctly(tmp_path: Path) -> None:

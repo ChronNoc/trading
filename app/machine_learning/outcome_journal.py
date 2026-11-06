@@ -421,7 +421,14 @@ class PendingOutcomeTracker:
         except Exception:  # noqa: BLE001 - a full disk must not stop resolution accounting
             return
         with self._lock:
-            self._dropped_unresolved += 1
+            # An overflow eviction is already counted in _dropped_overflow.
+            # Counting it here too would double-count it: the GUI derives the
+            # dropped total and settled coverage as the SUM of the two counters
+            # (view_models.py), so they must stay disjoint. Only a non-overflow
+            # flush - a prediction still open at a session boundary - is an
+            # unresolved drop.
+            if reason != "dropped_overflow":
+                self._dropped_unresolved += 1
 
 
 def _decimal_text(value: Decimal) -> str:

@@ -391,8 +391,12 @@ class _StreamingSessionAccumulator:
                 self.aggressive_buy += size
             else:
                 self.aggressive_sell += size
-            self.observe_price(_decimal(payload["price"]))
         self.state = self.state.update(payload)
+        # Sample the reference (mid) price exactly once per event. A trade also
+        # carries an execution price, but sampling that too made every trade
+        # contribute two observations while a depth update contributed one,
+        # skewing the reference-price mean, variance and extremes. Volatility
+        # here is defined over reference prices, so the mid is the single rule.
         if self.state.mid_price is not None:
             self.observe_price(self.state.mid_price)
 

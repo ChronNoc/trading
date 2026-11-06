@@ -18,6 +18,31 @@ from tools.daily_learning_summary import parse_args
 import app.machine_learning.daily_learning as daily_module
 
 
+def test_trade_events_do_not_double_count_reference_price_samples() -> None:
+    """Each event contributes exactly one reference (mid) price sample.
+
+    A trade carries both an execution price and leaves the book mid unchanged;
+    sampling both made a trade count twice while a depth update counted once,
+    skewing the reference-price statistics. Here a trade must add a single
+    sample, like any other event.
+    """
+    accumulator = daily_module._StreamingSessionAccumulator(daily_module.DailyLearningConfig())
+    accumulator.apply("depth", 1, {
+        "type": "depth_update", "side": "bid", "price": "100.00",
+        "previous_size": "0", "new_size": "10", "timestamp": 1,
+    })
+    accumulator.apply("depth", 2, {
+        "type": "depth_update", "side": "ask", "price": "100.25",
+        "previous_size": "0", "new_size": "10", "timestamp": 2,
+    })
+    count_with_book = accumulator.price_count
+    accumulator.apply("trade", 3, {
+        "type": "trade", "timestamp_ns": 3, "price": "100.00", "size": "5",
+        "aggressor_side": "sell", "instrument": "MNQU6", "sequence_id": 1,
+    })
+    assert accumulator.price_count == count_with_book + 1
+
+
 def test_daily_learning_report_summarizes_bookmap_recording(tmp_path: Path) -> None:
     """A raw Bookmap recording produces JSON and Markdown consistency reports."""
     raw_root = tmp_path / "raw"
