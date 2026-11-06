@@ -150,25 +150,25 @@ def test_status_badges_use_consolidated_accessible_styles(window: AppWindow) -> 
     assert badge.styleSheet() == ""
 
     dark_locked = DASHBOARD_DARK.split('QLabel[state="locked"]', 1)[1].split("}", 1)[0]
-    assert "#49391b" in dark_locked
-    assert "#ffd98c" in dark_locked
-    assert "#a57b25" in dark_locked
+    assert "#2a2113" in dark_locked
+    assert "#e8c06a" in dark_locked
+    assert "#5a4a24" in dark_locked
     assert "#1d4ed8" not in dark_locked
 
     light_locked = DASHBOARD_LIGHT.split('QLabel[state="warn"], QLabel[state="locked"]', 1)[
         1
     ].split("}", 1)[0]
-    assert "#fff1d4" in light_locked
-    assert "#714b05" in light_locked
-    assert "#d5a348" in light_locked
+    assert "#fcf2dc" in light_locked
+    assert "#9a6b12" in light_locked
+    assert "#ecd5a0" in light_locked
 
     badge.set_status("UNKNOWN STATE", "unexpected")
     assert badge.text() == "UNKNOWN STATE"
     assert badge.accessibleName() == "UNKNOWN STATE"
     assert badge.property("state") == "neutral"
     assert badge.styleSheet() == ""
-    assert "#172131" in DASHBOARD_DARK
-    assert "#e9eef5" in DASHBOARD_LIGHT
+    assert "#181b22" in DASHBOARD_DARK
+    assert "#eef0f4" in DASHBOARD_LIGHT
 
 
 def test_every_screen_renders_and_navigates(window: AppWindow) -> None:
@@ -424,13 +424,13 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")
-    assert "stop:0 #ffffff, stop:1 #f7faff" in window.styleSheet()
+    assert 'QFrame[role="card"] { background:#ffffff' in window.styleSheet()
     assert 'QLabel[role="section_title"]' in window.styleSheet()
-    assert "color:#101928" in window.styleSheet()
+    assert "color:#1a1d24" in window.styleSheet()
 
     window.apply_theme("dark")
-    assert "stop:0 #172231, stop:1 #111821" in window.styleSheet()
-    assert "color:#f5f8fc" in window.styleSheet()
+    assert 'QFrame[role="card"] { background:#14161c' in window.styleSheet()
+    assert "color:#e8eaee" in window.styleSheet()
 
 
 def test_reusable_dashboard_widgets_defer_palette_to_themes(window: AppWindow) -> None:

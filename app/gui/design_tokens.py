@@ -188,12 +188,16 @@ Z_INDEX_TOOLTIP: Final[int] = 600
 
 @dataclass(frozen=True, slots=True)
 class CardStyle:
-    """Theme-neutral layout and elevation tokens for dashboard cards."""
+    """Theme-neutral layout and elevation tokens for dashboard cards.
+
+    The shadow is deliberately faint: the 2026 flat refresh reads depth from
+    hairline borders and surface contrast, not a pronounced drop shadow.
+    """
 
     padding: int = SPACE_MD
-    shadow_blur_radius: int = 16
-    shadow_offset_y: int = 4
-    shadow_alpha: int = 80
+    shadow_blur_radius: int = 24
+    shadow_offset_y: int = 2
+    shadow_alpha: int = 30
 
 
 @dataclass(frozen=True, slots=True)

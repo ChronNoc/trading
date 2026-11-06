@@ -94,10 +94,6 @@ class StatusBadge(QLabel):
     """Text-and-shape status badge; status is never communicated by colour alone."""
 
     _VALID_STATES = frozenset({"ok", "warn", "fail", "locked", "neutral"})
-    _GLOW_COLORS = {
-        "locked": QColor(dt.COLOR_LOCKED_LIGHT),
-        "fail": QColor(dt.COLOR_ERROR_LIGHT),
-    }
 
     def __init__(self, text: str, object_name: str, state: str = "neutral") -> None:
         super().__init__()
@@ -107,7 +103,12 @@ class StatusBadge(QLabel):
         self.set_status(text, state)
 
     def set_status(self, text: str, state: str = "neutral") -> None:
-        """Set a labelled status and a theme-owned semantic styling state."""
+        """Set a labelled status and a theme-owned semantic styling state.
+
+        The pill is flat: its state reads from the themed background, border,
+        and text, never a glow. (The 2026 refresh dropped the neon halo that
+        the locked/fail states used to carry.)
+        """
         effective_state = state if state in self._VALID_STATES else "neutral"
         self.setText(text)
         self.setProperty("state", effective_state)
@@ -115,15 +116,6 @@ class StatusBadge(QLabel):
         self.style().unpolish(self)
         self.style().polish(self)
         self.setAccessibleName(text)
-        glow_color = self._GLOW_COLORS.get(effective_state)
-        if glow_color is None:
-            self.setGraphicsEffect(None)
-            return
-        glow = QGraphicsDropShadowEffect(self)
-        glow.setBlurRadius(16)
-        glow.setColor(glow_color)
-        glow.setOffset(0, 0)
-        self.setGraphicsEffect(glow)
 
 
 class MetricMeter(QWidget):
