@@ -237,7 +237,9 @@ class PendingOutcomeTracker:
             self._session_id = session_id
             self._current_gap_tainted = False
         for pending in stale:
-            self._flush_unresolved(pending, reason="session_end_unresolved")
+            self._flush_unresolved(
+                pending, reason="session_end_unresolved", counts_as_unresolved=True,
+            )
 
     def register(
         self,
@@ -280,7 +282,11 @@ class PendingOutcomeTracker:
                 self._dropped_overflow += 1
             self._pending[pending.prediction_id] = pending
         if overflowed is not None:
-            self._flush_unresolved(overflowed, reason="dropped_overflow")
+            # Already counted in _dropped_overflow above; do not also count it
+            # as an unresolved drop.
+            self._flush_unresolved(
+                overflowed, reason="dropped_overflow", counts_as_unresolved=False,
+            )
 
     def observe_market(self, event: object, state: object) -> None:
         """Check every open prediction against one causally observed price.
@@ -398,7 +404,9 @@ class PendingOutcomeTracker:
                 self._gap_tainted_resolutions += 1
             self._last_resolution_timestamp_ns = resolved_timestamp_ns
 
-    def _flush_unresolved(self, pending: _Pending, *, reason: str) -> None:
+    def _flush_unresolved(
+        self, pending: _Pending, *, reason: str, counts_as_unresolved: bool,
+    ) -> None:
         record = OutcomeRecord(
             prediction_id=pending.prediction_id,
             artifact_id=pending.artifact_id,
@@ -421,13 +429,14 @@ class PendingOutcomeTracker:
         except Exception:  # noqa: BLE001 - a full disk must not stop resolution accounting
             return
         with self._lock:
-            # An overflow eviction is already counted in _dropped_overflow.
-            # Counting it here too would double-count it: the GUI derives the
-            # dropped total and settled coverage as the SUM of the two counters
-            # (view_models.py), so they must stay disjoint. Only a non-overflow
-            # flush - a prediction still open at a session boundary - is an
-            # unresolved drop.
-            if reason != "dropped_overflow":
+            # Count this drop as unresolved only when the caller says so. An
+            # overflow eviction is already counted in _dropped_overflow, and the
+            # GUI derives the dropped total and settled coverage as the SUM of
+            # the two counters (view_models.py), so they must stay disjoint.
+            # Driving this off an explicit flag rather than the reason string
+            # stops a future rename of the reason from silently re-introducing
+            # the double-count.
+            if counts_as_unresolved:
                 self._dropped_unresolved += 1
 
 
