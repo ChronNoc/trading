@@ -52,6 +52,35 @@ def replay_market_events(session_dir: Path, *, max_events: int | None = None) ->
         count += 1
 
 
+def first_trade_prices(
+    session_dir: Path, *, limit: int = 600, max_files: int = 4,
+) -> list[Decimal]:
+    """Return up to ``limit`` of a session's earliest trade prices (read-only, cheap).
+
+    Opens at most ``max_files`` trade files however large the session is. That
+    bound is the point: a session that has been recording for hours holds tens of
+    thousands of part files, and the full replay path (``stream_session_events``)
+    opens every one of their footers just to check the schema - minutes of work.
+    A starting-price sample only needs the first few hundred trades, so read just
+    those, never the depth stream, and never walk the whole session.
+    """
+    import pyarrow.parquet as pq
+
+    from app.research.replay_loader import _stream_paths
+
+    prices: list[Decimal] = []
+    for path in _stream_paths(session_dir, "trades")[:max_files]:
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=limit, columns=["price"]):
+            for value in batch.column("price").to_pylist():
+                try:
+                    prices.append(Decimal(str(value)))
+                except (InvalidOperation, TypeError):
+                    continue  # a malformed recorded row is skipped, never fatal
+                if len(prices) >= limit:
+                    return prices
+    return prices
+
+
 def recorded_session_dirs(raw_root: Path) -> list[Path]:
     """Return recorded session directories under ``raw_root`` (read-only listing)."""
     if not raw_root.is_dir():

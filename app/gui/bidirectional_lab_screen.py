@@ -152,7 +152,7 @@ class BidirectionalLabScreen(QWidget):
                           "the same moment when price hits a level you pick, keeps a tight stop on each, "
                           "and lets the winning side run. Nothing real is ever ordered.")
         subtitle.setWordWrap(True)
-        subtitle.setStyleSheet("color:#666;")
+        subtitle.setProperty("role", "muted")  # theme-owned colour: readable in dark and light
         outer.addWidget(title)
         outer.addWidget(subtitle)
 
@@ -187,7 +187,7 @@ class BidirectionalLabScreen(QWidget):
         intro = QLabel("Set how many contracts you want, then press Run test. A price is already "
                        "chosen for you — you don't need to touch anything else. Paper money only.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color:#666;")
+        intro.setProperty("role", "muted")
         v.addWidget(intro)
 
         row = QHBoxLayout()
@@ -200,13 +200,14 @@ class BidirectionalLabScreen(QWidget):
         v.addLayout(row)
 
         self.price_note = QLabel("")
-        self.price_note.setStyleSheet("color:#666;")
+        self.price_note.setProperty("role", "muted")
         self.price_note.setWordWrap(True)
         v.addWidget(self.price_note)
 
         controls = QHBoxLayout()
         self.run_button = QPushButton("Run test")
         self.run_button.setObjectName("lab_run")
+        self.run_button.setProperty("variant", "primary")  # the one accent button on this screen
         self.run_button.clicked.connect(self._on_run)
         self.stop_live_button = QPushButton("Stop")
         self.stop_live_button.setObjectName("lab_stop_live")
@@ -238,6 +239,7 @@ class BidirectionalLabScreen(QWidget):
         v.addLayout(form)
 
         self.session_row = QWidget()
+        self.session_row.setProperty("role", "plain")
         srow = QFormLayout(self.session_row)
         srow.setContentsMargins(0, 0, 0, 0)
         self.session_combo = QComboBox()
@@ -596,6 +598,7 @@ def _collapsible_group(title: str, inner: QWidget, *, expanded: bool = False) ->
     box.setCheckable(True)
     box.setChecked(expanded)
     layout = QVBoxLayout(box)
+    inner.setProperty("role", "plain")  # transparent: sit on the group's surface, not the page's
     layout.addWidget(inner)
     inner.setVisible(expanded)
     box.toggled.connect(inner.setVisible)
@@ -655,23 +658,25 @@ def _recorded_sessions() -> list[Path]:
 
 
 def _auto_price_from_session(session_dir: Path, tick: Decimal, *, sample: int = 600) -> Decimal | None:
-    """Pick a sensible starting price from a recorded session (median of early ticks).
+    """Pick a sensible starting price from a recorded session (median of its first trades).
 
     Read-only and best-effort: any failure just means "no auto price" and the user
-    can type one under More options. The median of the opening ticks is a price the
+    can type one under More options. The median of the opening trades is a price the
     market actually trades around, so a level set there is reliably reached.
+
+    This runs on the GUI thread (at startup, on a session change, and on Run), so it
+    must stay cheap: it reads only the first few trade files via ``first_trade_prices``
+    and never replays the session. Replaying scans every part file's schema, and the
+    newest session is usually the one still recording - 100k+ part files, which
+    froze the window for minutes.
     """
     try:
         from statistics import median
 
-        from app.labs.bidirectional.feed import replay_market_events
+        from app.labs.bidirectional.feed import first_trade_prices
         from app.labs.bidirectional.market import nearest_tick
 
-        prices: list[Decimal] = []
-        for event in replay_market_events(session_dir, max_events=sample):
-            price = event.last if event.last is not None else event.mid
-            if price is not None:
-                prices.append(price)
+        prices = first_trade_prices(session_dir, limit=sample)
         if not prices:
             return None
         return nearest_tick(median(prices), tick if tick > 0 else Decimal("0.25"))
