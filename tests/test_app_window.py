@@ -409,8 +409,9 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     cards = window.findChildren(Card)
     # 31 original cards + 6 for the two GOAL C pages (Autonomous Intelligence: 4,
     # Reports: 2) + 1 for the Sessions & Replay catalog + 1 for the Autonomous
-    # model-validation-evidence card. All built with the same Card widget.
-    assert len(cards) == 39
+    # model-validation-evidence card + 1 for the Sessions & Replay volatility-regime
+    # breakdown. All built with the same Card widget.
+    assert len(cards) == 40
     assert all(card.styleSheet() == "" for card in cards)
     assert all(card.graphicsEffect() is not None for card in cards)
 
@@ -420,7 +421,7 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
         for label in card.findChildren(QLabel)
         if label.property("role") == "section_title"
     ]
-    assert len(headings) == 39
+    assert len(headings) == 40
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")
@@ -918,19 +919,28 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
     """
     from dataclasses import replace
 
-    from app.gui.view_models import SessionRow
+    from app.gui.view_models import SessionRow, VolatilityBucket
 
     sessions = (
         SessionRow(session_id="session_20260806T212114Z", started_at="2026-08-06 21:21:14",
                    provenance="bookmap_l2", status="continuity: bounded queue overflow",
                    eligible=False, depth_updates=346_433, market_trades=27_479,
-                   paper_trades=9, net_pnl="86.06", regime="Overnight"),
+                   paper_trades=9, net_pnl="86.06", regime="Overnight", volatility="high"),
         SessionRow(session_id="session_20260805T202123Z", started_at="2026-08-05 20:21:23",
                    provenance="bookmap_l2", status="unclean shutdown",
                    eligible=False, depth_updates=24_739_006, market_trades=1_161_574,
-                   paper_trades=171, net_pnl="-1100.28", regime="New York open"),
+                   paper_trades=171, net_pnl="-1100.28", regime="New York open",
+                   volatility="unknown"),
     )
-    snapshot = replace(_rich_snapshot(), sessions=sessions, sessions_total=264)
+    buckets = (
+        VolatilityBucket(label="low"),
+        VolatilityBucket(label="normal"),
+        VolatilityBucket(label="high", sessions=1, paper_trades=9, net_pnl="86.06"),
+        VolatilityBucket(label="unknown", sessions=263, paper_trades=171, net_pnl="-1100.28"),
+    )
+    snapshot = replace(
+        _rich_snapshot(), sessions=sessions, sessions_total=264, volatility_buckets=buckets,
+    )
     window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window.navigate_to("Sessions and Replay")
@@ -938,16 +948,19 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
 
     table = window.stack.currentWidget().findChild(EvidenceTable, "sessions_catalog_table")
     assert table.rowCount() == 2
-    # Columns: Session, Started, Regime, Provenance, Status, Depth, Market trades,
-    # Paper trades, Paper P&L. Newest first; regime tags the session's character.
+    # Columns: Session, Started, Regime, Volatility, Provenance, Status, Depth,
+    # Market trades, Paper trades, Paper P&L. Newest first; regime tags the session's
+    # time-of-day character, volatility the walk-forward regime going into its day.
     assert table.item(0, 0).text() == "session_20260806T212114Z"
     assert table.item(0, 2).text() == "Overnight"
-    assert table.item(0, 7).text() == "9"
-    assert table.item(0, 8).text() == "+$86.06"
+    assert table.item(0, 3).text() == "High"
+    assert table.item(0, 8).text() == "9"
+    assert table.item(0, 9).text() == "+$86.06"
     assert table.item(1, 0).text() == "session_20260805T202123Z"
     assert table.item(1, 2).text() == "New York open"
-    assert table.item(1, 7).text() == "171"
-    assert table.item(1, 8).text() == "-$1,100.28"
+    assert table.item(1, 3).text() == "Unknown"
+    assert table.item(1, 8).text() == "171"
+    assert table.item(1, 9).text() == "-$1,100.28"
 
     summary = window.findChild(QLabel, "sessions_catalog_summary").text()
     assert "264 recorded session(s)" in summary
@@ -955,6 +968,55 @@ def test_sessions_screen_lists_recorded_catalog_newest_first(qtbot: object) -> N
     assert "171 paper trades" in body
     # the made/lost figure is surfaced and honestly labelled simulated
     assert "-$1,100.28" in body and "not real profit" in body
+    assert "[Overnight · high volatility]" in body
+    # the breakdown is mirrored in the accessible summary, as the catalog table is
+    assert "  High: 1 session(s) · 9 paper trades (+$86.06)" in body
+    assert "  Low: 0 session(s) · 0 paper trades (—)" in body
+
+    # The per-regime breakdown covers every session, with an empty bucket still shown.
+    breakdown = window.stack.currentWidget().findChild(EvidenceTable, "sessions_volatility_table")
+    assert [breakdown.item(row, 0).text() for row in range(breakdown.rowCount())] == [
+        "Low", "Normal", "High", "Unknown",
+    ]
+    assert [breakdown.item(0, column).text() for column in range(4)] == ["Low", "0", "0", "—"]
+    assert [breakdown.item(2, column).text() for column in range(4)] == ["High", "1", "9", "+$86.06"]
+    assert [breakdown.item(3, column).text() for column in range(4)] == [
+        "Unknown", "263", "171", "-$1,100.28",
+    ]
+    explanation = window.findChild(QLabel, "sessions_volatility_summary").text()
+    assert "not real profit" in explanation  # still labelled simulated
+    assert "1 of 264 session(s) have a volatility regime yet" in explanation
+
+
+def test_sessions_screen_without_volatility_data_says_so_instead_of_inventing_a_regime(
+    qtbot: object,
+) -> None:
+    """An older or cache-less snapshot reads '—' per row and 0 known, never a guess."""
+    from dataclasses import replace
+
+    from app.gui.view_models import SessionRow
+
+    snapshot = replace(
+        _rich_snapshot(),
+        sessions=(SessionRow(session_id="session_20260806T212114Z", regime="Overnight"),),
+        sessions_total=1,
+        volatility_buckets=(),
+    )
+    window = AppWindow(snapshot_provider=lambda: snapshot, start_timer=False)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.navigate_to("Sessions and Replay")
+    window.refresh_from_snapshot()
+
+    table = window.stack.currentWidget().findChild(EvidenceTable, "sessions_catalog_table")
+    assert table.item(0, 3).text() == "—"
+    breakdown = window.stack.currentWidget().findChild(EvidenceTable, "sessions_volatility_table")
+    assert breakdown.rowCount() == 0
+    explanation = window.findChild(QLabel, "sessions_volatility_summary").text()
+    # With sessions but no regime data the page says so; it must not blame missing history.
+    assert "Volatility regimes are not available for this catalog right now." in explanation
+    assert "first-hour history" not in explanation
+    # and the accessible summary carries no heading with nothing under it
+    assert "Paper results by volatility regime" not in window.stack.currentWidget().body.text()
 
 
 # --- the profitability meter must be visible in the GUI ---------------------------

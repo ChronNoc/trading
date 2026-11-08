@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sys
+import tempfile
 from typing import Callable
 
 # Baselines deliberately use the same deterministic platform as pytest.
@@ -40,6 +41,11 @@ STATES: tuple[tuple[str, SnapshotBuilder], ...] = (
 def main() -> int:
     """Replace every blessed baseline with a fresh deterministic capture."""
     app = QApplication.instance() or QApplication(sys.argv)
+    # Match tests/test_gui_visual_regression.py: the Lab reads an EMPTY recordings folder,
+    # so its screenshot cannot depend on machine speed or on what is recorded.
+    from app.gui import bidirectional_lab_screen
+
+    bidirectional_lab_screen._RAW_ROOT = Path(tempfile.gettempdir()) / f"mnq_no_recordings_{os.getpid()}"
     BASELINE_DIR.mkdir(parents=True, exist_ok=True)
     expected_names: set[str] = set()
 

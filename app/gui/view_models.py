@@ -466,6 +466,24 @@ class SessionRow:
     paper_trades: int = 0
     net_pnl: str = ""
     regime: str = ""
+    # Walk-forward volatility label (low / normal / high / unknown) for the trading
+    # day the session started in, known before that day opened. "" = not computed.
+    volatility: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class VolatilityBucket:
+    """Sessions, real paper trades and SIMULATED net P&L inside one volatility label.
+
+    Counted over every recorded session, not only the newest ones the catalog lists.
+    ``net_pnl`` is a signed decimal string of simulated paper P&L (delayed data,
+    never real profit); "" means the label's sessions took no real paper trades.
+    """
+
+    label: str
+    sessions: int = 0
+    paper_trades: int = 0
+    net_pnl: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -488,6 +506,7 @@ class AppSnapshot:
     # Sessions & Replay page can list previous sessions and their trade activity.
     sessions: tuple[SessionRow, ...] = ()
     sessions_total: int = 0
+    volatility_buckets: tuple[VolatilityBucket, ...] = ()
     next_action: str = ""
     blocker: str = ""
 

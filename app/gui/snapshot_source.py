@@ -81,6 +81,7 @@ class SnapshotSource:
         outcome_tracker: object | None = None,
         raw_root: Path | None = None,
         paper_ledger_path: Path | None = None,
+        volatility_cache_path: Path | None = None,
     ) -> None:
         """Bind live components and the lightweight offline model-state source."""
         self._controller = controller
@@ -99,6 +100,11 @@ class SnapshotSource:
         # (the backend passes it), so tests never scan the real data/raw tree.
         self._raw_root = raw_root
         self._ledger_path = paper_ledger_path
+        # Walk-forward volatility labels come from a small JSON cache that is filled
+        # OFFLINE (python -m tools.session_volatility). The catalog only ever reads it,
+        # so no parquet is opened while the backend is recording.
+        self._volatility_cache_path = volatility_cache_path
+        self._volatility_buckets_cache: tuple = ()
         self._sessions_cache: tuple = ()
         self._sessions_total = 0
         self._sessions_scanned_at = -1.0
@@ -145,6 +151,7 @@ class SnapshotSource:
                 challengers=self._challengers(),
                 sessions=self._sessions()[0],
                 sessions_total=self._sessions()[1],
+                volatility_buckets=self._volatility_buckets_cache,
                 next_action=self._next_action(),
                 blocker=self._blocker(),
             )
@@ -167,18 +174,39 @@ class SnapshotSource:
         if self._sessions_scanned_at >= 0 and now - self._sessions_scanned_at < ttl_seconds:
             return self._sessions_cache, self._sessions_total
         try:
-            self._sessions_cache, self._sessions_total = self._build_sessions(limit)
+            (
+                self._sessions_cache,
+                self._sessions_total,
+                self._volatility_buckets_cache,
+            ) = self._build_sessions(limit)
         except Exception:  # noqa: BLE001 - a catalog read must never break the snapshot
             pass
         self._sessions_scanned_at = now
         return self._sessions_cache, self._sessions_total
 
-    def _build_sessions(self, limit: int) -> tuple[tuple, int]:
-        from app.gui.view_models import SessionRow
+    def _build_sessions(self, limit: int) -> tuple[tuple, int, tuple]:
+        from app.gui.view_models import SessionRow, VolatilityBucket
         from app.research.session_catalog import build_catalog
 
         entries = build_catalog(self._raw_root)  # type: ignore[arg-type]
         paper = self._paper_stats_by_session()
+        # The volatility labels are an add-on to the catalog: if anything about them
+        # fails, only the Volatility column and its totals degrade (blank / empty) and
+        # the catalog itself still lists every session.
+        labelled = False
+        labels: dict[str, str] = {}
+        try:
+            from app.research.session_volatility import label_for_session_start
+
+            table = self._volatility_table()
+            for entry in entries:
+                try:
+                    labels[entry.session_id] = label_for_session_start(table, entry.utc_start).label
+                except Exception:  # noqa: BLE001 - one unreadable session is "unknown", not a failure
+                    labels[entry.session_id] = "unknown"
+            labelled = True
+        except Exception:  # noqa: BLE001 - never let the volatility column drop the catalog
+            labels = {}
         ordered = sorted(entries, key=lambda entry: entry.session_id, reverse=True)  # newest first
         rows = tuple(
             SessionRow(
@@ -195,10 +223,57 @@ class SnapshotSource:
                 net_pnl=(str(paper[entry.session_id][1])
                          if entry.session_id in paper else ""),
                 regime=self._session_regime(entry.utc_start),
+                volatility=labels.get(entry.session_id, ""),
             )
             for entry in ordered[:limit]
         )
-        return rows, len(entries)
+        buckets: tuple = ()
+        if labelled:
+            # Totals cover EVERY recorded session, not just the rows the catalog lists, so a
+            # label's numbers never depend on how many sessions the table happens to show.
+            # They are part of the same add-on: a failure here also degrades only the
+            # breakdown, never the catalog. With no sessions the four buckets are all zero.
+            try:
+                from app.research.session_volatility import totals_by_label
+
+                totals = totals_by_label(
+                    (
+                        labels[entry.session_id],
+                        paper[entry.session_id][0] if entry.session_id in paper else 0,
+                        str(paper[entry.session_id][1]) if entry.session_id in paper else "",
+                    )
+                    for entry in entries
+                )
+                buckets = tuple(
+                    VolatilityBucket(
+                        label=label,
+                        sessions=total.sessions,
+                        paper_trades=total.paper_trades,
+                        net_pnl=str(total.net_pnl) if total.paper_trades else "",
+                    )
+                    for label, total in totals.items()
+                )
+            except Exception:  # noqa: BLE001 - the breakdown is optional; the catalog is not
+                buckets = ()
+        return rows, len(entries), buckets
+
+    def _volatility_table(self):
+        """Walk-forward volatility table from the offline cache (empty if there is none).
+
+        A missing or damaged cache just means every session reads "unknown"; the
+        catalog never breaks over it.
+        """
+        from app.research.session_volatility import (
+            VolatilityRegimeTable,
+            default_cache_path,
+            load_regime_table,
+        )
+
+        try:
+            path = self._volatility_cache_path or default_cache_path(self._raw_root)  # type: ignore[arg-type]
+            return load_regime_table(path)
+        except Exception:  # noqa: BLE001 - a bad cache must never break the snapshot
+            return VolatilityRegimeTable({})
 
     def _session_regime(self, utc_start: str) -> str:
         """Map a session's UTC start to its trading-session window (regime bucket).

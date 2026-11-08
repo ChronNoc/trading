@@ -154,6 +154,35 @@ def test_helper_functions_report_dol_control_and_cvd() -> None:
     assert calculate_cvd_delta(snapshots) == Decimal("-270")
 
 
+def test_initial_balance_levels_are_targets_only_when_switched_on() -> None:
+    """The first-hour high/low are opt-in, so default behaviour must not change."""
+    snapshots = _long_absorption_snapshots()
+    context = OrderFlowPlanContext(
+        direction=TradeDirection.LONG,
+        levels=StrategyLevels(ib_high=Decimal("100.75"), manual_levels=(Decimal("101.50"),)),
+        defended_level_price=Decimal("100.00"),
+        stop_price=Decimal("99.25"),
+        session_open_timestamp_ns=0,
+    )
+
+    default = find_direction_of_liquidity(snapshots, context)
+    enabled = find_direction_of_liquidity(
+        snapshots, context, OrderFlowThresholds(use_initial_balance_levels=True),
+    )
+
+    assert default is not None and default.source == "manual level"
+    assert enabled is not None and enabled.source == "initial balance high"
+    assert enabled.target_price == Decimal("100.75")
+
+
+def test_switching_on_initial_balance_levels_changes_nothing_when_none_exist() -> None:
+    snapshots = _long_absorption_snapshots()  # _long_context carries no first-hour levels
+
+    assert find_direction_of_liquidity(
+        snapshots, _long_context(), OrderFlowThresholds(use_initial_balance_levels=True),
+    ) == find_direction_of_liquidity(snapshots, _long_context())
+
+
 def _condition(result: SetupEvaluationResult, key: str) -> SetupConditionResult:
     return next(condition for condition in result.conditions if condition.key == key)
 

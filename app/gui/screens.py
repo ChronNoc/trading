@@ -389,16 +389,35 @@ class SessionsReplayScreen(DashboardScreen):
     def __init__(self) -> None:
         super().__init__("screen_sessions_replay", "Sessions and Replay", "Recorded evidence is immutable. Active or damaged sessions are never offered as replay truth.")
         current = Card("Current capture session", "sessions_current_card"); self.session = StatTile("Session ID", "sessions_id"); self.recording = StatusBadge("NOT RECORDING", "sessions_recording"); self.drops = StatTile("Session drops", "sessions_drops"); row = QHBoxLayout(); row.addWidget(self.session, 2); row.addWidget(self.drops); row.addWidget(self.recording); current.body.addLayout(row); self.content_layout.addWidget(current)
-        catalog = Card("Recorded session catalog", "sessions_catalog_card"); self.catalog_summary = _value("sessions_catalog_summary"); self.catalog_summary.setWordWrap(True); catalog.body.addWidget(self.catalog_summary); self.catalog_table = EvidenceTable(("Session", "Started (UTC)", "Regime", "Provenance", "Status", "Depth", "Market trades", "Paper trades", "Paper P&L"), "sessions_catalog_table"); catalog.body.addWidget(self.catalog_table); self.content_layout.addWidget(catalog)
+        catalog = Card("Recorded session catalog", "sessions_catalog_card"); self.catalog_summary = _value("sessions_catalog_summary"); self.catalog_summary.setWordWrap(True); catalog.body.addWidget(self.catalog_summary); self.catalog_table = EvidenceTable(("Session", "Started (UTC)", "Regime", "Volatility", "Provenance", "Status", "Depth", "Market trades", "Paper trades", "Paper P&L"), "sessions_catalog_table"); catalog.body.addWidget(self.catalog_table); self.content_layout.addWidget(catalog)
+        volatility = Card("Paper results by volatility regime", "sessions_volatility_card")
+        self.volatility_summary = _value("sessions_volatility_summary")
+        self.volatility_summary.setWordWrap(True)
+        volatility.body.addWidget(self.volatility_summary)
+        self.volatility_table = EvidenceTable(("Volatility", "Sessions", "Paper trades", "Paper P&L"), "sessions_volatility_table")
+        volatility.body.addWidget(self.volatility_table)
+        self.content_layout.addWidget(volatility)
         rules = Card("Eligibility rules", "sessions_rules_card"); rules_text = QLabel("Finalized + clean shutdown + zero sequence loss + supported provenance.\nAny overflow, dropped event, incompatible schema, or active writer keeps a session ineligible."); rules_text.setWordWrap(True); rules.body.addWidget(rules_text); self.content_layout.addWidget(rules)
 
     def render(self, snapshot: AppSnapshot) -> None:
         capture = snapshot.capture
         self.session.set_value(capture.session_id or "none"); self.drops.set_value(f"{capture.current_session_drops:,}", "current segment"); self.recording.set_status("RECORDING" if capture.recording else "NOT RECORDING", "ok" if capture.recording else "neutral")
         self.catalog_summary.setText(f"{snapshot.sessions_total:,} recorded session(s); showing newest {len(snapshot.sessions)} (newest first)." if snapshot.sessions_total else "No recorded sessions found yet.")
-        self.catalog_table.set_rows(tuple((s.session_id, s.started_at, s.regime or "—", s.provenance, s.status, f"{s.depth_updates:,}", f"{s.market_trades:,}", str(s.paper_trades), _session_pnl(s.net_pnl)) for s in snapshot.sessions))
+        self.catalog_table.set_rows(tuple((s.session_id, s.started_at, s.regime or "—", s.volatility.capitalize() or "—", s.provenance, s.status, f"{s.depth_updates:,}", f"{s.market_trades:,}", f"{s.paper_trades:,}", _session_pnl(s.net_pnl)) for s in snapshot.sessions))
+        regime_known = sum(bucket.sessions for bucket in snapshot.volatility_buckets if bucket.label != "unknown")
+        if not snapshot.sessions_total:
+            regime_text = "No recorded sessions found yet."
+        elif not snapshot.volatility_buckets:
+            regime_text = "Volatility regimes are not available for this catalog right now."
+        else:
+            regime_text = f"{regime_known:,} of {snapshot.sessions_total:,} session(s) have a volatility regime yet; the rest stay unknown until enough prior first-hour history exists."
+        self.volatility_summary.setText(
+            "Simulated paper results by the volatility regime going into each session's trading day (delayed data - not real profit). "
+            + regime_text
+        )
+        self.volatility_table.set_rows(tuple((bucket.label.capitalize(), f"{bucket.sessions:,}", f"{bucket.paper_trades:,}", _session_pnl(bucket.net_pnl)) for bucket in snapshot.volatility_buckets))
         total_pnl = sum((Decimal(s.net_pnl) for s in snapshot.sessions if s.net_pnl), Decimal("0"))
-        self.set_summary([f"Current session: {capture.session_id or 'none'}", f"Recording: {'yes' if capture.recording else 'no'}   Session drops: {capture.current_session_drops:,}", "", f"Recorded catalog: {snapshot.sessions_total:,} session(s).   Simulated paper P&L across shown sessions: {_session_pnl(str(total_pnl))}  (delayed data - not real profit).", *[f"  {s.session_id}  {s.started_at}  [{s.regime or '—'}]  {s.status}  · {s.paper_trades} paper trades  ({_session_pnl(s.net_pnl)})" for s in snapshot.sessions[:10]], "", "An actively recording session is never offered as finalized replay evidence."])
+        self.set_summary([f"Current session: {capture.session_id or 'none'}", f"Recording: {'yes' if capture.recording else 'no'}   Session drops: {capture.current_session_drops:,}", "", f"Recorded catalog: {snapshot.sessions_total:,} session(s).   Simulated paper P&L across shown sessions: {_session_pnl(str(total_pnl))}  (delayed data - not real profit).", *[f"  {s.session_id}  {s.started_at}  [{s.regime or '—'} · {s.volatility or '—'} volatility]  {s.status}  · {s.paper_trades:,} paper trades  ({_session_pnl(s.net_pnl)})" for s in snapshot.sessions[:10]], *(["", "Paper results by volatility regime (simulated, delayed data - not real profit):", *[f"  {bucket.label.capitalize()}: {bucket.sessions:,} session(s) · {bucket.paper_trades:,} paper trades ({_session_pnl(bucket.net_pnl)})" for bucket in snapshot.volatility_buckets]] if snapshot.volatility_buckets else []), "", "An actively recording session is never offered as finalized replay evidence."])
 
 
 class ResearchHealthScreen(DashboardScreen):

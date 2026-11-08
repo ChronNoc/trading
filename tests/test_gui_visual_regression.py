@@ -57,6 +57,20 @@ EXPECTED_FIXTURE_NAMES = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _lab_reads_no_recordings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Pin the Lab to an empty recordings folder.
+
+    Its automatic starting price appears 200 ms after the screen is built, so a
+    screenshot that depends on it depends on machine speed and on whatever happens to
+    be recorded. With no recordings the note is never drawn, so the baseline is
+    deterministic. The auto price itself is covered in tests/test_lab_auto_price.py.
+    """
+    from app.gui import bidirectional_lab_screen
+
+    monkeypatch.setattr(bidirectional_lab_screen, "_RAW_ROOT", tmp_path / "no_recordings")
+
+
 def test_gui_baseline_inventory_is_exact() -> None:
     """Require one and only one blessed PNG for each state/screen pair."""
     actual_names = {path.name for path in BASELINE_DIR.glob("*.png")}

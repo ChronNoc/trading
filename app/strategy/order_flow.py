@@ -48,6 +48,11 @@ class StrategyLevels:
     overnight_low: Decimal | None = None
     manual_levels: tuple[Decimal, ...] = ()
     psychological_interval: Decimal | None = Decimal("100")
+    # High/low of the first RTH hour (09:30-10:30 New York). Known only once that hour
+    # has finished, so both are None before 10:30. They are candidate targets only when
+    # OrderFlowThresholds.use_initial_balance_levels is switched on.
+    ib_high: Decimal | None = None
+    ib_low: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +109,11 @@ class OrderFlowThresholds:
     # price naturally spans many ticks (structurally unstable). Canonical
     # leaves this 0 (whole window); the relaxed research profile sets it.
     block_stability_tail_seconds: Decimal = Decimal("0")
+    # When True, the first-RTH-hour high/low (once that hour is complete) join the
+    # prior-day and overnight levels as candidate draw-on-liquidity targets. Off by
+    # default so the canonical and relaxed profiles behave exactly as before; turning
+    # it on is a visible profile choice that needs its own out-of-sample check.
+    use_initial_balance_levels: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +220,14 @@ def find_direction_of_liquidity(
     candidates: list[tuple[Decimal, str]] = []
     if context.target_price is not None:
         candidates.append((context.target_price, "explicit target"))
-    candidates.extend(_level_candidates(current_price, context.direction, context.levels))
+    candidates.extend(
+        _level_candidates(
+            current_price,
+            context.direction,
+            context.levels,
+            include_initial_balance=thresholds.use_initial_balance_levels,
+        ),
+    )
     candidates.extend(_block_target_candidates(snapshots[-1], context.direction, thresholds))
 
     if context.levels.psychological_interval is not None and context.levels.psychological_interval > Decimal("0"):
@@ -714,6 +731,8 @@ def _level_candidates(
     current_price: Decimal,
     direction: TradeDirection,
     levels: StrategyLevels,
+    *,
+    include_initial_balance: bool = False,
 ) -> tuple[tuple[Decimal, str], ...]:
     named_levels = (
         (levels.prior_day_high, "prior day high"),
@@ -721,6 +740,14 @@ def _level_candidates(
         (levels.overnight_high, "overnight high"),
         (levels.overnight_low, "overnight low"),
         *tuple((level, "manual level") for level in levels.manual_levels),
+        *(
+            (
+                (levels.ib_high, "initial balance high"),
+                (levels.ib_low, "initial balance low"),
+            )
+            if include_initial_balance
+            else ()
+        ),
     )
     if direction == TradeDirection.LONG:
         return tuple((price, source) for price, source in named_levels if price is not None and price > current_price)

@@ -24,14 +24,21 @@ from app.strategy.order_flow import (
 NEW_YORK = ZoneInfo("America/New_York")
 RTH_OPEN = time(9, 30)
 RTH_CLOSE = time(16, 0)
+INITIAL_BALANCE_END = time(10, 30)
 OVERNIGHT_START = time(18, 0)
 
 
 @dataclass(slots=True)
 class CausalLevelTracker:
-    """Track prior-day and overnight levels without looking into the future."""
+    """Track prior-day, overnight and first-hour levels without looking into the future.
+
+    The first-hour ("initial balance") high/low covers 09:30-10:30 New York and is
+    reported only once that hour is over, so a level a strategy reads never moves
+    afterwards.
+    """
 
     _rth_levels: dict[date, tuple[Decimal, Decimal]] = field(default_factory=dict)
+    _initial_balance: dict[date, tuple[Decimal, Decimal]] = field(default_factory=dict)
     _overnight_trading_day: date | None = None
     _overnight_high: Decimal | None = None
     _overnight_low: Decimal | None = None
@@ -60,6 +67,14 @@ class CausalLevelTracker:
                 self._rth_levels[local.date()] = (max(prior[0], price), min(prior[1], price))
             self._prune_rth_levels(local.date())
 
+        if RTH_OPEN <= local_time < INITIAL_BALANCE_END:
+            first_hour = self._initial_balance.get(local.date())
+            if first_hour is None:
+                self._initial_balance[local.date()] = (price, price)
+            else:
+                self._initial_balance[local.date()] = (max(first_hour[0], price), min(first_hour[1], price))
+            self._prune_initial_balance(local.date())
+
     def levels_at(self, timestamp_ns: int) -> StrategyLevels:
         """Return only higher-timeframe levels known by ``timestamp_ns``."""
         local = _datetime_from_ns(timestamp_ns).astimezone(NEW_YORK)
@@ -67,6 +82,15 @@ class CausalLevelTracker:
         prior_dates = [session_date for session_date in self._rth_levels if session_date < trading_day]
         prior = self._rth_levels[max(prior_dates)] if prior_dates else (None, None)
         overnight_current = self._overnight_trading_day == trading_day
+        local_time = local.timetz().replace(tzinfo=None)
+        # Only once the first hour has finished, and only for that same trading day:
+        # before 10:30 it is still forming, and after the 18:00 roll it belongs to the
+        # next day, whose own first hour has not happened yet.
+        first_hour = (
+            self._initial_balance.get(trading_day)
+            if INITIAL_BALANCE_END <= local_time < OVERNIGHT_START
+            else None
+        )
         return StrategyLevels(
             prior_day_high=prior[0],
             prior_day_low=prior[1],
@@ -74,6 +98,8 @@ class CausalLevelTracker:
             overnight_low=self._overnight_low if overnight_current else None,
             manual_levels=(),
             psychological_interval=Decimal("100"),
+            ib_high=first_hour[0] if first_hour else None,
+            ib_low=first_hour[1] if first_hour else None,
         )
 
     def session_open_timestamp_ns(self, timestamp_ns: int) -> int:
@@ -88,6 +114,14 @@ class CausalLevelTracker:
         self._rth_levels = {
             session_date: levels
             for session_date, levels in self._rth_levels.items()
+            if session_date >= cutoff
+        }
+
+    def _prune_initial_balance(self, current_date: date) -> None:
+        cutoff = current_date - timedelta(days=10)
+        self._initial_balance = {
+            session_date: levels
+            for session_date, levels in self._initial_balance.items()
             if session_date >= cutoff
         }
 
@@ -110,6 +144,8 @@ class DerivedContext:
             "prior_day_low": _decimal_text(levels.prior_day_low),
             "overnight_high": _decimal_text(levels.overnight_high),
             "overnight_low": _decimal_text(levels.overnight_low),
+            "ib_high": _decimal_text(levels.ib_high),
+            "ib_low": _decimal_text(levels.ib_low),
             "psychological_interval": _decimal_text(levels.psychological_interval),
             "defended_level_price": _decimal_text(self.context.defended_level_price),
             "stop_price": _decimal_text(self.context.stop_price),

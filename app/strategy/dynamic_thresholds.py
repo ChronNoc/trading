@@ -70,9 +70,19 @@ class DynamicThresholdEngine:
         baseline: RollingBaseline | None,
         *,
         pass_when: str = "gte",
+        scale_reference: Decimal | None = None,
     ) -> ThresholdResult:
-        """Evaluate one dynamic threshold and include raw/normalized/reason fields."""
-        threshold, provisional, reason = self._threshold(feature_name, rule, baseline)
+        """Evaluate one dynamic threshold and include raw/normalized/reason fields.
+
+        ``scale_reference`` feeds the ``reference_multiple`` rule kind: a past-only
+        scale in the SAME unit as ``raw_value`` (for example the walk-forward typical
+        first-hour range, ``VolatilityRegimeTable.typical_range_for``, converted to
+        ticks). A threshold written as a fraction of that scale follows the market's
+        volatility instead of staying a fixed number of ticks.
+        """
+        threshold, provisional, reason = self._threshold(
+            feature_name, rule, baseline, scale_reference,
+        )
         normalized = _normalize(raw_value, baseline)
         passed = raw_value >= threshold if pass_when == "gte" else raw_value <= threshold
         return ThresholdResult(
@@ -90,8 +100,16 @@ class DynamicThresholdEngine:
         feature_name: str,
         rule: dict[str, object] | None,
         baseline: RollingBaseline | None,
+        scale_reference: Decimal | None = None,
     ) -> tuple[Decimal, bool, str]:
         fallback = self.conservative_fallbacks.get(feature_name, Decimal("0"))
+        if rule and str(rule.get("kind", "fallback")) == "reference_multiple":
+            # Scaled by a past-only reference, so it needs no baseline of its own. With
+            # no usable reference it falls back to the conservative value, never a guess.
+            if scale_reference is None or scale_reference <= Decimal("0"):
+                return fallback, True, "using conservative fallback; no scale reference available"
+            multiple = Decimal(str(rule.get("multiple", "1")))
+            return scale_reference * multiple, False, f"using scale reference {scale_reference} x {multiple}"
         if baseline is None or not baseline.values:
             return fallback, True, "using conservative fallback; no baseline data available"
 
