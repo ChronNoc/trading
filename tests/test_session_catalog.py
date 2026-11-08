@@ -288,3 +288,83 @@ def test_missing_session_drop_figure_fails_closed() -> None:
     entry = classify_manifest(manifest, Path("m.json"))
     assert entry.dropped_message_count == 5_000
     assert entry.eligible_for_order_flow_replay is False
+
+
+# --- sessions made by an offline vendor-file importer (the narrow, explicit path) -------------
+
+
+def _import_manifest(**source_overrides: object) -> dict:
+    """What app/importers/databento.py writes: measured evidence, and no invented bridge."""
+    source = {
+        "vendor": "databento",
+        "importer": "app/importers/databento.py",
+        "quality_verified": True,
+        "allow_model_training": False,
+        "trades_with_aggressor_side": 266,
+        "trades_left_out_no_aggressor": 0,
+    }
+    source.update(source_overrides)
+    return {
+        "session_id": "session_20250715T000000Z__databento",
+        "source_mode": "replay",
+        "provenance": "REAL_REPLAY",
+        "synthetic": False,
+        "clean_shutdown": True,
+        "utc_end": "2025-07-15T01:00:00+00:00",
+        "continuity_status": "continuous",
+        "event_counts": {"depth_updates": 11418, "trades": 266},
+        "dropped_message_count": 0,
+        "data_quality": {"session_dropped_messages": 0},
+        "storage": {"format": "closed_parquet_single_files_v1"},
+        "import_source": source,
+    }
+
+
+def test_a_verified_import_is_replayable_but_training_waits_for_the_explicit_opt_in() -> None:
+    entry = classify_manifest(_import_manifest(), Path("m.json"))
+    assert entry.eligible_for_analysis and entry.eligible_for_order_flow_replay
+    assert entry.eligible_for_model_training is False
+    assert entry.model_training_reasons == ("imported session: model training was not enabled for this import (opt-in)",)
+    assert entry.valid_for_live_decisions is False
+
+
+def test_an_import_with_the_opt_in_and_clean_evidence_may_train_without_any_bridge_fields() -> None:
+    manifest = _import_manifest(allow_model_training=True)
+    assert "bridge_provenance" not in manifest  # nothing about a live bridge is invented
+    entry = classify_manifest(manifest, Path("m.json"))
+    assert entry.eligible_for_model_training is True and entry.model_training_reasons == ()
+
+
+def test_an_import_whose_own_quality_check_failed_is_blocked_for_replay_and_training() -> None:
+    entry = classify_manifest(_import_manifest(quality_verified=False, allow_model_training=True), Path("m.json"))
+    assert entry.eligible_for_analysis is True  # still catalogued and visible
+    assert entry.eligible_for_order_flow_replay is False and entry.eligible_for_model_training is False
+    assert "imported session: the importer found quality problems with this data" in entry.reasons
+
+
+def test_an_import_missing_an_aggressor_side_on_some_trades_cannot_train_even_after_opt_in() -> None:
+    entry = classify_manifest(
+        _import_manifest(allow_model_training=True, trades_with_aggressor_side=265, trades_left_out_no_aggressor=1),
+        Path("m.json"),
+    )
+    assert entry.eligible_for_order_flow_replay is True
+    assert entry.eligible_for_model_training is False
+    assert any("aggressor-side coverage incomplete (265/266 trades, 1 left out)" in r for r in entry.model_training_reasons)
+
+
+def test_a_manifest_that_merely_claims_another_vendor_gets_no_import_path() -> None:
+    """Only a named vendor importer takes the import rules; anything else keeps the bridge rules."""
+    entry = classify_manifest(_import_manifest(vendor="somebody-else", allow_model_training=True), Path("m.json"))
+    assert entry.eligible_for_model_training is False
+    assert "model training requires accepted bridge protocol 1.2 or newer" in entry.model_training_reasons
+
+
+def test_a_live_recording_is_judged_by_the_bridge_rules_exactly_as_before() -> None:
+    complete = classify_manifest(_manifest(), Path("m.json"))
+    assert complete.eligible_for_model_training is True and complete.model_training_reasons == ()
+    manifest = _manifest()
+    manifest.pop("bridge_provenance", None)
+    entry = classify_manifest(manifest, Path("m.json"))
+    assert entry.eligible_for_model_training is False
+    assert "model training requires accepted bridge protocol 1.2 or newer" in entry.model_training_reasons
+    assert not any("imported session" in reason for reason in entry.model_training_reasons)

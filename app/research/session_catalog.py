@@ -127,6 +127,10 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
             f"provenance {provenance}: source mode was never declared "
             "(missing delayed_mode/realtime_started control event)"
         )
+    vendor_import = _vendor_import_block(manifest)
+    import_unverified = vendor_import is not None and vendor_import.get("quality_verified") is not True
+    if import_unverified:
+        reasons.append("imported session: the importer found quality problems with this data")
 
     eligible = (
         finalized
@@ -147,49 +151,16 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         and duplicate == 0
         and missed_trades == 0
         and sequence_gaps == 0
+        and not import_unverified
     )
-
-    bridge_value = manifest.get("bridge_provenance", {})
-    bridge = cast(dict[str, object], bridge_value) if isinstance(bridge_value, dict) else {}
-    protocol_version = str(bridge.get("protocol_version") or "")
-    provider = str(bridge.get("provider") or "").strip()
-    declared_raw = bridge.get("declared_capabilities", [])
-    declared = {
-        str(capability).strip()
-        for capability in declared_raw
-        if str(capability).strip()
-    } if isinstance(declared_raw, list) else set()
-    observed_value = bridge.get("observed", {})
-    observed = cast(dict[str, object], observed_value) if isinstance(observed_value, dict) else {}
-    observed_aggressor = _as_int(observed.get("trades_with_aggressor_side")) or 0
-    required_capabilities = {"aggregated_depth", "trades", "aggressor_side", "source_timestamps"}
 
     model_reasons = list(reasons)
     if not order_flow_eligible and not model_reasons:
         model_reasons.append("session did not pass the order-flow quality gate")
-    version_parts = protocol_version.split(".")
-    protocol_ok = (
-        len(version_parts) >= 2
-        and version_parts[0].isdigit()
-        and version_parts[1].isdigit()
-        and int(version_parts[0]) == 1
-        and int(version_parts[1]) >= 2
-    )
-    if not protocol_ok:
-        model_reasons.append("model training requires accepted bridge protocol 1.2 or newer")
-    if not bool(bridge.get("handshake_accepted", False)):
-        model_reasons.append("accepted bridge handshake provenance is missing")
-    if not provider:
-        model_reasons.append("bridge provider is missing")
-    missing_capabilities = sorted(required_capabilities - declared)
-    if missing_capabilities:
-        model_reasons.append(
-            "bridge did not declare required capabilities: " + ", ".join(missing_capabilities)
-        )
-    if trades > 0 and observed_aggressor != trades:
-        model_reasons.append(
-            f"aggressor-side coverage incomplete: {observed_aggressor}/{trades} trades"
-        )
+    if vendor_import is None:
+        model_reasons.extend(_bridge_training_reasons(manifest, trades))
+    else:
+        model_reasons.extend(_vendor_import_training_reasons(vendor_import, trades))
     storage_value = manifest.get("storage", {})
     storage = cast(dict[str, object], storage_value) if isinstance(storage_value, dict) else {}
     if not finalized or not storage:
@@ -221,6 +192,86 @@ def classify_manifest(manifest: dict[str, object], manifest_path: Path) -> Sessi
         reasons=tuple(reasons),
         model_training_reasons=tuple(dict.fromkeys(model_reasons)),
     )
+
+
+def _bridge_training_reasons(manifest: dict[str, object], trades: int) -> list[str]:
+    """Why a LIVE-recorded session is not yet trusted for model training (bridge provenance)."""
+    bridge_value = manifest.get("bridge_provenance", {})
+    bridge = cast(dict[str, object], bridge_value) if isinstance(bridge_value, dict) else {}
+    protocol_version = str(bridge.get("protocol_version") or "")
+    provider = str(bridge.get("provider") or "").strip()
+    declared_raw = bridge.get("declared_capabilities", [])
+    declared = {
+        str(capability).strip()
+        for capability in declared_raw
+        if str(capability).strip()
+    } if isinstance(declared_raw, list) else set()
+    observed_value = bridge.get("observed", {})
+    observed = cast(dict[str, object], observed_value) if isinstance(observed_value, dict) else {}
+    observed_aggressor = _as_int(observed.get("trades_with_aggressor_side")) or 0
+    required_capabilities = {"aggregated_depth", "trades", "aggressor_side", "source_timestamps"}
+
+    reasons: list[str] = []
+    version_parts = protocol_version.split(".")
+    protocol_ok = (
+        len(version_parts) >= 2
+        and version_parts[0].isdigit()
+        and version_parts[1].isdigit()
+        and int(version_parts[0]) == 1
+        and int(version_parts[1]) >= 2
+    )
+    if not protocol_ok:
+        reasons.append("model training requires accepted bridge protocol 1.2 or newer")
+    if not bool(bridge.get("handshake_accepted", False)):
+        reasons.append("accepted bridge handshake provenance is missing")
+    if not provider:
+        reasons.append("bridge provider is missing")
+    missing_capabilities = sorted(required_capabilities - declared)
+    if missing_capabilities:
+        reasons.append(
+            "bridge did not declare required capabilities: " + ", ".join(missing_capabilities)
+        )
+    if trades > 0 and observed_aggressor != trades:
+        reasons.append(
+            f"aggressor-side coverage incomplete: {observed_aggressor}/{trades} trades"
+        )
+    return reasons
+
+
+VENDOR_IMPORT_VENDORS = frozenset({"databento"})
+
+
+def _vendor_import_block(manifest: dict[str, object]) -> dict[str, object] | None:
+    """The ``import_source`` block of a session made by an offline vendor-file importer, else None.
+
+    Only a manifest that names a known vendor takes the import path below; every other
+    manifest (every live recording) keeps the bridge-provenance rules unchanged.
+    """
+    value = manifest.get("import_source")
+    if not isinstance(value, dict):
+        return None
+    block = cast(dict[str, object], value)
+    return block if str(block.get("vendor") or "") in VENDOR_IMPORT_VENDORS else None
+
+
+def _vendor_import_training_reasons(block: dict[str, object], trades: int) -> list[str]:
+    """Why an IMPORTED session is not trusted for model training.
+
+    An import has no live bridge, so the bridge rules cannot apply and are not faked. They are
+    replaced by evidence the importer measured (its quality verdict already blocks replay above,
+    so it blocks training too), and training additionally needs an explicit opt-in made when
+    the files were imported (the default is off).
+    """
+    reasons: list[str] = []
+    if block.get("allow_model_training") is not True:
+        reasons.append("imported session: model training was not enabled for this import (opt-in)")
+    covered = _as_int(block.get("trades_with_aggressor_side")) or 0
+    left_out = _as_int(block.get("trades_left_out_no_aggressor")) or 0
+    if trades > 0 and (covered != trades or left_out > 0):
+        reasons.append(
+            f"imported session: aggressor-side coverage incomplete ({covered}/{trades} trades, {left_out} left out)"
+        )
+    return reasons
 
 
 def _invalid_manifest_entry(manifest_path: Path, reason: str) -> SessionEntry:
