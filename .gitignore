@@ -63,6 +63,15 @@ v/
 # history far beyond the ~65KB precedent for this file type.
 data/processed/session_20260721T131608Z.decisions.jsonl
 data/processed/session_20260723T134503Z.decisions.jsonl
+# Seven more of the same kind, regenerated 2026-11-07 (4.8MB-146MB each). Four are over
+# GitHub's 100MB per-file limit, so a push that contains them is rejected outright.
+data/processed/session_20260804T124453Z.decisions.jsonl
+data/processed/session_20260805T154846Z.decisions.jsonl
+data/processed/session_20260806T144944Z.decisions.jsonl
+data/processed/session_20260807T010423Z.decisions.jsonl
+data/processed/session_20260807T010423Z__reprocessed.decisions.jsonl
+data/processed/session_20260811T210905Z.decisions.jsonl
+data/processed/session_20261106T152518Z.decisions.jsonl
 
 
 # Graphify architecture graph cache and generated output (regenerate: graphify update .)
