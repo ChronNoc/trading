@@ -15,6 +15,12 @@ typed (`Decimal` / `int` / enum), so a rule can never silently become a float.
 | Trailing threshold at +$1,100 highest close | $25,100 (trails, then locks) |
 | Max micro contracts | 20 |
 | Effective `max_contracts` (this project trades MNQ micros) | 20 |
+| Consistency rule (evaluation) | no single day above **40%** of total profit by default (50% is a paid checkout add-on); at least 3 days |
+| Daily Loss Limit | optional checkout setting (On/Off); amount not stated on the evaluation or drawdown pages |
+
+Re-read from Lucid's own help pages on 2026-11-08. The July read recorded a 50% consistency rule and
+no daily loss limit; both were corrected here (the stricter 40% is used). See `docs/RISK_GOVERNOR.md`
+for why this account was chosen and for the account-level rules built on these numbers.
 
 The trailing max-loss line follows the highest *closing* balance up to a lock
 point and then stops trailing — `trailing_threshold(highest_closing_balance)`

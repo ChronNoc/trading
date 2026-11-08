@@ -33,10 +33,12 @@ from typing import Mapping
 from app.market.state import MarketState
 from app.paper.execution import ExecutionConfig, MarketTick, size_intent
 from app.paper.models import (
+    MNQ_TICK_SIZE,
     CloseReason,
     Direction,
     PaperOrderIntent,
     PaperTrade,
+    RiskDecision,
     SetupProvenance,
 )
 from app.research.causal_context import (
@@ -50,6 +52,10 @@ from app.strategy.order_flow import OrderFlowThresholds, TradeDirection, evaluat
 # A candidate the strategy did not fully specify is never repaired with guesses.
 REASON_NO_LEVELS = "strategy_levels_incomplete"
 REASON_INVALID_GEOMETRY = "invalid_stop_target_geometry"
+
+# While flat, the governor re-reads the account about once a second of market time (it
+# evaluates every event while a position is open).
+_GOVERNOR_IDLE_CHECK_NS = 1_000_000_000
 
 STATE_WAITING = "WAITING_FOR_DATA"
 STATE_WARMING = "WARMING_UP"
@@ -262,6 +268,7 @@ class DelayedPaperEngine:
         account_profile: object | None = None,
         is_synthetic_fixture: bool = False,
         model_loader: object | None = None,
+        governor_policy: object | None = None,
     ) -> None:
         """Create an engine that begins evaluating as soon as warm-up completes.
 
@@ -350,6 +357,17 @@ class DelayedPaperEngine:
         self._gap_pending = False
         self._rewarm_remaining = 0
         self._peak_balance = self._profile.account_size  # type: ignore[union-attr]
+        # Optional Lucid-fitted risk governor (config/risk_governor.yaml). It only ever ADDS
+        # restrictions on top of the generic gate and sizing: the stricter always wins.
+        self._governor = None
+        self._book = None
+        self._last_booked_entry_ns = 0
+        self._governor_checked_ns = 0
+        if governor_policy is not None:
+            from app.risk.lucid_governor import GovernorBook, LucidGovernor
+
+            self._governor = LucidGovernor(self._profile, governor_policy)  # type: ignore[arg-type]
+            self._book = GovernorBook(self._profile, governor_policy)  # type: ignore[arg-type]
         self._risk_rejections: Counter[str] = Counter()
         self._closed_trades: deque[PaperTrade] = deque(maxlen=500)
         self._on_trade_closed: list[object] = []
@@ -539,11 +557,17 @@ class DelayedPaperEngine:
         if trade is not None:
             self._closed_trades.append(trade)
             self._peak_balance = max(self._peak_balance, self._executor.balance)
+            self._book_closed(trade)
             for callback in self._on_trade_closed:
                 try:
                     callback(trade)  # type: ignore[operator]
                 except Exception:  # noqa: BLE001,S110 - a sink must not kill the stream
                     pass
+        try:
+            self._govern(tick)
+        except Exception as error:  # noqa: BLE001 - never kill capture
+            with self._lock:
+                self._status.error = f"risk governor error: {type(error).__name__}: {error}"
         self._sync_execution_status(tick)
 
     def _evaluate_now(self, tick: MarketTick | None) -> None:
@@ -826,7 +850,8 @@ class DelayedPaperEngine:
             intent,
             balance=self._executor.balance,
             drawdown_room=self._profile.drawdown_room(  # type: ignore[union-attr]
-                self._executor.balance, self._peak_balance,
+                self._executor.balance,
+                self._book.highest_closing_balance if self._book is not None else self._peak_balance,
             ),
             max_contracts=self._profile.effective_limits().max_contracts,  # type: ignore[union-attr]
             commission_per_contract=self._exec_config.commission_per_contract,
@@ -835,6 +860,8 @@ class DelayedPaperEngine:
             max_risk_per_trade_usd=self._exec_config.max_risk_per_trade_usd,
             min_reward_risk=self._exec_config.min_reward_risk,
         )
+        if self._governor is not None and decision.approved:
+            decision = self._govern_entry(decision, intent, tick, trading_day)
         self._executor.submit(intent, decision, tick, trading_day=trading_day)
         if not decision.approved:
             self._note_risk_rejection(decision.reason_code, decision.reason)
@@ -842,6 +869,74 @@ class DelayedPaperEngine:
         with self._lock:
             self._status.orders_submitted += 1
         self._sync_execution_status(tick)
+
+    def _govern_entry(
+        self, decision: RiskDecision, intent: PaperOrderIntent, tick: MarketTick, trading_day: str,
+    ) -> RiskDecision:
+        """Let the Lucid governor veto or shrink an entry the generic engine approved."""
+        from app.risk.lucid_governor import EntryRequest
+
+        governor, book = self._governor, self._book
+        assert governor is not None and book is not None
+        try:
+            book.roll_day(trading_day)
+            verdict = governor.check_entry(
+                book.snapshot(tick.ts_ns),
+                EntryRequest(
+                    stop_ticks=intent.stop_distance_ticks,
+                    target_ticks=intent.reward_points / MNQ_TICK_SIZE,
+                    tick_value=self._instrument.tick_value,
+                    commission_per_contract=self._exec_config.commission_per_contract,
+                    slippage_ticks_round_trip=(
+                        self._exec_config.entry_slippage_ticks + self._exec_config.stop_slippage_ticks),
+                    contract_cap=decision.contracts,
+                ),
+            )
+        except Exception as error:  # noqa: BLE001 - fail closed: an unreadable governor blocks entries
+            return RiskDecision.reject(
+                "governor_error", f"risk governor failed closed: {type(error).__name__}: {error}")
+        if not verdict.allowed:
+            return RiskDecision.reject(verdict.reason_code, verdict.reason)
+        return RiskDecision(
+            approved=True, contracts=verdict.contracts, reason_code=decision.reason_code,
+            reason=f"{decision.reason}; governor: {verdict.reason}")
+
+    def _book_closed(self, trade: PaperTrade) -> None:
+        """Tell the governor a trade closed (balance, day result, streak, microscalp tally)."""
+        if self._book is None:
+            return
+        from app.risk.lucid_governor import ClosedTrade
+
+        self._book.record_trade(
+            ClosedTrade(trade.opened_ts_ns, trade.closed_ts_ns, trade.net_pnl, trade.r_multiple))
+
+    def _govern(self, tick: MarketTick) -> None:
+        """Watch the account against the governor's limits on every event."""
+        governor, book = self._governor, self._book
+        if governor is None or book is None:
+            return
+        from app.risk.lucid_governor import AccountStatus, PositionAction
+
+        book.roll_day(trading_day_for_timestamp(tick.ts_ns))
+        position = self._executor.position
+        if position is not None and position.opened_ts_ns != self._last_booked_entry_ns:
+            self._last_booked_entry_ns = position.opened_ts_ns
+            book.record_entry(position.opened_ts_ns)
+        if position is None and tick.ts_ns - self._governor_checked_ns < _GOVERNOR_IDLE_CHECK_NS:
+            return
+        self._governor_checked_ns = tick.ts_ns
+        open_pnl = (
+            position.unrealized_pnl(tick.price, self._instrument.tick_value)
+            if position is not None else Decimal("0"))
+        snapshot = book.snapshot(tick.ts_ns, open_pnl)
+        verdict = governor.check_position(snapshot)
+        if verdict.action is not PositionAction.HOLD:
+            if position is not None:
+                self.flatten(CloseReason.RISK_GOVERNOR)
+            if verdict.action is PositionAction.FLATTEN_AND_LOCK_DAY:
+                book.lock_day(verdict.reason_code)
+        if governor.status(snapshot) is not AccountStatus.ACTIVE:
+            self._executor.lock_out()
 
     def _note_risk_rejection(self, code: str, reason: str) -> None:
         self._risk_rejections[code] += 1
@@ -899,6 +994,7 @@ class DelayedPaperEngine:
         trade = self._executor.liquidate(tick, reason)
         if trade is not None:
             self._closed_trades.append(trade)
+            self._book_closed(trade)
             for callback in self._on_trade_closed:
                 try:
                     callback(trade)  # type: ignore[operator]

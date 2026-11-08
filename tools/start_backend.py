@@ -75,6 +75,7 @@ def run_backend(
         read_daily_limits,
         read_entry_settings,
         read_fixed_sizing,
+        read_governor_policy,
         read_instrument,
         read_min_reward_risk,
         read_ml_decision_policy_enabled,
@@ -171,6 +172,7 @@ def run_backend(
             **read_scalping_cadence(Path("config/production_config.yaml")),
         ),
         model_loader=model_loader,
+        governor_policy=read_governor_policy(Path("config/risk_governor.yaml")),
     )
     paper_ledger = PaperLedger(config.paper_ledger_path)
     paper_engine.on_trade_closed(paper_ledger.append)

@@ -587,7 +587,7 @@ def run_assistant(config: AssistantConfig) -> int:
                                     read_instrument, read_stop_settings,
                                     read_daily_limits, read_ml_decision_policy_enabled,
                                     read_fixed_sizing, read_entry_settings,
-                                    read_scalping_cadence)
+                                    read_scalping_cadence, read_governor_policy)
     from app.research.episode_builder import EpisodeConfig
 
     # Built BEFORE the paper engine so the engine can be given a reference to
@@ -612,6 +612,7 @@ def run_assistant(config: AssistantConfig) -> int:
             **read_scalping_cadence(Path("config/production_config.yaml")),
         ),
         model_loader=model_loader,
+        governor_policy=read_governor_policy(Path("config/risk_governor.yaml")),
     )
     # Every closed simulated trade is appended to the durable ledger. Opening an
     # existing ledger continues it - a prior run's trades are never overwritten.

@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Lucid risk governor** (`app/risk/lucid_governor.py`, `config/risk_governor.yaml`,
+  `docs/RISK_GOVERNOR.md`): account-level rules fitted to the LucidFlex 25K evaluation - an
+  end-of-day-floor day loss budget (25% of the buffer), a per-trade risk cap, a retire threshold,
+  a consistency-rule daily profit cap read from the profile, an entry window and flat time, entry
+  and streak limits, a trade-quality floor from costs, a microscalping guard, and size that only
+  scales on the bot's own proven edge. PAPER only; LIVE stays locked. It only ever adds
+  restrictions on top of the generic engine, and none of the protected risk files was modified.
+  Active in the two production start-up paths only; `DelayedPaperEngine` is unchanged by default.
+  Takes effect after a full backend restart; `enabled: false` restores the previous behaviour.
+- `app/risk/lucid_fit.py` and `python -m tools.lucid_fit_report`: a deterministic simulation of a
+  Lucid evaluation, governed and under the previous production rules, across a range of true edges.
+- `CloseReason.RISK_GOVERNOR` for positions the governor flattens.
+
+### Fixed
+
+- The LucidFlex 25K profile was re-read from Lucid's own pages (2026-11-08): the evaluation
+  consistency rule is 40% by default (50% is a paid add-on) with a 3-day minimum, and the Daily Loss
+  Limit is an optional checkout setting, not absent. The stricter figures are now used.
+
 ## [0.2.0] - 2026-07-25
 
 ### Safety boundary

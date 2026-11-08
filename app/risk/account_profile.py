@@ -205,7 +205,8 @@ class AccountProfile:
 def lucid_flex_25k() -> AccountProfile:
     """The verified LucidFlex 25K Evaluation profile (see config/prop_profiles).
 
-    Every value below was read from Lucid's own pages on 2026-07-17; see
+    Re-read from Lucid's own pages on 2026-11-08 (the consistency rule is 40% by default, not
+    50%: 50% is a paid add-on, so the stricter figure is used); see
     ``config/prop_profiles/lucid_flex_25k.yaml`` for the full URL list.
     """
     return AccountProfile(
@@ -220,9 +221,11 @@ def lucid_flex_25k() -> AccountProfile:
         locked_mll_balance=Decimal("25100"),
         max_micro_contracts=20,
         max_mini_contracts=2,
-        consistency_max_day_share=Decimal("0.50"),
+        consistency_max_day_share=Decimal("0.40"),  # default checkout; 50% is an optional add-on
         consistency_applies_to_funded=False,
-        daily_loss_limit=None,  # Lucid imposes no DLL on Flex evaluations
+        # A daily loss limit is an optional checkout setting; its amount is not stated on the
+        # evaluation or drawdown pages. The governor's own day budget is far stricter either way.
+        daily_loss_limit=None,
         session_close=time(16, 45, tzinfo=EXCHANGE_TZ),
         session_reopen=time(18, 0, tzinfo=EXCHANGE_TZ),
         news_policy=NewsPolicy.UNRESTRICTED,
@@ -235,13 +238,13 @@ def lucid_flex_25k() -> AccountProfile:
         min_hold_seconds_for_profit_share=5,
         provenance=RuleProvenance(
             source_url="https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account",
-            retrieval_date="2026-07-17",
+            retrieval_date="2026-11-08",
             effective_date="2026-04-15",
             excerpt=(
-                "$25,000 | $1,250 profit target | $1,000 max loss limit | 50% consistency | "
-                "2 mini or 20 micros. There is no DLL on LucidFlex evaluation accounts. "
-                "EOD drawdown: MLL trails highest closing balance to Initial Trail $26,100, "
-                "then locks at $25,100."
+                "$25,000 | $1,250 profit target | $1,000 max loss limit | 40% consistency "
+                "(50% optional add-on) | at least 3 trading days | 2 mini or 20 micros | Daily Loss "
+                "Limit On or Off at checkout. EOD drawdown: MLL is recalculated from the highest "
+                "closing balance to Initial Trail $26,100, then locks at $25,100."
             ),
         ),
         unresolved_fields=(),

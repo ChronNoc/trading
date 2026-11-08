@@ -1,7 +1,9 @@
 # Lucid Trading - LucidFlex 25K Evaluation account.
 #
-# VERIFIED 2026-07-17 from Lucid Trading's own site and help centre (URLs below).
-# Every field here was read from an official page; nothing is inferred.
+# VERIFIED 2026-07-17, then RE-READ 2026-11-08 from Lucid Trading's own help centre (URLs below).
+# Corrected on 2026-11-08: the evaluation consistency rule is 40% by default (50% is an optional
+# paid add-on chosen at checkout), the minimum is 3 trading days (2 with the add-on), and the
+# Daily Loss Limit is an On/Off checkout setting, not absent. The stricter figures are used.
 #
 # Primary sources:
 #   https://lucidtrading.com/                                                        (LucidFlex pricing card: 25K FLEX EVAL)
@@ -14,7 +16,7 @@
 profile_version: "1"
 firm: Lucid Trading
 source_url: https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account
-retrieval_date: "2026-07-17"
+retrieval_date: "2026-11-08"
 
 account_type: LucidFlex Evaluation (25K)
 account_size: "25000"
@@ -25,16 +27,17 @@ account_size: "25000"
 # breaches the account.
 drawdown_method: "EOD trailing MLL $1000; trails highest closing balance to Initial Trail $26,100, then locks at $25,100"
 
-# LucidFlex evaluation accounts have NO daily loss limit (confirmed on both the
-# pricing card and the evaluation article).
-daily_loss_rule: "none (no DLL on LucidFlex evaluation accounts)"
+# The Daily Loss Limit is an optional checkout setting ("On or Off"). Its amount is not stated on
+# the evaluation or drawdown pages (other help pages report a $600 soft lock-out until the next
+# session; unconfirmed here). The project's own day budget is far stricter than that either way.
+daily_loss_rule: "optional at checkout (On/Off); amount not stated on the evaluation or drawdown pages"
 
 max_contracts: "2 mini OR 20 micros"
 
-# 50% consistency on the evaluation: no single day may supply more than 50% of
-# total profit. Lucid notes the 50% rule "has cushion built in".
+# 40% consistency on the evaluation by default: no single day may supply more than 40% of total
+# profit (a 50% rule is an optional add-on at checkout; minimum 3 days, or 2 with the add-on).
 # Not applied in the funded stage ("No Consistency in Funded").
-consistency_rule: "50% max single-day share of profit (evaluation only; not applied once funded)"
+consistency_rule: "40% max single-day share of profit by default; 50% via optional add-on (evaluation only; not applied once funded)"
 
 # Lucid does not restrict instruments for LucidFlex; MNQ (Micro E-mini Nasdaq-100)
 # is supported and is what this project trades.

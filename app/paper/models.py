@@ -57,6 +57,9 @@ class CloseReason(str, Enum):
     SESSION_CLOSE = "session_close"
     AMBIGUOUS = "ambiguous_same_event"
     KILL_SWITCH = "kill_switch"
+    # The Lucid risk governor flattened the position (floor proximity, day loss stop,
+    # consistency profit cap or the flat time before Lucid's auto-close).
+    RISK_GOVERNOR = "risk_governor"
     # The analysis stream skipped events, so stop/target resolution between the
     # last seen tick and now is unknowable. The position is closed rather than
     # managed on a tape with holes. Recording is unaffected - this is paper-only.

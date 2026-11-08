@@ -18,7 +18,7 @@ from app.risk.account_profile import (
 
 
 def test_lucid_flex_25k_matches_the_verified_official_rules() -> None:
-    """Every value is the one read from Lucid's own pages on 2026-07-17."""
+    """Every value is the one read from Lucid's own pages (re-read 2026-11-08)."""
     p = lucid_flex_25k()
     assert p.account_size == Decimal("25000")
     assert p.profit_target == Decimal("1250")
@@ -27,9 +27,9 @@ def test_lucid_flex_25k_matches_the_verified_official_rules() -> None:
     assert p.initial_trail_balance == Decimal("26100")
     assert p.locked_mll_balance == Decimal("25100")
     assert p.max_micro_contracts == 20 and p.max_mini_contracts == 2
-    assert p.consistency_max_day_share == Decimal("0.50")
+    assert p.consistency_max_day_share == Decimal("0.40")  # 50% is a paid checkout add-on
     assert p.consistency_applies_to_funded is False
-    assert p.daily_loss_limit is None  # Lucid imposes no DLL on Flex evals
+    assert p.daily_loss_limit is None  # optional at checkout; the amount is not stated on the evaluation page
     assert p.session_close == time(16, 45, tzinfo=p.session_close.tzinfo)
     assert p.session_close.tzinfo is not None  # timezone-aware, America/New_York
     assert p.news_policy is NewsPolicy.UNRESTRICTED
@@ -45,7 +45,7 @@ def test_profile_is_resolved_and_carries_provenance() -> None:
     assert p.blocks_broker_arming is False
     assert p.provenance.verified is True
     assert "lucidtrading.com" in p.provenance.source_url
-    assert p.provenance.retrieval_date == "2026-07-17"
+    assert p.provenance.retrieval_date == "2026-11-08"
     assert p.provenance.effective_date == "2026-04-15"
     assert len(p.provenance.excerpt_sha256) == 64  # detects a silent upstream edit
 
@@ -76,11 +76,12 @@ def test_drawdown_room_and_target_progress() -> None:
     assert p.target_progress(Decimal("30000")) == Decimal("1")  # capped
 
 
-def test_consistency_rule_uses_50_percent_day_share() -> None:
+def test_consistency_rule_uses_the_40_percent_default_day_share() -> None:
     p = lucid_flex_25k()
-    # One day supplying 60% of profit breaches the 50% rule.
+    # One day supplying 60% of profit breaches the 40% rule; so does an even 50/50 split.
     assert p.consistency_breached({"d1": Decimal("600"), "d2": Decimal("400")}) is True
-    assert p.consistency_breached({"d1": Decimal("500"), "d2": Decimal("500")}) is False
+    assert p.consistency_breached({"d1": Decimal("500"), "d2": Decimal("500")}) is True
+    assert p.consistency_breached({"d1": Decimal("400"), "d2": Decimal("400"), "d3": Decimal("200")}) is False
     assert p.consistency_breached({}) is False  # no profit yet -> not a breach
 
 

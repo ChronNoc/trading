@@ -412,3 +412,23 @@ def read_daily_limits(production_config_path: Path) -> dict[str, int]:
         if value >= 0:  # 0 = unlimited (learning stage)
             result[out] = value
     return result
+
+
+def read_governor_policy(governor_config_path: Path):
+    """Return the Lucid governor policy, or None when it is switched off.
+
+    A missing file means the strict defaults. An unreadable or invalid file ALSO means the
+    strict defaults - it fails to safe, never open - and says so in the log.
+    """
+    import logging
+
+    from app.risk.lucid_governor import GovernorPolicy, load_governor_policy
+
+    try:
+        policy = load_governor_policy(governor_config_path)
+    except Exception as error:  # noqa: BLE001 - a bad risk config must never weaken the rules
+        logging.getLogger(__name__).warning(
+            "risk governor config %s ignored (%s: %s); using the strict defaults",
+            governor_config_path, type(error).__name__, error)
+        return GovernorPolicy()
+    return policy if policy.enabled else None
