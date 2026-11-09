@@ -1,23 +1,32 @@
-"""Render the original MNQ Intelligence glass app icon and assemble a .ico.
+"""Render the original MNQ Intelligence glass app icons and assemble .ico files.
 
 Uses only PySide6 (already a GUI dependency) rendered offscreen - no Pillow, no
 new packages. Produces a multi-resolution Windows .ico (16/32/48/128/256) plus
-a 256px PNG source, under assets/branding/. The mark is original: a deep-navy
-rounded glass tile with a thin cyan luminous border and an ascending
-cyan->violet "intelligence" motif (rising bars + a rising line and node).
+a 256px PNG source, under assets/branding/. Both marks are original and share
+one deep-navy rounded glass tile with a thin cyan luminous border:
+
+* the main app: an ascending cyan->violet "intelligence" motif (rising bars + a
+  rising line and node);
+* the Databento import window: an emerald arrow dropping into a cyan->violet
+  stack of data layers ("drop your files in").
 
     QT_QPA_PLATFORM=offscreen .venv\\Scripts\\python.exe -m tools.generate_app_icon
+    QT_QPA_PLATFORM=offscreen .venv\\Scripts\\python.exe -m tools.generate_app_icon --importer
 """
 
 from __future__ import annotations
 
+import argparse
 import struct
+from collections.abc import Sequence
 from pathlib import Path
 
 ICON_SIZES = (256, 128, 48, 32, 16)
 OUTPUT_DIR = Path("assets/branding")
 ICO_NAME = "mnq_intelligence.ico"
 PNG_NAME = "mnq_intelligence_256.png"
+IMPORTER_ICO_NAME = "databento_import.ico"
+IMPORTER_PNG_NAME = "databento_import_256.png"
 
 # Restrained navy / cyan / blue / violet identity.
 NAVY_TOP = (14, 20, 36)
@@ -27,28 +36,35 @@ VIOLET = (150, 130, 255)
 EMERALD = (72, 210, 160)
 
 
-def _render_master() -> "object":
-    """Render the 256px master icon as a QImage."""
-    from PySide6.QtCore import QPointF, QRectF, Qt
+MASTER_SIZE = 256
+TILE_MARGIN = 18
+TILE_RADIUS = 52
+
+
+def _begin_tile() -> tuple["object", "object", "object"]:
+    """Start a 256px icon: the shared navy glass tile, glow and sheen.
+
+    Returns ``(image, painter, tile_rect)``; finish with :func:`_finish_tile`.
+    """
+    from PySide6.QtCore import QPointF, QRectF
     from PySide6.QtGui import (
         QColor,
         QImage,
         QLinearGradient,
         QPainter,
         QPainterPath,
-        QPen,
         QRadialGradient,
     )
 
-    size = 256
+    size = MASTER_SIZE
     image = QImage(size, size, QImage.Format_ARGB32)
     image.fill(QColor(0, 0, 0, 0))
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing, True)
 
     # Rounded glass tile with a vertical navy gradient.
-    margin = 18
-    radius = 52
+    margin = TILE_MARGIN
+    radius = TILE_RADIUS
     tile = QRectF(margin, margin, size - 2 * margin, size - 2 * margin)
     body = QPainterPath()
     body.addRoundedRect(tile, radius, radius)
@@ -68,6 +84,34 @@ def _render_master() -> "object":
     sheen.setColorAt(0.0, QColor(255, 255, 255, 34))
     sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
     painter.fillPath(body, sheen)
+    return image, painter, tile
+
+
+def _finish_tile(painter: "object", tile: "object") -> None:
+    """Draw the shared thin luminous border and end painting."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QPen
+
+    border = QPen(QColor(CYAN[0], CYAN[1], CYAN[2], 150), 3)
+    painter.setPen(border)
+    painter.setBrush(Qt.NoBrush)
+    painter.drawRoundedRect(tile, TILE_RADIUS, TILE_RADIUS)
+    painter.end()
+
+
+def _render_master() -> "object":
+    """Render the 256px main-app master icon as a QImage."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import (
+        QColor,
+        QLinearGradient,
+        QPainterPath,
+        QPen,
+        QRadialGradient,
+    )
+
+    size = MASTER_SIZE
+    image, painter, tile = _begin_tile()
 
     # Ascending bars (chart / intelligence rising).
     bar_color = QLinearGradient(QPointF(0, size * 0.75), QPointF(0, size * 0.30))
@@ -108,13 +152,50 @@ def _render_master() -> "object":
     ]
     painter.drawPolyline(poly)
 
-    # Thin luminous border.
-    border = QPen(QColor(CYAN[0], CYAN[1], CYAN[2], 150), 3)
-    painter.setPen(border)
-    painter.setBrush(Qt.NoBrush)
-    painter.drawRoundedRect(tile, radius, radius)
+    _finish_tile(painter, tile)
+    return image
 
-    painter.end()
+
+def _render_importer_master() -> "object":
+    """Render the 256px Databento-import master icon: an arrow dropping into a data stack."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QLinearGradient, QPainterPath, QRadialGradient
+
+    size = MASTER_SIZE
+    image, painter, tile = _begin_tile()
+    painter.setPen(Qt.NoPen)
+
+    # Three stacked data layers (sessions on disk), cyan at the bottom to violet on top.
+    stack_left, stack_width, layer_height = size * 0.25, size * 0.50, 20
+    layer_tops = (140, 166, 192)
+    stack_color = QLinearGradient(QPointF(0, layer_tops[-1] + layer_height), QPointF(0, layer_tops[0]))
+    stack_color.setColorAt(0.0, QColor(*CYAN))
+    stack_color.setColorAt(1.0, QColor(*VIOLET))
+    for top in layer_tops:
+        layer = QPainterPath()
+        layer.addRoundedRect(QRectF(stack_left, top, stack_width, layer_height), 10, 10)
+        painter.fillPath(layer, stack_color)
+
+    # Soft emerald glow where the arrow lands.
+    landing = QPointF(size * 0.5, 118)
+    arrow_glow = QRadialGradient(landing, 48)
+    arrow_glow.setColorAt(0.0, QColor(EMERALD[0], EMERALD[1], EMERALD[2], 120))
+    arrow_glow.setColorAt(1.0, QColor(EMERALD[0], EMERALD[1], EMERALD[2], 0))
+    painter.fillPath(_dot(landing, 48), arrow_glow)
+
+    # A bold downward arrow: rounded shaft plus a triangular head (legible at 16px).
+    emerald = QColor(*EMERALD)
+    shaft = QPainterPath()
+    shaft.addRoundedRect(QRectF(size * 0.5 - 9, 44, 18, 64), 9, 9)
+    painter.fillPath(shaft, emerald)
+    head = QPainterPath()
+    head.moveTo(size * 0.5 - 38, 96)
+    head.lineTo(size * 0.5 + 38, 96)
+    head.lineTo(size * 0.5, 132)
+    head.closeSubpath()
+    painter.fillPath(head, emerald)
+
+    _finish_tile(painter, tile)
     return image
 
 
@@ -156,29 +237,35 @@ def _assemble_ico(pngs: dict[int, bytes]) -> bytes:
     return bytes(header) + bytes(entries) + bytes(data)
 
 
-def generate(output_dir: Path = OUTPUT_DIR) -> dict[str, Path]:
-    """Render the icon and write the .ico and PNG source; returns their paths."""
+def generate(output_dir: Path = OUTPUT_DIR, *, importer: bool = False) -> dict[str, Path]:
+    """Render one icon and write its .ico and PNG source; returns their paths.
+
+    ``importer=False`` is the main app icon (unchanged); ``True`` is the Databento import icon.
+    """
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtGui import QGuiApplication
 
     app = QGuiApplication.instance() or QGuiApplication([])
-    master = _render_master()
+    master = _render_importer_master() if importer else _render_master()
     pngs = {size: _png_bytes(master, size) for size in ICON_SIZES}
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    ico_path = output_dir / ICO_NAME
-    png_path = output_dir / PNG_NAME
+    ico_path = output_dir / (IMPORTER_ICO_NAME if importer else ICO_NAME)
+    png_path = output_dir / (IMPORTER_PNG_NAME if importer else PNG_NAME)
     ico_path.write_bytes(_assemble_ico(pngs))
     png_path.write_bytes(pngs[256])
     del app
     return {"ico": ico_path, "png": png_path}
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Generate the icon assets and print their paths."""
-    paths = generate()
+    parser = argparse.ArgumentParser(description="Render the app icons into assets/branding/.")
+    parser.add_argument("--importer", action="store_true", help="the Databento import window's icon")
+    args = parser.parse_args(argv)
+    paths = generate(importer=args.importer)
     for label, path in paths.items():
         print(f"{label}: {path} ({path.stat().st_size:,} bytes)")
     return 0

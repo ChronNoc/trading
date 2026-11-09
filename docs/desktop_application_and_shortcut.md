@@ -63,8 +63,33 @@ powershell -ExecutionPolicy Bypass -File tools\install_desktop_shortcut.ps1 -Uni
 Properties: no administrator privileges (writes only to the user's Desktop and
 Start Menu), idempotent (re-running updates the shortcut in place), quoted paths
 throughout, validates prerequisites (refuses to create a shortcut if `pythonw`
-or the icon is missing), reads the target back to confirm success, and supports
-clean uninstall.
+or the icon is missing), reads the target and arguments back to confirm success,
+and supports clean uninstall.
+
+### 4. Databento Import shortcut — `-Importer`
+
+The same installer can place a second shortcut, **Databento Import**, which
+opens the Databento drop-in window (`.venv\Scripts\pythonw.exe -m
+tools.databento_import_app`, see `app/gui/databento_import_window.py`). Files,
+folders or `.zip` files dropped onto the shortcut itself are passed to the window
+and imported straight away; the window also accepts drops and has file and folder
+buttons. It only writes new recorded sessions under `data\raw` and never trades.
+
+Its icon, `assets/branding/databento_import.ico` (with a 256px PNG source), uses
+the same navy glass tile and cyan border as the main icon, with an emerald arrow
+dropping into a cyan-to-violet stack of data layers, so the two shortcuts are
+told apart at a glance and stay legible at 16px.
+
+```powershell
+# Regenerate the importer icon (the main icon is unchanged by this):
+.venv\Scripts\python.exe -m tools.generate_app_icon --importer
+
+# Create the Databento Import desktop shortcut (add -StartMenu for a Start Menu entry):
+powershell -ExecutionPolicy Bypass -File tools\install_desktop_shortcut.ps1 -Importer
+
+# Remove it:
+powershell -ExecutionPolicy Bypass -File tools\install_desktop_shortcut.ps1 -Importer -Uninstall
+```
 
 ## How to launch
 
@@ -88,6 +113,7 @@ entry point.
 
 `tests/test_desktop_launcher.py` verifies: the launcher delegates to the real
 `start_assistant` entry in delayed mode; it never passes a live/broker flag;
-startup failures surface an error and return non-zero; the `.ico` is a valid
-multi-resolution icon; and the installer script is safe, idempotent, and
-uninstallable.
+startup failures surface an error and return non-zero; both `.ico` files are
+valid multi-resolution icons and the importer icon is generated distinct from the
+app icon; the installer script is safe, idempotent, uninstallable and pure ASCII;
+and its `-Importer` switch targets the Databento window with its own icon.
