@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 
+from app.machine_learning.training_progress import TrainingProgressView
+
 
 class Health(str, Enum):
     """Traffic-light state for a component, with text (never colour alone)."""
@@ -509,6 +511,10 @@ class AppSnapshot:
     volatility_buckets: tuple[VolatilityBucket, ...] = ()
     next_action: str = ""
     blocker: str = ""
+    # Offline training progress, read by the GUI process itself from runtime/training_progress.json.
+    # Not part of the backend's status file (the codec skips it), so a backend of any version
+    # stays readable.
+    training: TrainingProgressView | None = field(default=None, metadata={"snapshot_codec": "skip"})
 
     @property
     def plain_state(self) -> str:

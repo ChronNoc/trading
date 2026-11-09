@@ -40,6 +40,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    from app.runtime.background_limits import apply_background_limits
+
+    apply_background_limits(threads=2)   # an import is heavy and has no deadline: keep the PC cool
     # Resolve what was given BEFORE changing directory, so a relative path still means what it said.
     paths = [path.resolve() for path in args.paths]
     root = repo_root()

@@ -42,38 +42,59 @@ class CausalLevelTracker:
     _overnight_trading_day: date | None = None
     _overnight_high: Decimal | None = None
     _overnight_low: Decimal | None = None
+    # Speed only (observe runs once per market event). Every session boundary is on a whole
+    # minute, so the New York date, time-of-day class and trading day are the same for all
+    # events in one UTC second; and pruning repeats are no-ops until the date changes.
+    _clock_second: int | None = field(default=None, repr=False, compare=False)
+    _clock: tuple[date, bool, bool, bool, date] | None = field(default=None, repr=False, compare=False)
+    _rth_pruned_for: date | None = field(default=None, repr=False, compare=False)
+    _ib_pruned_for: date | None = field(default=None, repr=False, compare=False)
 
     def observe(self, timestamp_ns: int, price: Decimal | None) -> None:
         """Apply one already-observed reference price to causal session levels."""
         if price is None:
             return
-        local = _datetime_from_ns(timestamp_ns).astimezone(NEW_YORK)
-        trading_day = _trading_day(local)
+        second = timestamp_ns // 1_000_000_000
+        if second != self._clock_second or self._clock is None:
+            local = _datetime_from_ns(timestamp_ns).astimezone(NEW_YORK)
+            local_time = local.timetz().replace(tzinfo=None)
+            self._clock = (
+                local.date(),
+                local_time >= OVERNIGHT_START or local_time < RTH_OPEN,
+                RTH_OPEN <= local_time < RTH_CLOSE,
+                RTH_OPEN <= local_time < INITIAL_BALANCE_END,
+                _trading_day(local),
+            )
+            self._clock_second = second
+        local_date, overnight, regular_hours, first_hour_open, trading_day = self._clock
         if trading_day != self._overnight_trading_day:
             self._overnight_trading_day = trading_day
             self._overnight_high = None
             self._overnight_low = None
 
-        if local.timetz().replace(tzinfo=None) >= OVERNIGHT_START or local.timetz().replace(tzinfo=None) < RTH_OPEN:
+        if overnight:
             self._overnight_high = price if self._overnight_high is None else max(self._overnight_high, price)
             self._overnight_low = price if self._overnight_low is None else min(self._overnight_low, price)
 
-        local_time = local.timetz().replace(tzinfo=None)
-        if RTH_OPEN <= local_time < RTH_CLOSE:
-            prior = self._rth_levels.get(local.date())
+        if regular_hours:
+            prior = self._rth_levels.get(local_date)
             if prior is None:
-                self._rth_levels[local.date()] = (price, price)
+                self._rth_levels[local_date] = (price, price)
             else:
-                self._rth_levels[local.date()] = (max(prior[0], price), min(prior[1], price))
-            self._prune_rth_levels(local.date())
+                self._rth_levels[local_date] = (max(prior[0], price), min(prior[1], price))
+            if prior is None or local_date != self._rth_pruned_for:
+                self._prune_rth_levels(local_date)
+                self._rth_pruned_for = local_date
 
-        if RTH_OPEN <= local_time < INITIAL_BALANCE_END:
-            first_hour = self._initial_balance.get(local.date())
+        if first_hour_open:
+            first_hour = self._initial_balance.get(local_date)
             if first_hour is None:
-                self._initial_balance[local.date()] = (price, price)
+                self._initial_balance[local_date] = (price, price)
             else:
-                self._initial_balance[local.date()] = (max(first_hour[0], price), min(first_hour[1], price))
-            self._prune_initial_balance(local.date())
+                self._initial_balance[local_date] = (max(first_hour[0], price), min(first_hour[1], price))
+            if first_hour is None or local_date != self._ib_pruned_for:
+                self._prune_initial_balance(local_date)
+                self._ib_pruned_for = local_date
 
     def levels_at(self, timestamp_ns: int) -> StrategyLevels:
         """Return only higher-timeframe levels known by ``timestamp_ns``."""

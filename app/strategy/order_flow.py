@@ -155,14 +155,22 @@ def detect_liquidity_blocks(
         return ()
 
     candidates: set[tuple[BookSide, Decimal]] = set()
+    # Each snapshot's price -> size, built once: a block's history is then a lookup per
+    # snapshot instead of a scan of the book per snapshot per candidate (same sizes).
+    books: dict[BookSide, list[dict[Decimal, Decimal]]] = {BookSide.BID: [], BookSide.ASK: []}
     for snapshot in snapshots:
         for side in (BookSide.BID, BookSide.ASK):
+            sizes: dict[Decimal, Decimal] = {}
             for level in _depth_for_side(snapshot, side):
+                sizes.setdefault(level.price, level.size)   # the first level at a price, as before
                 if level.size >= thresholds.large_block_minimum:
                     candidates.add((side, level.price))
+            books[side].append(sizes)
 
+    zero = Decimal("0")
     blocks = tuple(
-        _build_liquidity_block(snapshots, side, price, thresholds)
+        _build_liquidity_block(snapshots, side, price, thresholds,
+                               sizes=[book.get(price, zero) for book in books[side]])
         for side, price in sorted(candidates, key=lambda item: (item[0].value, item[1]))
     )
     return tuple(block for block in blocks if block.peak_size >= thresholds.large_block_minimum)
@@ -317,17 +325,20 @@ def _build_liquidity_block(
     side: BookSide,
     price: Decimal,
     thresholds: OrderFlowThresholds,
+    sizes: Sequence[Decimal] | None = None,
 ) -> LiquidityBlock:
+    """``sizes``, when given, is the size at ``price`` in each snapshot (precomputed)."""
+    if sizes is None:
+        sizes = [_size_at_price(snapshot, side, price) for snapshot in snapshots]
     peak_size = Decimal("0")
     observations = 0
     first_seen_timestamp_ns: int | None = None
     last_seen_timestamp_ns: int | None = None
     reload_count = 0
-    was_at_or_above = _size_at_price(snapshots[0], side, price) >= thresholds.large_block_minimum
+    was_at_or_above = sizes[0] >= thresholds.large_block_minimum
     waiting_for_reload = False
 
-    for snapshot in snapshots:
-        size = _size_at_price(snapshot, side, price)
+    for snapshot, size in zip(snapshots, sizes):
         peak_size = max(peak_size, size)
         is_at_or_above = size >= thresholds.large_block_minimum
         if is_at_or_above:
@@ -346,7 +357,7 @@ def _build_liquidity_block(
         elif is_at_or_above:
             was_at_or_above = True
 
-    latest_size = _size_at_price(snapshots[-1], side, price)
+    latest_size = sizes[-1]
     return LiquidityBlock(
         side=side,
         price=price,

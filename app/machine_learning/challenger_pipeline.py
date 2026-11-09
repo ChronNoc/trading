@@ -23,6 +23,7 @@ from app.machine_learning.session_training import (
     SessionTrainingConfig,
     build_session_training_rows,
 )
+from app.machine_learning.training_progress import TrainingProgress
 from app.research.session_catalog import SessionEntry, build_catalog
 
 DATASET_SCHEMA_VERSION = 1
@@ -90,12 +91,14 @@ def build_challenger_dataset(
     *,
     output_root: Path | None = None,
     config: DatasetBuildConfig | None = None,
+    progress: TrainingProgress | None = None,
 ) -> DatasetBuildResult:
     """Build a deterministic dataset from strictly eligible recorded sessions.
 
     Source files are hashed before and after row construction. Any mutation
     aborts the build, so an active or externally modified session can never be
-    published under misleading provenance.
+    published under misleading provenance. ``progress`` only reports how far the
+    build has got (events replayed per session).
     """
     build_config = config or DatasetBuildConfig()
     build_config.training.validate()
@@ -118,18 +121,26 @@ def build_challenger_dataset(
         build_catalog(raw_root),
         key=lambda entry: (entry.utc_start or "", entry.session_id, str(entry.manifest_path)),
     )
+    if progress is not None:
+        progress.plan_sessions([(entry.session_id, entry.depth_updates + entry.trades)
+                                for entry in entries if entry.eligible_for_model_training])
+    events_before = 0
     for entry in entries:
         if not entry.eligible_for_model_training:
             excluded.append(_excluded(entry, raw_root=raw_root))
             continue
 
         session_dir = entry.manifest_path.parent
+        if progress is not None:
+            progress.begin_session(entry.session_id, events_before)
         source_paths = _source_paths(session_dir, entry.manifest_path)
         before = _hash_paths(source_paths, base=raw_root)
         rows, summary = build_session_training_rows(
             session_dir,
             config=build_config.training,
+            progress=progress.events if progress is not None else None,
         )
+        events_before += entry.depth_updates + entry.trades
         after_paths = _source_paths(session_dir, entry.manifest_path)
         after = _hash_paths(after_paths, base=raw_root)
         if source_paths != after_paths or before != after:
@@ -222,6 +233,7 @@ def build_validated_challenger(
     cost_ticks: float = 2.0,
     min_train_days: int = 3,
     min_oos_predictions: int = 50,
+    progress: TrainingProgress | None = None,
 ) -> dict[str, object]:
     """Build, validate, package, and register one offline-only challenger.
 
@@ -254,7 +266,9 @@ def build_validated_challenger(
         raise ValueError("walk-forward minimums must be positive")
     if cost_ticks < 0:
         raise ValueError("cost_ticks must be non-negative")
-    dataset = build_challenger_dataset(raw_root, output_root=models_root, config=build_config)
+    dataset = build_challenger_dataset(raw_root, output_root=models_root, config=build_config, progress=progress)
+    if progress is not None:
+        progress.stage("training and testing on unseen days")
     validation = walk_forward_evaluate(
         list(dataset.rows), target_ticks=target_ticks, stop_ticks=stop_ticks,
         cost_ticks=cost_ticks, min_train_days=min_train_days,

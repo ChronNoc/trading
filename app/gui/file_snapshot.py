@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app.gui.snapshot_codec import decode_snapshot
 from app.gui.view_models import AppSnapshot, ComponentHealth, Health
+from app.machine_learning.training_progress import read_training_progress
 from app.runtime.process_files import (
     HEARTBEAT_STALE_SECONDS,
     StatusFile,
@@ -28,10 +29,21 @@ class FileSnapshotProvider:
     def __init__(self, runtime_dir: Path | str = Path("runtime")) -> None:
         """Bind to the backend's runtime directory."""
         self._status = StatusFile(runtime_dir)
+        self._training_path = Path(runtime_dir) / "training_progress.json"
         self._last_good: AppSnapshot | None = None
 
     def __call__(self) -> AppSnapshot:
-        """Return the freshest snapshot, or an honest backend-down view."""
+        """Return the freshest snapshot, or an honest backend-down view.
+
+        Offline training progress is read here, by the GUI process, from its own small file:
+        it never travels in (or depends on) the backend's status file.
+        """
+        from dataclasses import replace
+
+        snapshot = self._backend_snapshot()
+        return replace(snapshot, training=read_training_progress(self._training_path))
+
+    def _backend_snapshot(self) -> AppSnapshot:
         document = self._status.read()
         if document is None:
             return self._down("no backend status file - backend not running?")

@@ -123,9 +123,13 @@ def test_throttle_yields_to_data_capture() -> None:
 
 
 def test_resolve_worker_count_respects_mode_and_cores() -> None:
-    """High-performance uses all cores; default leaves one free; explicit clamps."""
+    """High-performance uses all cores; the default is a small fixed cap; explicit clamps."""
     hw = HardwareProfile(cpu_cores=8, total_memory_gb=32.0, gpu_name=None, gpu_available=False)
-    assert resolve_worker_count(hw, ResearchRuntimeConfig()) == 7
+    assert resolve_worker_count(hw, ResearchRuntimeConfig()) == 2       # was 7: the PC powered off at 15 of 16
+    big = HardwareProfile(cpu_cores=16, total_memory_gb=32.0, gpu_name=None, gpu_available=False)
+    assert resolve_worker_count(big, ResearchRuntimeConfig()) == 2
+    one = HardwareProfile(cpu_cores=1, total_memory_gb=4.0, gpu_name=None, gpu_available=False)
+    assert resolve_worker_count(one, ResearchRuntimeConfig()) == 1
     assert resolve_worker_count(hw, ResearchRuntimeConfig(high_performance=True)) == 8
     assert resolve_worker_count(hw, ResearchRuntimeConfig(worker_count=100)) == 8
     assert resolve_worker_count(hw, ResearchRuntimeConfig(worker_count=2)) == 2

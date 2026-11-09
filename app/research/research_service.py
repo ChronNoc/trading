@@ -26,6 +26,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Callable, Sequence
 
+from app.runtime.background_limits import research_worker_initializer
+
 STATE_SCHEMA_VERSION = 2
 # A claim older than this without a matching checkpoint entry is considered
 # stale (its worker crashed) and is recovered so the job can run again.
@@ -407,7 +409,8 @@ class ResearchService:
         cancelled: list[ResearchJob] = []
         if use_processes and workers > 1:
             owns = executor is None
-            pool = executor or ProcessPoolExecutor(max_workers=workers)
+            # Each worker: one compute thread, below-normal priority (the recording comes first).
+            pool = executor or ProcessPoolExecutor(max_workers=workers, initializer=research_worker_initializer)
             try:
                 futures = {pool.submit(run_research_job, job): job for job in claimed}
                 pending = set(futures)

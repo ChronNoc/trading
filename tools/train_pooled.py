@@ -19,6 +19,9 @@ from typing import Sequence
 def main(argv: Sequence[str] | None = None) -> int:
     """Build one provenance-gated offline challenger or report rejection."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from app.runtime.background_limits import apply_background_limits
+
+    apply_background_limits()   # one thread, below-normal priority: slow, never overloads the PC
     from app.machine_learning.challenger_pipeline import (
         DatasetBuildConfig,
         build_validated_challenger,

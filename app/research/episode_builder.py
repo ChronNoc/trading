@@ -562,18 +562,19 @@ def build_episodes(
         reference = _reference_price(state)
         tracker.observe(event.timestamp_ns, reference)
 
-        _advance_pending(
-            pending,
-            completed,
-            decisions,
-            result,
-            event,
-            event_index,
-            canonical,
-            state,
-            window.view(),
-            cfg,
-        )
+        if pending:  # nothing pending: nothing to advance, so skip copying the window
+            _advance_pending(
+                pending,
+                completed,
+                decisions,
+                result,
+                event,
+                event_index,
+                canonical,
+                state,
+                window.view(),
+                cfg,
+            )
 
         if event_index < cfg.warmup_events or not _is_decision_opportunity(event, thr):
             continue
@@ -1152,6 +1153,11 @@ def _reference_price(state: MarketState) -> Decimal | None:
     return state.best_ask
 
 
+# One encoder for every event (json.dumps with these options builds a new one per call). The
+# bytes are identical; they feed the stream hash every decision records.
+_CANONICAL_ENCODER = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+
+
 def _canonical_event_bytes(event: ReplayEvent) -> bytes:
     payload = {
         "kind": event.kind,
@@ -1159,7 +1165,7 @@ def _canonical_event_bytes(event: ReplayEvent) -> bytes:
         "receive_sequence": event.receive_sequence,
         "payload": event.payload,
     }
-    return (json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str) + "\n").encode("utf-8")
+    return (_CANONICAL_ENCODER.encode(payload) + "\n").encode("utf-8")
 
 
 def _source_hashes(session_dir: Path) -> dict[str, str]:

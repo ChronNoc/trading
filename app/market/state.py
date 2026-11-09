@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Mapping, TypeAlias
 
@@ -112,21 +112,14 @@ class MarketState:
             # purge strictly-crossed levels while tolerating a briefly locked
             # (bid == ask) market, which is real.
             if new_size > Decimal("0"):
-                ask_depth = tuple(level for level in ask_depth if level.price >= price)
+                ask_depth = _purge_crossed(ask_depth, price, descending=False)
         else:
             bid_depth = self.bid_depth
             ask_depth = _update_depth_side(self.ask_depth, price, new_size, reverse=False)
             if new_size > Decimal("0"):
-                bid_depth = tuple(level for level in bid_depth if level.price <= price)
+                bid_depth = _purge_crossed(bid_depth, price, descending=True)
 
-        return _with_recalculated_book(
-            replace(
-                self,
-                bid_depth=bid_depth,
-                ask_depth=ask_depth,
-                timestamp_ns=timestamp_ns,
-            ),
-        )
+        return _book_state(bid_depth, ask_depth, self.executed_buy_volume, self.executed_sell_volume, timestamp_ns)
 
     def _apply_trade(self, raw_event: RawEvent) -> "MarketState":
         aggressor_side = _normalize_aggressor_side(raw_event.get("aggressor_side"))
@@ -136,17 +129,16 @@ class MarketState:
         if size <= Decimal("0"):
             raise ValueError("size must be greater than 0")
 
+        # Built directly (not dataclasses.replace): this runs once per market event.
+        buy, sell = self.executed_buy_volume, self.executed_sell_volume
         if aggressor_side == "buy":
-            return replace(
-                self,
-                executed_buy_volume=self.executed_buy_volume + size,
-                timestamp_ns=timestamp_ns,
-            )
-
-        return replace(
-            self,
-            executed_sell_volume=self.executed_sell_volume + size,
-            timestamp_ns=timestamp_ns,
+            buy = buy + size
+        else:
+            sell = sell + size
+        return MarketState(
+            best_bid=self.best_bid, best_ask=self.best_ask, spread=self.spread, mid_price=self.mid_price,
+            bid_depth=self.bid_depth, ask_depth=self.ask_depth,
+            executed_buy_volume=buy, executed_sell_volume=sell, timestamp_ns=timestamp_ns,
         )
 
 
@@ -181,7 +173,92 @@ def trade_print_price(raw_event: RawEvent) -> Decimal | None:
         return None
 
 
+def _in_book_order(depth: tuple[DepthLevel, ...], *, descending: bool) -> bool:
+    """Whether ``depth`` is strictly best-first (bids falling, asks rising) with unique prices.
+
+    Every book this module builds is; a state constructed by hand may not be, and then the
+    general (sorting) path below is taken so the result is exactly what it always was.
+    """
+    previous: Decimal | None = None
+    for level in depth:
+        if previous is not None and not (previous > level.price if descending else previous < level.price):
+            return False
+        previous = level.price
+    return True
+
+
 def _update_depth_side(
+    current_depth: tuple[DepthLevel, ...],
+    price: Decimal,
+    new_size: Decimal,
+    *,
+    reverse: bool,
+) -> tuple[DepthLevel, ...]:
+    count = len(current_depth)
+    if count > MAX_DEPTH_LEVELS or not _in_book_order(current_depth, descending=reverse):
+        return _update_depth_side_sorting(current_depth, price, new_size, reverse=reverse)
+    # Binary search for the first level that is not strictly better than ``price``.
+    low, high = 0, count
+    while low < high:
+        middle = (low + high) // 2
+        level_price = current_depth[middle].price
+        if (level_price > price) if reverse else (level_price < price):
+            low = middle + 1
+        else:
+            high = middle
+    exists = low < count and current_depth[low].price == price
+    if new_size == Decimal("0"):
+        return current_depth[:low] + current_depth[low + 1:] if exists else current_depth
+    if exists:
+        # Keep the level's own price object (a dict keeps its first key), new size.
+        replaced = DepthLevel(price=current_depth[low].price, size=new_size)
+        return current_depth[:low] + (replaced,) + current_depth[low + 1:]
+    if low >= MAX_DEPTH_LEVELS:
+        return current_depth   # worse than every kept level of a full side: trimmed away
+    inserted = current_depth[:low] + (DepthLevel(price=price, size=new_size),) + current_depth[low:]
+    return inserted[:MAX_DEPTH_LEVELS]
+
+
+def _purge_crossed(depth: tuple[DepthLevel, ...], price: Decimal, *, descending: bool) -> tuple[DepthLevel, ...]:
+    """Drop opposite-side levels strictly through ``price`` (bids above it, or asks below it)."""
+    if not _in_book_order(depth, descending=descending):
+        if descending:
+            return tuple(level for level in depth if level.price <= price)
+        return tuple(level for level in depth if level.price >= price)
+    index = 0
+    if descending:
+        while index < len(depth) and depth[index].price > price:
+            index += 1
+    else:
+        while index < len(depth) and depth[index].price < price:
+            index += 1
+    return depth[index:] if index else depth
+
+
+def _book_state(
+    bid_depth: tuple[DepthLevel, ...],
+    ask_depth: tuple[DepthLevel, ...],
+    executed_buy_volume: Decimal,
+    executed_sell_volume: Decimal,
+    timestamp_ns: int,
+) -> MarketState:
+    """A state with the best prices, spread and mid recalculated from the book (one construction)."""
+    best_bid = bid_depth[0].price if bid_depth else None
+    best_ask = ask_depth[0].price if ask_depth else None
+    if best_bid is None or best_ask is None:
+        spread = mid_price = None
+    else:
+        spread = best_ask - best_bid
+        mid_price = (best_bid + best_ask) / Decimal("2")
+    return MarketState(
+        best_bid=best_bid, best_ask=best_ask, spread=spread, mid_price=mid_price,
+        bid_depth=bid_depth, ask_depth=ask_depth,
+        executed_buy_volume=executed_buy_volume, executed_sell_volume=executed_sell_volume,
+        timestamp_ns=timestamp_ns,
+    )
+
+
+def _update_depth_side_sorting(
     current_depth: tuple[DepthLevel, ...],
     price: Decimal,
     new_size: Decimal,
@@ -199,18 +276,6 @@ def _update_depth_side(
         DepthLevel(price=level_price, size=levels_by_price[level_price])
         for level_price in sorted_prices[:MAX_DEPTH_LEVELS]
     )
-
-
-def _with_recalculated_book(state: MarketState) -> MarketState:
-    best_bid = state.bid_depth[0].price if state.bid_depth else None
-    best_ask = state.ask_depth[0].price if state.ask_depth else None
-
-    if best_bid is None or best_ask is None:
-        return replace(state, best_bid=best_bid, best_ask=best_ask, spread=None, mid_price=None)
-
-    spread = best_ask - best_bid
-    mid_price = (best_bid + best_ask) / Decimal("2")
-    return replace(state, best_bid=best_bid, best_ask=best_ask, spread=spread, mid_price=mid_price)
 
 
 def _normalize_depth_side(value: object) -> str:

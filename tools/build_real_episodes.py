@@ -60,6 +60,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--processed-root", type=Path, default=DEFAULT_PROCESSED_ROOT)
     parser.add_argument("--labels-root", type=Path, default=DEFAULT_LABELS_ROOT)
     args = parser.parse_args(argv)
+    from app.runtime.background_limits import apply_background_limits
+
+    apply_background_limits()   # one thread, below-normal priority: slow, never overloads the PC
 
     results, rejected = build_all(args.raw_root, args.processed_root, args.labels_root)
 

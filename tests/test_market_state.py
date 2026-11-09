@@ -250,3 +250,82 @@ def test_cumulative_volume_delta_tracks_aggressor_flow() -> None:
     assert state.cumulative_volume_delta == Decimal("-200")
     assert state.executed_buy_volume == Decimal("600")
     assert state.executed_sell_volume == Decimal("800")
+
+
+# --- the fast book update is the old sorting update, exactly (2026-11-09 replay speed-up) ----------
+
+
+def _reference_book_update(state: MarketState, side: str, price: Decimal, size: Decimal) -> tuple:
+    """The update as it was written before the speed-up: rebuild, sort, trim, filter."""
+    from app.market.state import MAX_DEPTH_LEVELS
+
+    def update(depth, descending):
+        levels = {level.price: level.size for level in depth}
+        if size == 0:
+            levels.pop(price, None)
+        else:
+            levels[price] = size
+        ordered = sorted(levels, reverse=descending)[:MAX_DEPTH_LEVELS]
+        return tuple(DepthLevel(price=p, size=levels[p]) for p in ordered)
+
+    bids, asks = state.bid_depth, state.ask_depth
+    if side == "bid":
+        bids = update(bids, True)
+        if size > 0:
+            asks = tuple(level for level in asks if level.price >= price)
+    else:
+        asks = update(asks, False)
+        if size > 0:
+            bids = tuple(level for level in bids if level.price <= price)
+    return bids, asks
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4])
+def test_the_fast_book_update_matches_the_sorting_update_on_random_events(seed: int) -> None:
+    import random
+
+    rng = random.Random(seed)
+    state = MarketState()
+    for step in range(4000):
+        side = rng.choice(("bid", "ask"))
+        # prices around a drifting centre, so sides fill past 20 levels, cross, and empty again
+        centre = 20000 + (step // 400) * 2
+        price = Decimal(centre) + Decimal(rng.randint(-30, 30)) * Decimal("0.25")
+        size = Decimal(0) if rng.random() < 0.3 else Decimal(rng.randint(1, 120))
+        expected = _reference_book_update(state, side, price, size)
+        state = state.update({"type": "depth_update", "side": side, "price": str(price),
+                              "previous_size": "0", "new_size": str(size), "timestamp": step + 1})
+        assert (state.bid_depth, state.ask_depth) == expected, step
+        assert state.best_bid == (expected[0][0].price if expected[0] else None)
+        assert state.best_ask == (expected[1][0].price if expected[1] else None)
+
+
+def test_a_hand_built_book_out_of_order_still_updates_exactly_as_before() -> None:
+    from app.market.state import MAX_DEPTH_LEVELS
+
+    unordered = MarketState(
+        bid_depth=(DepthLevel(Decimal("99"), Decimal("1")), DepthLevel(Decimal("101"), Decimal("2")),
+                   DepthLevel(Decimal("100"), Decimal("3"))),
+        ask_depth=(DepthLevel(Decimal("104"), Decimal("1")), DepthLevel(Decimal("102"), Decimal("2"))),
+    )
+    for side, price, size in (("bid", "100.5", "4"), ("ask", "103", "5"), ("bid", "103", "1"), ("ask", "99.5", "2")):
+        expected = _reference_book_update(unordered, side, Decimal(price), Decimal(size))
+        updated = unordered.update({"type": "depth_update", "side": side, "price": price,
+                                    "previous_size": "0", "new_size": size, "timestamp": 1})
+        assert (updated.bid_depth, updated.ask_depth) == expected
+    too_long = MarketState(bid_depth=tuple(DepthLevel(Decimal(200 - i), Decimal("1"))
+                                           for i in range(MAX_DEPTH_LEVELS + 5)))
+    expected = _reference_book_update(too_long, "bid", Decimal("150"), Decimal("9"))
+    updated = too_long.update({"type": "depth_update", "side": "bid", "price": "150", "previous_size": "0",
+                               "new_size": "9", "timestamp": 1})
+    assert (updated.bid_depth, updated.ask_depth) == expected
+
+
+def test_a_trade_keeps_the_book_and_adds_volume_on_its_side() -> None:
+    book = MarketState().update({"type": "depth_update", "side": "bid", "price": "100", "previous_size": "0",
+                                 "new_size": "5", "timestamp": 1})
+    traded = book.update({"type": "trade", "timestamp_ns": 2, "price": "100", "size": "3",
+                          "aggressor_side": "sell", "instrument": "MNQ", "sequence_id": 1})
+    assert traded.bid_depth == book.bid_depth and traded.best_bid == book.best_bid
+    assert traded.executed_sell_volume == Decimal("3") and traded.executed_buy_volume == 0
+    assert traded.timestamp_ns == 2

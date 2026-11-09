@@ -191,6 +191,7 @@ DEFAULT_MODELS_ROOT = Path("data/models")
 def default_offline_trainer(
     raw_root: Path | str = DEFAULT_RAW_ROOT,
     models_root: Path | str = DEFAULT_MODELS_ROOT,
+    progress=None,
 ):
     """Build the real OFFLINE_TRAINED trainer: train a challenger for a candidate.
 
@@ -213,10 +214,21 @@ def default_offline_trainer(
         stop = float(definition.get("stop_ticks", 8))
         config = DatasetBuildConfig(SessionTrainingConfig(
             target_ticks=Decimal(str(target)), stop_ticks=Decimal(str(stop))))
-        result = build_validated_challenger(
-            Path(raw_root), Path(models_root), config=config, model_version="0.1.0",
-            target_ticks=target, stop_ticks=stop, min_oos_predictions=1)
+        if progress is not None:
+            progress.begin_candidate(f"{target:g}-tick target / {stop:g}-tick stop")
+        try:
+            result = build_validated_challenger(
+                Path(raw_root), Path(models_root), config=config, model_version="0.1.0",
+                target_ticks=target, stop_ticks=stop, min_oos_predictions=1, progress=progress)
+        except Exception as error:
+            if progress is not None:
+                progress.end_candidate(f"failed ({type(error).__name__})")
+            raise
         validation = result["validation"]
+        if progress is not None:
+            progress.end_candidate(
+                f"{'beats' if validation['beats_baseline'] else 'does not beat'} take-everything after costs "
+                f"({int(validation['oos_predictions'])} out-of-sample trades)")
         expectancy = float(validation["expectancy_ticks"])
         baseline = float(validation["baseline_expectancy_ticks"])
         # OFFLINE_TRAINED only requires that a model was trained and produced
@@ -719,6 +731,7 @@ def run_autonomous_cycle(
     software_revision: str,
     train: bool = False,
     train_limit: int = 1,
+    progress=None,
 ) -> dict[str, int]:
     """Propose the grid and advance data validation; optionally run offline training.
 
@@ -733,9 +746,16 @@ def run_autonomous_cycle(
     validated = advance_data_validation(store, raw_root=raw_root, now_ns=now_ns)
     trained = 0
     if train:
+        if progress is not None:   # a TrainingProgress: reporting only
+            waiting = sum(1 for record in store.list_candidates()
+                          if record.state is CandidateState.DATA_VALIDATED
+                          and next_gate(record) is CandidateState.OFFLINE_TRAINED)
+            progress.plan(min(waiting, train_limit) if train_limit is not None else waiting)
         trained = advance_offline_training(
-            store, trainer=default_offline_trainer(raw_root, models_root),
+            store, trainer=default_offline_trainer(raw_root, models_root, progress=progress),
             now_ns=now_ns, limit=train_limit)
+        if progress is not None:
+            progress.finish(f"{trained} size(s) trained with enough out-of-sample trades")
     # Walk-forward and stability validation only read carried-forward metrics (no
     # ML), so they are cheap and always run - advancing any candidate left at the
     # prior state by this or an earlier cycle.

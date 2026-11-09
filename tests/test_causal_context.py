@@ -143,3 +143,27 @@ def _depth(timestamp: int, side: str, price: str, previous: str, new: str) -> di
 
 def _ns(value: datetime) -> int:
     return int(value.timestamp()) * 1_000_000_000
+
+
+def test_the_per_second_clock_and_pruning_shortcuts_change_no_level() -> None:
+    """The tracker's speed-ups (2026-11-09) against the same tracker recomputing everything."""
+    import random
+    from datetime import UTC, datetime
+
+    rng = random.Random(7)
+    fast, exact = CausalLevelTracker(), CausalLevelTracker()
+    # 2026-10-28 .. 2026-11-04: crosses the US daylight-saving change (2026-11-01) and weekends
+    timestamp = int(datetime(2026, 10, 28, 12, tzinfo=UTC).timestamp() * 1_000_000_000)
+    end = int(datetime(2026, 11, 4, 23, tzinfo=UTC).timestamp() * 1_000_000_000)
+    while timestamp < end:
+        timestamp += rng.choice((1, 3_000_000, 400_000_000, 1_000_000_000, 7_000_000_000, 900_000_000_000))
+        price = Decimal(20000 + rng.randint(-400, 400)) / Decimal(4)
+        fast.observe(timestamp, price)
+        exact._clock_second = None        # recompute the clock every time, as before
+        exact._rth_pruned_for = None      # and prune on every event, as before
+        exact._ib_pruned_for = None
+        exact.observe(timestamp, price)
+        if rng.random() < 0.01:
+            assert fast.levels_at(timestamp) == exact.levels_at(timestamp)
+    assert fast._rth_levels == exact._rth_levels and fast._initial_balance == exact._initial_balance
+    assert (fast._overnight_high, fast._overnight_low) == (exact._overnight_high, exact._overnight_low)

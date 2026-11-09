@@ -58,6 +58,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that way on 2026-11-02. User decision, 2026-11-09
   (`IMPORT_UNSIDED_TRADES_PER_ALLOWED` in `app/research/session_catalog.py`).
 
+- **Replay is about 3x faster, with byte-identical results** (2026-11-09; one Databento trading day
+  took ~48 minutes). Profiled on 10 minutes of 2026-11-02 (2.6 million events): block detection
+  built each snapshot's price-to-size map once instead of scanning the book per lookup (53.7 million
+  scans); the book update inserts by binary search and builds the state once instead of rebuilding,
+  re-sorting and copying it twice per event (a hand-built book out of order still takes the old
+  sorting path); the level tracker works out the New York clock once per second and prunes only when
+  the day changes; the episode builder reuses one JSON encoder for the stream hash and copies the
+  window only when a trade is pending; the replay loader no longer copies every row. The same slice
+  built by the previous code and the new code gives byte-identical decisions, episodes, labels and
+  build summary (256 s before, 86 s after); randomized tests compare the fast book update with the
+  sorting one and the tracker shortcuts with recomputing every event.
+
+- **Background work can no longer overload the PC** (2026-11-10: the PC powered off hard, Kernel-Power
+  41 with no bug check, under hours of full load). Research used one worker process per logical CPU
+  (15 of 16) to rebuild every session after the strategy change, beside a training run and a
+  Databento import. Now (`app/runtime/background_limits.py`): research uses at most 2 worker
+  processes by default (an explicit worker count or the high-performance switch still decide); every
+  background worker, the automatic session rebuild (now in its own child process instead of a thread
+  inside the recording backend), training (`tools.train_pooled`), episode builds and Databento
+  imports run with one compute thread (two for imports) at below-normal priority. Measured: a training
+  run uses exactly one core (6% of a 16-thread CPU); the whole PC averaged 17.5% while it ran.
+- **A progress bar for model training** on the Research and Model Health page ("Model training
+  progress"): size n of 3, session, percent and time left, then what each finished size showed. The
+  training run writes `runtime/training_progress.json` (`app.machine_learning.training_progress`); the
+  GUI reads it itself, so it never travels in the backend's status file (the snapshot codec skips the
+  field, and a backend of either version stays readable). A run that stops writing shows as STOPPED.
+
 ### Fixed
 
 - **Databento downloads survive a slow or silent Databento** (2026-11-09: during the first real

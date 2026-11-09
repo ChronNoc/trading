@@ -410,8 +410,9 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
     # 31 original cards + 6 for the two GOAL C pages (Autonomous Intelligence: 4,
     # Reports: 2) + 1 for the Sessions & Replay catalog + 1 for the Autonomous
     # model-validation-evidence card + 1 for the Sessions & Replay volatility-regime
-    # breakdown. All built with the same Card widget.
-    assert len(cards) == 40
+    # breakdown + 1 for the Research page's model-training progress card. All built with the
+    # same Card widget.
+    assert len(cards) == 41
     assert all(card.styleSheet() == "" for card in cards)
     assert all(card.graphicsEffect() is not None for card in cards)
 
@@ -421,7 +422,7 @@ def test_card_surfaces_follow_the_active_theme(window: AppWindow) -> None:
         for label in card.findChildren(QLabel)
         if label.property("role") == "section_title"
     ]
-    assert len(headings) == 40
+    assert len(headings) == 41
     assert all(heading.styleSheet() == "" for heading in headings)
 
     window.apply_theme("light")

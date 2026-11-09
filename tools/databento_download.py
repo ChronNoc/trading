@@ -78,6 +78,10 @@ def _say(event: DownloadEvent) -> None:
 
 def main(argv: Sequence[str] | None = None, *, client: HistoricalClient | None = None) -> int:
     args = parse_args(argv)
+    if client is None:   # a real run: the import is heavy and has no deadline
+        from app.runtime.background_limits import apply_background_limits
+
+        apply_background_limits(threads=2)
     if client is None:
         key = load_api_key()
         if not key:

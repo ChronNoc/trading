@@ -22,6 +22,7 @@ any other session, and no profitability is asserted anywhere.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -38,6 +39,7 @@ from app.research.replay_loader import stream_session_events
 from app.strategy.order_flow import _reference_price
 
 _NS_PER_SECOND = 1_000_000_000
+_PROGRESS_EVERY = 100_000   # events between progress reports (reporting only)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,8 +97,13 @@ def build_session_training_rows(
     *,
     config: SessionTrainingConfig | None = None,
     level_tracker: object | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> tuple[list[dict[str, object]], SessionDatasetSummary]:
-    """Return (rows, summary) of causal-feature/forward-label training rows."""
+    """Return (rows, summary) of causal-feature/forward-label training rows.
+
+    ``progress(events_replayed)`` is called every ``_PROGRESS_EVERY`` events and at the end; it
+    only reports, and never changes a row.
+    """
     cfg = config or SessionTrainingConfig()
     cfg.validate()
     features = CausalFeaturePipeline(
@@ -114,8 +121,12 @@ def build_session_training_rows(
     sample_ns = int(cfg.sample_interval_seconds * _NS_PER_SECOND)
     horizon_ns = int(cfg.horizon_seconds * _NS_PER_SECOND)
     event_index = 0
+    replayed = 0
 
     for event in stream_session_events(session_dir):
+        replayed += 1
+        if progress is not None and replayed % _PROGRESS_EVERY == 0:
+            progress(replayed)
         try:
             state = state.update(event.payload)
         except Exception:  # noqa: BLE001 - a malformed event must not kill the build
@@ -161,6 +172,8 @@ def build_session_training_rows(
                 pendings.append(_Pending(row, direction, ref, target, stop,
                                          event.timestamp_ns + horizon_ns))
 
+    if progress is not None:
+        progress(replayed)
     summary.dropped_incomplete = len(pendings)  # horizon never completed - dropped, never guessed
     summary.rows = len(rows)
     labels = {int(row["label"]) for row in rows}

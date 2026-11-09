@@ -265,12 +265,19 @@ class ResearchRuntimeConfig:
 
 
 def resolve_worker_count(hardware: HardwareProfile, config: ResearchRuntimeConfig) -> int:
-    """Resolve the desired worker count, leaving a core free unless high-perf."""
+    """Resolve the desired worker count.
+
+    By default a small fixed number (``BACKGROUND_MAX_WORKERS``), not one per CPU: on 2026-11-09
+    one worker per logical CPU (15 of 16) ran for hours and the PC powered off. An explicit
+    ``worker_count`` or the high-performance switch (user choices) still decide.
+    """
+    from app.runtime.background_limits import background_worker_cap
+
     if config.worker_count is not None:
         return max(1, min(config.worker_count, hardware.cpu_cores))
     if config.high_performance:
         return max(1, hardware.cpu_cores)
-    return max(1, hardware.cpu_cores - 1)
+    return background_worker_cap(hardware.cpu_cores)
 
 
 # --- Receiver-priority throttling ---------------------------------------------

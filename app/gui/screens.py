@@ -24,6 +24,7 @@ from app.gui.autonomous_view import (
 )
 from app.gui.charts import AggressorBar, ChartPanel, HistoryChart
 from app.gui.view_models import AppSnapshot, Health
+from app.machine_learning.training_progress import TrainingProgressView
 from app.gui.widgets import (
     Card,
     EvidenceTable,
@@ -425,6 +426,16 @@ class ResearchHealthScreen(DashboardScreen):
 
     def __init__(self) -> None:
         super().__init__("screen_research_health", "Learning and Evidence Center", "Offline challenger evidence, feature observation, and workflow gates. No model affects decisions.")
+        training = Card("Model training progress · NO RUNTIME EFFECT", "research_training_card")
+        self.training_badge = StatusBadge("NOT RUNNING", "research_training_badge", "neutral")
+        self.training_headline = _value("research_training_headline"); self.training_headline.setWordWrap(True)
+        training_row = QHBoxLayout()
+        training_row.addWidget(self.training_badge, 0, Qt.AlignmentFlag.AlignVCenter)  # keep the pill its own height
+        training_row.addWidget(self.training_headline, 1)
+        training.body.addLayout(training_row)
+        self.training_meter = MetricMeter("Overall progress", "research_training_meter"); training.body.addWidget(self.training_meter)
+        self.training_results = _value("research_training_results"); self.training_results.setWordWrap(True); training.body.addWidget(self.training_results)
+        self.content_layout.addWidget(training)
         pipeline = Card("Operating and learning evidence pipeline", "research_pipeline_card"); self.pipeline_table = EvidenceTable(("Stage", "State", "Evidence", "Next action"), "research_pipeline_table"); pipeline.body.addWidget(self.pipeline_table); self.content_layout.addWidget(pipeline)
         evidence = Card("Canonical research evidence", "research_evidence_card"); self.canonical = StatTile("Canonical trades", "research_canonical"); self.experimental = StatTile("Experimental trades", "research_experimental"); self.days = StatTile("Independent days", "research_days"); self.workers = StatTile("Workers", "research_workers"); evidence.body.addLayout(stat_grid((self.canonical, self.experimental, self.days, self.workers), 4)); self.content_layout.addWidget(evidence)
         model = Card("Offline challenger · NO RUNTIME EFFECT", "research_model_card"); self.model_table = EvidenceTable(("Field", "Verified state", "Meaning"), "research_model_table"); model.body.addWidget(self.model_table); self.content_layout.addWidget(model)
@@ -433,6 +444,7 @@ class ResearchHealthScreen(DashboardScreen):
 
     def render(self, snapshot: AppSnapshot) -> None:
         research, model, profitability = snapshot.research, snapshot.model, snapshot.profitability
+        self._render_training(snapshot.training)
         self.pipeline_table.set_rows(tuple((stage.label, stage.status.upper(), stage.detail or stage.blocker, stage.next_action) for stage in snapshot.pipeline.stages))
         self.canonical.set_value(str(research.canonical_trades), "source of truth"); self.experimental.set_value(str(research.experimental_trades), "never merged into canonical"); self.days.set_value(str(research.independent_days), f"{research.unique_setups} unique setups"); self.workers.set_value(f"{research.active_workers}/{research.requested_workers}", research.throttle_reason or research.state)
         self.model_table.set_rows((
@@ -471,6 +483,30 @@ class ResearchHealthScreen(DashboardScreen):
         if profitability.headline: lines += ["", profitability.headline]
         if profitability.gates: lines += ["", "Evidence gates:", *[f"  [{gate.status.upper():>21}] {gate.label}\n                          observed {gate.observed} vs {gate.threshold}" for gate in profitability.gates]]
         self.set_summary(lines)
+
+    def _render_training(self, view: TrainingProgressView | None) -> None:
+        """The latest offline training run: a progress bar, then what each finished size showed."""
+        if view is None:
+            self.training_badge.set_status("NOT RUNNING", "neutral")
+            self.training_headline.setText("No training run yet. A run shows its progress here while it trains.")
+            self.training_meter.set_fraction(0.0, "—")
+            self.training_results.setText("")
+            return
+        badge, state = _TRAINING_BADGES.get(view.state, ("UNKNOWN", "neutral"))
+        self.training_badge.set_status(badge, state)
+        self.training_headline.setText(view.headline)
+        self.training_meter.set_fraction(view.fraction, view.detail or f"{view.fraction:.0%}")
+        self.training_results.setText(
+            "\n".join(f"Finished — {line}" for line in view.results) if view.results else "No size finished yet.")
+
+
+# Training run state -> badge text and the theme's semantic state.
+_TRAINING_BADGES = {
+    "running": ("RUNNING", "neutral"),
+    "finished": ("FINISHED", "ok"),
+    "stopped": ("STOPPED", "warn"),
+    "failed": ("FAILED", "fail"),
+}
 
 
 class RiskLucidScreen(DashboardScreen):

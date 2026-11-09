@@ -92,8 +92,7 @@ def _iter_rows(
     for path in paths:
         parquet = pq.ParquetFile(path)
         for batch in parquet.iter_batches(batch_size=batch_rows):
-            for raw_row in batch.to_pylist():
-                row = dict(raw_row)
+            for row in batch.to_pylist():  # each row is already a fresh dict
                 receive_value = row.get("receive_sequence")
                 yield ReplayEvent(
                     timestamp_ns=int(row[timestamp_key]),

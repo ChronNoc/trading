@@ -152,12 +152,24 @@ def schedule_pending_builds(
     on_complete: "Sequence[object] | None" = None,
     done_callback=None,
 ) -> threading.Thread:
-    """Run :func:`run_pending_builds` on a daemon thread and return it.
+    """Run :func:`run_pending_builds` in ONE separate low-priority process; return the waiting thread.
 
-    Keeps the GUI responsive: the caller can join or poll ``done_callback``.
+    Keeps the GUI responsive: the caller can join or poll ``done_callback``. The builds themselves
+    run in a child process with one compute thread at below-normal priority (they used to run on
+    a thread inside the recording backend, sharing its interpreter lock with the live receiver for
+    hours after a strategy change), so a rebuild can neither slow capture nor overload the PC.
     """
     def _worker() -> None:
-        statuses = run_pending_builds(raw_root, processed_root, labels_root)
+        from concurrent.futures import ProcessPoolExecutor
+        from concurrent.futures.process import BrokenProcessPool
+
+        from app.runtime.background_limits import research_worker_initializer
+
+        try:
+            with ProcessPoolExecutor(max_workers=1, initializer=research_worker_initializer) as pool:
+                statuses = pool.submit(run_pending_builds, raw_root, processed_root, labels_root).result()
+        except (BrokenProcessPool, OSError):   # the child could not start or died: build here, as before
+            statuses = run_pending_builds(raw_root, processed_root, labels_root)
         if done_callback is not None:
             done_callback(statuses)
 

@@ -45,6 +45,16 @@ def decode_snapshot(payload: str) -> AppSnapshot:
     return _decode(AppSnapshot, document["snapshot"])
 
 
+def _coded_fields(value: object) -> tuple[dataclasses.Field, ...]:
+    """The fields that travel in the status file: all but those marked ``snapshot_codec: skip``.
+
+    A skipped field (filled by the GUI process itself) keeps its default when decoded, so
+    adding one never changes the schema a running backend writes.
+    """
+    return tuple(field for field in dataclasses.fields(value)  # type: ignore[arg-type]
+                 if field.metadata.get("snapshot_codec") != "skip")
+
+
 def _encode(value: object) -> object:
     if isinstance(value, Decimal):
         return str(value)
@@ -53,7 +63,7 @@ def _encode(value: object) -> object:
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
             field.name: _encode(getattr(value, field.name))
-            for field in dataclasses.fields(value)
+            for field in _coded_fields(value)
         }
     if isinstance(value, (list, tuple)):
         return [_encode(item) for item in value]
@@ -82,7 +92,7 @@ def _decode(hint: object, raw: object) -> object:
         if not isinstance(raw, dict):
             raise ValueError(f"{hint.__name__} must be an object")
         hints = typing.get_type_hints(hint)
-        expected = {field.name for field in dataclasses.fields(hint)}
+        expected = {field.name for field in _coded_fields(hint)}
         actual = set(raw)
         if actual != expected:
             missing = sorted(expected - actual)
@@ -92,7 +102,7 @@ def _decode(hint: object, raw: object) -> object:
             )
         kwargs = {
             field.name: _decode(hints[field.name], raw[field.name])
-            for field in dataclasses.fields(hint)
+            for field in _coded_fields(hint)
         }
         return hint(**kwargs)  # type: ignore[misc]
     if origin is tuple:

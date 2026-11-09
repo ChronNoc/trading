@@ -44,6 +44,13 @@ STOP_POLL_SECONDS = 1.0
 HEARTBEAT_INTERVAL_SECONDS = 1.0
 
 
+def _training_progress(runtime_dir: Path):  # noqa: ANN202 - TrainingProgress, imported lazily
+    """The progress file the GUI's training progress bar reads (reporting only)."""
+    from app.machine_learning.training_progress import TrainingProgress
+
+    return TrainingProgress(Path(runtime_dir) / "training_progress.json")
+
+
 def run_backend(
     runtime_dir: Path,
     *,
@@ -227,7 +234,8 @@ def run_backend(
                     ["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                     text=True, timeout=10, check=False).stdout.strip() or "unknown"
                 result = run_autonomous_cycle(
-                    now_ns=time.time_ns(), software_revision=revision, train=_autonomous_train)
+                    now_ns=time.time_ns(), software_revision=revision, train=_autonomous_train,
+                    progress=_training_progress(runtime_dir) if _autonomous_train else None)
                 logger.info(
                     "autonomous cycle: %s proposed, %s data-validated, %s offline-trained (revision %s)",
                     result["proposed"], result["data_validated"], result["offline_trained"], revision)
