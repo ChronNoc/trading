@@ -123,9 +123,16 @@ class ExecutionConfig:
     # before filling - the most conservative queue-position assumption. Default
     # False fills when the opposite touch reaches the limit price.
     entry_require_trade_through: bool = False
+    # Minimum time a position must be held before ANY profit may be taken: no target fill and
+    # no break-even/trailing stop move until it has passed (0 = disabled). The Lucid governor
+    # sets it just above Lucid's 5-second microscalping test, so a winner can never be a
+    # microscalp; the original stop stays live the whole time, so risk is never widened.
+    min_profit_hold_ns: int = 0
 
     def __post_init__(self) -> None:
         """Validate assumptions."""
+        if self.min_profit_hold_ns < 0:
+            raise ValueError("min_profit_hold_ns must be non-negative")
         if not self.min_reward_risk.is_finite() or self.min_reward_risk < 0:
             raise ValueError("min_reward_risk must be a finite, non-negative ratio")
         if self.commission_per_contract < 0:
@@ -425,13 +432,19 @@ class PaperExecutor:
         assert position is not None
         if tick.event_index <= position.opened_event_index:
             return None  # never resolve from the entry event itself
+        # Too young to take a profit (see ExecutionConfig.min_profit_hold_ns): the original stop
+        # still protects, but the target and the break-even/trailing moves wait.
+        young = (self._config.min_profit_hold_ns > 0
+                 and tick.ts_ns - position.opened_ts_ns < self._config.min_profit_hold_ns)
         # Advance the stop FIRST (break-even / trailing) so this same event is
         # judged against the tightened stop. Only ever moves the stop toward
         # price; it can never widen risk.
-        self._advance_stop(position)
+        if not young:
+            self._advance_stop(position)
         is_long = position.direction is Direction.LONG
         hit_stop = tick.price <= position.stop if is_long else tick.price >= position.stop
-        hit_target = tick.price >= position.target if is_long else tick.price <= position.target
+        hit_target = not young and (
+            tick.price >= position.target if is_long else tick.price <= position.target)
 
         if hit_stop and hit_target:
             # Both reachable in one event: order unknowable -> never take the win.
@@ -537,6 +550,20 @@ class PaperExecutor:
     def lock_out(self) -> None:
         """Block further entries (account failure / kill switch)."""
         self._locked_out = True
+
+    def resume_balance(self, balance: Decimal) -> None:
+        """Continue an account that was already trading before this process started.
+
+        Used when the Lucid governor restores its saved book: the paper account keeps its real
+        balance across a restart instead of going back to the starting balance.
+        ``realized_pnl`` still measures from the starting balance, so it shows the whole
+        attempt. Only allowed before anything has happened in this process.
+        """
+        if self.trades or self.position is not None or self.pending is not None:
+            raise RuntimeError("resume_balance must be called before any order or trade")
+        if not balance.is_finite() or balance <= 0:
+            raise ValueError(f"cannot resume a non-positive balance ({balance})")
+        self._balance = balance
 
     def _roll_day(self, trading_day: str) -> None:
         if trading_day and trading_day != self._day:

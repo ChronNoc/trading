@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal as D
 from pathlib import Path
@@ -198,20 +199,66 @@ def test_a_missing_governor_file_gives_the_strict_defaults_and_a_disabled_one_gi
     assert read_governor_policy(off) is None
 
 
-def test_a_broken_governor_file_falls_back_to_the_strict_defaults_and_says_so(
+def test_a_broken_governor_file_keeps_the_strict_defaults_refuses_entries_and_says_why(
     tmp_path: Path, caplog: pytest.LogCaptureFixture,
 ) -> None:
     bad = tmp_path / "bad.yaml"
     bad.write_text("day_loss_fractoin: 0.2\n", encoding="utf-8")
     with caplog.at_level(logging.WARNING):
         policy = read_governor_policy(bad)
-    assert policy == GovernorPolicy() and "strict defaults" in caplog.text
+    assert policy is not None and "day_loss_fractoin" in policy.config_error
+    assert replace(policy, config_error="") == GovernorPolicy()        # the strict defaults otherwise
+    assert "entries are refused" in caplog.text
+    engine = bound(DelayedPaperEngine(governor_policy=policy))
+    verdict = engine._govern_entry(approved(4), intent(), tick(1, "29200", at(10, 30)), "2026-11-09")
+    assert not verdict.approved and verdict.reason_code == "governor_config_invalid"
+    assert "day_loss_fractoin" in verdict.reason
 
 
-def test_a_governor_file_that_weakens_the_rules_falls_back_to_the_strict_defaults(tmp_path: Path) -> None:
-    weak = tmp_path / "weak.yaml"
-    weak.write_text("day_loss_fraction: 0.95\n", encoding="utf-8")
-    assert read_governor_policy(weak) == GovernorPolicy()
+def test_a_governor_file_that_weakens_the_rules_is_an_error_not_a_quiet_default(tmp_path: Path) -> None:
+    for text in ("day_loss_fraction: 0.95\n", "max_entries_per_day: 100000\n",
+                 "cooldown_after_loss_seconds: 0\n", "flat_time: \"17:30\"\n",
+                 "edge_min_profit_factor: .nan\n", "micro_hold_seconds: -1\n"):
+        weak = tmp_path / "weak.yaml"
+        weak.write_text(text, encoding="utf-8")
+        policy = read_governor_policy(weak)
+        assert policy is not None and policy.config_error, text
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["enabled:\n", "enabled: null\n", "enabled: 0\n", "enabled: \"\"\n", "enabled: \"false\"\n",
+     "enabled: true\nenabled: false\n"],
+    ids=["blank", "null", "zero", "empty-string", "string-false", "duplicate-key"],
+)
+def test_a_malformed_enabled_line_never_switches_the_governor_off(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "governor.yaml"
+    path.write_text(text, encoding="utf-8")
+    policy = read_governor_policy(path)
+    assert policy is not None, "only a real `enabled: false` may switch the governor off"
+    assert policy.config_error
+
+
+def test_switching_the_governor_off_on_purpose_is_logged(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    off = tmp_path / "off.yaml"
+    off.write_text("enabled: false\n", encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        assert read_governor_policy(off) is None
+    assert "switched OFF" in caplog.text
+
+
+def test_an_unquoted_time_gets_a_plain_error(tmp_path: Path) -> None:
+    path = tmp_path / "governor.yaml"
+    path.write_text("entry_window_start: 9:35\n", encoding="utf-8")   # YAML 1.1 reads this as 575
+    policy = read_governor_policy(path)
+    assert policy is not None and 'quoted New York time like "09:35"' in policy.config_error
+
+
+def test_a_utf8_bom_and_crlf_line_endings_are_fine(tmp_path: Path) -> None:
+    path = tmp_path / "governor.yaml"
+    path.write_bytes(b"\xef\xbb\xbfenabled: true\r\nmax_entries_per_day: 6\r\n")
+    policy = read_governor_policy(path)
+    assert policy is not None and not policy.config_error and policy.max_entries_per_day == 6
 
 
 def test_both_production_start_up_paths_hand_the_policy_to_the_engine() -> None:
@@ -267,7 +314,7 @@ def test_the_same_setup_at_the_same_time_is_taken_when_there_is_no_governor() ->
 
 
 def test_a_second_setup_straight_after_the_first_is_blocked_by_the_governors_spacing() -> None:
-    engine = bound(governed(cooldown_after_loss_seconds=0))
+    engine = bound(governed())
     record, derived = candidate()
     engine._consider_entry(record, derived, tick(5, "29200", at(10, 30)))  # type: ignore[arg-type]
     engine._advance_execution(tick(6, "29200", at(10, 30, 1)))               # fills the first order

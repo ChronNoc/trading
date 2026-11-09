@@ -124,6 +124,8 @@ class AccountProfile:
     provenance: RuleProvenance
     project_limits: ProjectSafetyLimits = field(default_factory=ProjectSafetyLimits)
     unresolved_fields: tuple[str, ...] = ()
+    # Fewest trading days (days with at least one trade) an evaluation can be passed in.
+    min_trading_days: int = 0
 
     def __post_init__(self) -> None:
         """Validate the money/contract invariants."""
@@ -192,10 +194,14 @@ class AccountProfile:
         return min(Decimal("1"), (gained / self.profit_target).quantize(Decimal("0.0001")))
 
     def consistency_breached(self, per_day_profit: Mapping[str, Decimal]) -> bool:
-        """Return whether any single day exceeds the allowed share of total profit."""
+        """Return whether the best single day exceeds the allowed share of the NET account profit.
+
+        Lucid divides the largest single-day profit by the account profit, so losing days
+        count: they lower the account profit and raise the share.
+        """
         if self.consistency_max_day_share is None:
             return False
-        total = sum((v for v in per_day_profit.values() if v > 0), Decimal("0"))
+        total = sum(per_day_profit.values(), Decimal("0"))
         if total <= 0:
             return False
         best = max((v for v in per_day_profit.values()), default=Decimal("0"))
@@ -223,8 +229,9 @@ def lucid_flex_25k() -> AccountProfile:
         max_mini_contracts=2,
         consistency_max_day_share=Decimal("0.40"),  # default checkout; 50% is an optional add-on
         consistency_applies_to_funded=False,
-        # A daily loss limit is an optional checkout setting; its amount is not stated on the
-        # evaluation or drawdown pages. The governor's own day budget is far stricter either way.
+        # The Daily Loss Limit is an On/Off checkout setting: $600 on Lucid's Flex 25K plan card
+        # when switched on (2026-11-08). The default checkout leaves it off, so None here; the
+        # governor's own $250 day budget is stricter either way.
         daily_loss_limit=None,
         session_close=time(16, 45, tzinfo=EXCHANGE_TZ),
         session_reopen=time(18, 0, tzinfo=EXCHANGE_TZ),
@@ -248,6 +255,7 @@ def lucid_flex_25k() -> AccountProfile:
             ),
         ),
         unresolved_fields=(),
+        min_trading_days=3,  # 2 with the paid 50% add-on; the stricter default is used
     )
 
 

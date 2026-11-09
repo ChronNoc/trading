@@ -15,8 +15,9 @@ typed (`Decimal` / `int` / enum), so a rule can never silently become a float.
 | Trailing threshold at +$1,100 highest close | $25,100 (trails, then locks) |
 | Max micro contracts | 20 |
 | Effective `max_contracts` (this project trades MNQ micros) | 20 |
-| Consistency rule (evaluation) | no single day above **40%** of total profit by default (50% is a paid checkout add-on); at least 3 days |
-| Daily Loss Limit | optional checkout setting (On/Off); amount not stated on the evaluation or drawdown pages |
+| Consistency rule (evaluation) | the best single day may not exceed **40%** of the **net** account profit by default (50% is a paid checkout add-on); losing days count |
+| Minimum trading days | 3 (2 with the add-on); `min_trading_days` |
+| Daily Loss Limit | optional checkout setting (On/Off): $600 on the Flex 25K plan card when on (2026-11-08); off by default, so not set here |
 
 Re-read from Lucid's own help pages on 2026-11-08. The July read recorded a 50% consistency rule and
 no daily loss limit; both were corrected here (the stricter 40% is used). See `docs/RISK_GOVERNOR.md`
@@ -53,8 +54,9 @@ the GUI and recorded in the daily report.
 
 `blocks_broker_arming` is driven by whether the prop-firm rules are fully
 resolved. The 12 required Lucid rule fields in `config/prop_rules_lucid.yaml`
-remain **unresolved** (web sources were unavailable to verify them), so the LIVE
-gate lists this as a failure and LIVE cannot arm. This does **not** affect PAPER:
+remain **unresolved** on purpose: they have not been verified for LIVE use (the
+paper profile above was re-read from Lucid's pages on 2026-11-08, but that is a
+separate file), so the LIVE gate lists this as a failure and LIVE cannot arm. This does **not** affect PAPER:
 unresolved LIVE-only rules never disable paper evaluation or simulation.
 
 Verified profile values are printed by `python -m tools.profitability_meter`

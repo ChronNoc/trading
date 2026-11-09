@@ -24,6 +24,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Lucid governor red-team fix pack** (2026-11-08; a read-only 9-agent red-team confirmed the rules
+  and Lucid numbers and found these holes):
+  - a restart no longer resets the account: the governor's whole book, and the paper balance, are
+    saved atomically to `data/paper/governor_state.json` after every change and restored at start-up
+    (`app/risk/governor_state.py`); an unreadable state file refuses entries instead of starting a
+    fresh account; deleting it with the backend stopped starts a new evaluation attempt;
+  - `config/risk_governor.yaml` is strict: `enabled` must be a real true/false (a blank, `0`, `null`
+    or repeated key used to switch the governor off silently), repeated keys, unquoted times and NaN
+    are errors, and every setting has bounds on both sides. Any error refuses entries with the
+    reason shown, instead of quietly replacing the file with defaults; switching off is logged;
+  - a position closed by a data gap (`DATA_GAP`) is now booked by the governor;
+  - the governor failing while a position is open now flattens it, locks the day and stops entries;
+  - one stale event across the 18:00 roll can no longer reopen a finished day or erase its result;
+  - consistency is measured against the net account profit, as Lucid does (it used to divide by the
+    winning days only, so a history that fails Lucid's 40% rule could show as passed), and a pass
+    needs the 3-day minimum;
+  - microscalping: with the governor on, no profit is taken before 6 seconds (target, break-even and
+    trailing wait; the stop is live throughout), so one fast winner can no longer freeze the account
+    for good; the share is measured against net profit;
+  - the $40 per-trade cap now includes half the spread a market entry pays;
+  - a position seen outside the holding hours (for example after midnight) is flattened;
+  - `docs/RISK_GOVERNOR.md`: the pass-rate table is re-run at 2,000 runs per row with 95% intervals,
+    "bust impossible" is qualified (it holds only while every loss is one stop), the "proven edge"
+    false-positive rate is stated, and stale lines are corrected (LucidDaily consistency 50%, the
+    $600 Daily Loss Limit, coupon prices).
+  - Tests: `tests/test_governor_fixes.py` plus the red-team's mutation and invariant tests
+    (`tests/test_governor_gaps.py`, `test_governor_gaps_wiring.py`, `test_governor_invariants.py`).
 - The LucidFlex 25K profile was re-read from Lucid's own pages (2026-11-08): the evaluation
   consistency rule is 40% by default (50% is a paid add-on) with a 3-day minimum, and the Daily Loss
   Limit is an optional checkout setting, not absent. The stricter figures are now used.

@@ -54,6 +54,12 @@ CODE_COOLDOWN = "governor_loss_cooldown"
 CODE_MICROSCALP = "governor_microscalp_guard"
 CODE_QUALITY = "governor_trade_quality"
 CODE_RISK_BUDGET = "governor_risk_budget"
+CODE_CONFIG = "governor_config_invalid"
+
+# Lucid auto-flattens at 16:45 New York; the governor must always be flat before that.
+LATEST_FLAT_TIME = time(16, 44)
+# GovernorBook state documents: bump when the layout changes (an old file is then refused).
+STATE_VERSION = 1
 
 
 class AccountStatus(str, Enum):
@@ -114,32 +120,68 @@ class GovernorPolicy:
     edge_window_trades: int = 200
     edge_min_trades: int = 100
     edge_min_profit_factor: Decimal = Decimal("1.2")
+    # Not a setting: set by ``read_governor_policy`` when config/risk_governor.yaml could not be
+    # used. The strict defaults then still guard any open position, and every entry is refused
+    # (CODE_CONFIG) until the file is fixed, so a typo is an error, never a silent default.
+    config_error: str = ""
 
     def __post_init__(self) -> None:
-        """Reject policies that would weaken the guarantees the governor exists to give."""
+        """Reject policies that would weaken the guarantees the governor exists to give.
+
+        Every setting has a bound on BOTH sides. A value may be made stricter or, within these
+        bounds, looser on purpose, but never so loose that a Lucid rule or the survival
+        guarantee is lost (no zero cooldowns, no high-frequency entry counts, no flat time after
+        Lucid's 16:45 auto-close, no NaN).
+        """
+        for name in ("day_loss_fraction", "max_trade_risk_fraction_of_mll", "hard_stop_buffer_fraction",
+                     "retire_buffer_fraction", "consistency_cushion", "micro_profit_share_limit",
+                     "min_net_reward_risk", "edge_min_profit_factor"):
+            value = getattr(self, name)
+            if not isinstance(value, Decimal) or not value.is_finite():
+                raise ValueError(f"{name} must be a finite number (got {value!r})")
         fractions = {
-            "day_loss_fraction": (self.day_loss_fraction, Decimal("0.60")),
-            "max_trade_risk_fraction_of_mll": (self.max_trade_risk_fraction_of_mll, Decimal("0.10")),
-            "hard_stop_buffer_fraction": (self.hard_stop_buffer_fraction, Decimal("0.50")),
-            "retire_buffer_fraction": (self.retire_buffer_fraction, Decimal("0.90")),
-            "consistency_cushion": (self.consistency_cushion, Decimal("0.30")),
-            "micro_profit_share_limit": (self.micro_profit_share_limit, Decimal("0.49")),
+            # name: (exclusive floor or inclusive floor, ceiling)
+            "day_loss_fraction": (ZERO, False, Decimal("0.60")),
+            "max_trade_risk_fraction_of_mll": (ZERO, False, Decimal("0.10")),
+            "hard_stop_buffer_fraction": (Decimal("0.05"), True, Decimal("0.50")),
+            "retire_buffer_fraction": (Decimal("0.15"), True, Decimal("0.90")),
+            "consistency_cushion": (ZERO, False, Decimal("0.30")),
+            "micro_profit_share_limit": (ZERO, False, Decimal("0.49")),
         }
-        for name, (value, ceiling) in fractions.items():
-            if not ZERO < value <= ceiling:
-                raise ValueError(f"{name} must be in (0, {ceiling}] (got {value})")
-        if self.trades_per_day_budget < 1 or self.max_entries_per_day < 1 or self.max_losing_streak < 1:
-            raise ValueError("per-day counts must be at least 1")
-        if self.cooldown_after_loss_seconds < 0 or self.min_seconds_between_entries < 0:
-            raise ValueError("time gaps must be non-negative")
-        if not self.entry_window_start < self.entry_window_end <= self.flat_time:
-            raise ValueError("entry window must end at or before the flat time")
-        if self.min_net_reward_risk < ZERO:
-            raise ValueError("min_net_reward_risk must be non-negative")
-        if not 1 <= self.contracts_without_proof <= self.contracts_when_proven:
-            raise ValueError("contract tiers must satisfy 1 <= without_proof <= when_proven")
-        if self.edge_min_trades < 30 or self.edge_window_trades < self.edge_min_trades:
-            raise ValueError("edge evidence needs at least 30 trades and a window no smaller than that")
+        for name, (floor, inclusive, ceiling) in fractions.items():
+            value = getattr(self, name)
+            above_floor = value >= floor if inclusive else value > floor
+            if not (above_floor and value <= ceiling):
+                bracket = "[" if inclusive else "("
+                raise ValueError(f"{name} must be in {bracket}{floor}, {ceiling}] (got {value})")
+        if self.retire_buffer_fraction <= self.hard_stop_buffer_fraction:
+            raise ValueError("retire_buffer_fraction must be above hard_stop_buffer_fraction")
+        counts = {
+            "trades_per_day_budget": (1, 10),
+            "max_entries_per_day": (1, 20),             # Lucid prohibits high-frequency trading
+            "max_losing_streak": (1, 6),
+            "cooldown_after_loss_seconds": (60, 3600),
+            "min_seconds_between_entries": (30, 3600),
+            "micro_hold_seconds": (5, 60),              # Lucid's test is "5 seconds or less"
+            "edge_min_trades": (30, 1000),
+            "edge_window_trades": (30, 1000),           # the book keeps the last 1,000 trades
+        }
+        for name, (low, high) in counts.items():
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+                raise ValueError(f"{name} must be a whole number in [{low}, {high}] (got {value!r})")
+        if self.edge_window_trades < self.edge_min_trades:
+            raise ValueError("edge_window_trades must be at least edge_min_trades")
+        if not self.entry_window_start < self.entry_window_end <= self.flat_time <= LATEST_FLAT_TIME:
+            raise ValueError(
+                f"times must satisfy entry_window_start < entry_window_end <= flat_time <= "
+                f"{LATEST_FLAT_TIME:%H:%M} (Lucid auto-flattens at 16:45 New York)")
+        if not Decimal("0.5") <= self.min_net_reward_risk <= Decimal("5"):
+            raise ValueError(f"min_net_reward_risk must be in [0.5, 5] (got {self.min_net_reward_risk})")
+        if not 1 <= self.contracts_without_proof <= self.contracts_when_proven <= 5:
+            raise ValueError("contract tiers must satisfy 1 <= without_proof <= when_proven <= 5")
+        if not Decimal("1") <= self.edge_min_profit_factor <= Decimal("5"):
+            raise ValueError(f"edge_min_profit_factor must be in [1, 5] (got {self.edge_min_profit_factor})")
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +235,7 @@ class AccountSnapshot:
     micro_profit_share: Decimal
     edge: EdgeEvidence
     best_day_share: Decimal | None      # consistency ratio so far (None until there is profit)
+    traded_days: int | None = None      # days with at least one entry (None = not tracked)
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,8 +330,13 @@ def assess_edge(trades: Sequence[ClosedTrade], policy: GovernorPolicy) -> EdgeEv
 
 
 def consistency_share(day_pnls: Mapping[str, Decimal]) -> Decimal | None:
-    """The best single day as a share of total profit (None until there is any profit)."""
-    total = sum((value for value in day_pnls.values() if value > 0), ZERO)
+    """The best single day as a share of the account's NET profit (None until there is profit).
+
+    Lucid's rule is "largest single day profit / account profit": losing days reduce the
+    account profit, so they raise the share. Dividing by the winning days alone would let a
+    history with losing days pass this check while failing Lucid's.
+    """
+    total = sum(day_pnls.values(), ZERO)
     if total <= 0:
         return None
     return max(day_pnls.values()) / total
@@ -298,16 +346,31 @@ def consistency_share(day_pnls: Mapping[str, Decimal]) -> Decimal | None:
 
 
 class LucidGovernor:
-    """Stateless rule evaluation against an :class:`AccountSnapshot`."""
+    """Stateless rule evaluation against an :class:`AccountSnapshot`.
 
-    def __init__(self, profile: AccountProfile, policy: GovernorPolicy | None = None) -> None:
+    ``min_profit_hold_enforced`` tells the governor that the executor will not take a profit
+    on a position younger than ``policy.micro_hold_seconds`` (the paper engine enforces this
+    whenever the governor is on). New trades then cannot be microscalps, so they can only
+    dilute the microscalp share: the guard reports the share but no longer blocks entries,
+    which would otherwise freeze an account for good after one fast winner.
+    """
+
+    def __init__(
+        self, profile: AccountProfile, policy: GovernorPolicy | None = None, *,
+        min_profit_hold_enforced: bool = False,
+    ) -> None:
         self.profile = profile
         self.policy = policy or GovernorPolicy()
+        self.min_profit_hold_enforced = min_profit_hold_enforced
         limit = profile.consistency_max_day_share
         if limit is not None and self.policy.consistency_cushion >= limit:
             raise ValueError(
                 f"consistency_cushion {self.policy.consistency_cushion} must be smaller than the profile's "
                 f"single-day share {limit}")
+        if self.policy.micro_hold_seconds < profile.min_hold_seconds_for_profit_share:
+            raise ValueError(
+                f"micro_hold_seconds {self.policy.micro_hold_seconds} is shorter than the firm's "
+                f"microscalping test ({profile.min_hold_seconds_for_profit_share}s)")
 
     # -- money ---------------------------------------------------------------------------------
 
@@ -320,7 +383,10 @@ class LucidGovernor:
 
         Everything is a fraction of the buffer above the floor at the START of the day, so a
         string of maximum-loss days can only shrink the buffer geometrically and never reach
-        the floor (apart from gaps beyond a stop, which the hard stop margin absorbs).
+        the floor. That holds for losses the size of a stop. A gap beyond a stop is absorbed
+        only by the part of the buffer the day budget leaves untouched (at least 75% of it, so
+        at least $225 at the retire threshold); the hard stop margin is a flatten trigger, not
+        a cushion. A single loss bigger than that can still reach the floor.
         """
         policy, profile = self.policy, self.profile
         floor = self.floor(snapshot.highest_closing_balance)
@@ -355,7 +421,8 @@ class LucidGovernor:
             or snapshot.best_day_share is None
             or snapshot.best_day_share <= profile.consistency_max_day_share
         )
-        if target_reached and consistent:
+        enough_days = snapshot.traded_days is None or snapshot.traded_days >= profile.min_trading_days
+        if target_reached and consistent and enough_days:
             return AccountStatus.PASSED
         budget = self.day_budget(snapshot)
         if budget.start_buffer < policy.retire_buffer_fraction * profile.max_loss_limit:
@@ -375,6 +442,8 @@ class LucidGovernor:
         def add(name: str, passed: bool, ok: str, bad: str) -> None:
             checks.append(RuleCheck(name, passed, ok if passed else bad))
 
+        add(CODE_CONFIG, not policy.config_error, "governor settings are valid",
+            f"config/risk_governor.yaml is invalid, so no entries until it is fixed: {policy.config_error}")
         add(CODE_ACCOUNT, status is AccountStatus.ACTIVE, "account is active",
             f"account is {status.value}")
         add(CODE_DAY_LOCKED, not snapshot.day_locked_reason, "day is not locked",
@@ -404,10 +473,16 @@ class LucidGovernor:
             "enough time since the last entry", f"less than {policy.min_seconds_between_entries}s since the last entry")
         add(CODE_COOLDOWN, self._elapsed_ok(snapshot.now_ns, snapshot.last_loss_ts_ns, policy.cooldown_after_loss_seconds),
             "cooldown after the last loss is over", f"within {policy.cooldown_after_loss_seconds}s of a loss")
-        add(CODE_MICROSCALP, snapshot.micro_profit_share < policy.micro_profit_share_limit,
-            f"{snapshot.micro_profit_share:.0%} of profit from <= {policy.micro_hold_seconds}s trades",
-            f"{snapshot.micro_profit_share:.0%} of profit comes from trades held <= {policy.micro_hold_seconds}s "
-            "(Lucid prohibits more than 50%)")
+        micro_ok = snapshot.micro_profit_share < policy.micro_profit_share_limit
+        if self.min_profit_hold_enforced and not micro_ok:
+            add(CODE_MICROSCALP, True,
+                f"{snapshot.micro_profit_share:.0%} of profit is from <= {policy.micro_hold_seconds}s trades, "
+                f"but no profit is taken before {policy.micro_hold_seconds}s, so new trades can only lower it", "")
+        else:
+            add(CODE_MICROSCALP, micro_ok,
+                f"{snapshot.micro_profit_share:.0%} of profit from <= {policy.micro_hold_seconds}s trades",
+                f"{snapshot.micro_profit_share:.0%} of profit comes from trades held <= {policy.micro_hold_seconds}s "
+                "(Lucid prohibits more than 50%)")
 
         round_trip_cost = request.commission_per_contract + request.slippage_ticks_round_trip * request.tick_value
         risk_dollars = request.stop_ticks * request.tick_value + round_trip_cost
@@ -456,10 +531,18 @@ class LucidGovernor:
             return PositionVerdict(
                 PositionAction.FLATTEN_AND_LOCK_DAY, CODE_PROFIT_CAP,
                 f"today's profit reached the ${budget.profit_cap} cap that protects the consistency rule")
-        if _new_york_time(snapshot.now_ns) >= policy.flat_time:
+        local = _new_york_time(snapshot.now_ns)
+        if local >= policy.flat_time:
             return PositionVerdict(
                 PositionAction.FLATTEN, "governor_flat_time",
                 f"{policy.flat_time:%H:%M} New York: flat before Lucid's auto-close")
+        if local < policy.entry_window_start:
+            # Only reachable when no event arrived between the flat time and midnight: a position
+            # must never be carried overnight just because the clock wrapped past 00:00.
+            return PositionVerdict(
+                PositionAction.FLATTEN, "governor_flat_time",
+                f"{local:%H:%M} New York is outside the holding hours "
+                f"{policy.entry_window_start:%H:%M}-{policy.flat_time:%H:%M}")
         return PositionVerdict(PositionAction.HOLD, "governor_hold", "inside every limit")
 
     @staticmethod
@@ -491,6 +574,7 @@ class GovernorBook:
     day_pnls: dict[str, Decimal] = field(default_factory=dict)
     closing_balances: dict[str, Decimal] = field(default_factory=dict)
     trades: deque[ClosedTrade] = field(default_factory=lambda: deque(maxlen=1000))
+    traded_days: set[str] = field(default_factory=set)
     edge_cache: EdgeEvidence | None = None   # recomputed only when a trade closes (snapshots are hot)
 
     def __post_init__(self) -> None:
@@ -501,10 +585,17 @@ class GovernorBook:
             self.highest_closing_balance = self.balance
         self.day_start_balance = self.balance
 
-    def roll_day(self, trading_day: str) -> None:
-        """Start a new trading day: bank the old day's close and reset the day's counters."""
+    def roll_day(self, trading_day: str) -> bool:
+        """Start a new trading day: bank the old day's close and reset the day's counters.
+
+        Returns whether the day changed. A day EARLIER than the current one is ignored: one
+        stale event across the 18:00 roll must never reopen a finished day, clear today's lock
+        or overwrite a banked day's result.
+        """
         if not trading_day or trading_day == self.day:
-            return
+            return False
+        if self.day and trading_day < self.day:
+            return False
         if self.day:
             self.closing_balances[self.day] = self.balance
             self.day_pnls[self.day] = self.day_realized
@@ -517,11 +608,14 @@ class GovernorBook:
         self.last_entry_ts_ns = None
         self.last_loss_ts_ns = None
         self.day_locked_reason = ""
+        return True
 
     def record_entry(self, ts_ns: int) -> None:
         """Count an entry that was actually filled."""
         self.day_entries += 1
         self.last_entry_ts_ns = ts_ns
+        if self.day:
+            self.traded_days.add(self.day)
 
     def record_trade(self, trade: ClosedTrade) -> None:
         """Book a closed trade: balance, day result, streak and the microscalping tally."""
@@ -543,9 +637,21 @@ class GovernorBook:
         if not self.day_locked_reason:
             self.day_locked_reason = reason
 
+    def micro_profit_share(self) -> Decimal:
+        """Profit from trades held <= micro_hold_seconds, as a share of the account's profit.
+
+        Measured against NET profit when there is any (the stricter base, since net profit is
+        never more than the sum of the winners), otherwise against the winning trades.
+        """
+        if self.micro_profit <= 0:
+            return ZERO
+        net_profit = self.balance - self.profile.account_size
+        base = net_profit if net_profit > 0 else self.total_profit
+        return (self.micro_profit / base) if base > 0 else ZERO
+
     def snapshot(self, now_ns: int, open_pnl: Decimal = ZERO) -> AccountSnapshot:
         """An immutable view of the account for the rules to read."""
-        share = (self.micro_profit / self.total_profit) if self.total_profit > 0 else ZERO
+        share = self.micro_profit_share()
         if self.edge_cache is None:
             self.edge_cache = assess_edge(tuple(self.trades), self.policy)
         today = dict(self.day_pnls)
@@ -560,7 +666,79 @@ class GovernorBook:
             day_locked_reason=self.day_locked_reason, micro_profit_share=share,
             edge=self.edge_cache,
             best_day_share=consistency_share(today),
+            traded_days=len(self.traded_days),
         )
+
+    # -- persistence (pure conversion; the file I/O lives in app.risk.governor_state) ----------
+
+    def to_state(self) -> dict[str, object]:
+        """Everything the book knows, as a JSON-safe document (money as strings)."""
+        return {
+            "version": STATE_VERSION,
+            "profile_id": self.profile.profile_id,
+            "account_size": str(self.profile.account_size),
+            "balance": str(self.balance),
+            "highest_closing_balance": str(self.highest_closing_balance),
+            "day": self.day,
+            "day_start_balance": str(self.day_start_balance),
+            "day_realized": str(self.day_realized),
+            "day_entries": self.day_entries,
+            "losing_streak": self.losing_streak,
+            "last_entry_ts_ns": self.last_entry_ts_ns,
+            "last_loss_ts_ns": self.last_loss_ts_ns,
+            "day_locked_reason": self.day_locked_reason,
+            "total_profit": str(self.total_profit),
+            "micro_profit": str(self.micro_profit),
+            "day_pnls": {day: str(value) for day, value in self.day_pnls.items()},
+            "closing_balances": {day: str(value) for day, value in self.closing_balances.items()},
+            "traded_days": sorted(self.traded_days),
+            "trades": [
+                [trade.opened_ts_ns, trade.closed_ts_ns, str(trade.net_pnl), str(trade.r_multiple)]
+                for trade in self.trades
+            ],
+        }
+
+    @classmethod
+    def from_state(
+        cls, profile: AccountProfile, policy: GovernorPolicy, state: Mapping[str, object],
+    ) -> "GovernorBook":
+        """Rebuild a book from :meth:`to_state` output; refuses a document for another account."""
+        if state.get("version") != STATE_VERSION:
+            raise ValueError(f"governor state version {state.get('version')!r} != {STATE_VERSION}")
+        if state.get("profile_id") != profile.profile_id or Decimal(str(state.get("account_size"))) != profile.account_size:
+            raise ValueError(
+                f"governor state belongs to {state.get('profile_id')!r} "
+                f"({state.get('account_size')}), not {profile.profile_id!r} ({profile.account_size})")
+
+        def money(key: str) -> Decimal:
+            value = Decimal(str(state[key]))
+            if not value.is_finite():
+                raise ValueError(f"governor state {key} is not a finite number")
+            return value
+
+        def optional_ns(key: str) -> int | None:
+            value = state.get(key)
+            return None if value is None else int(value)  # type: ignore[arg-type]
+
+        book = cls(profile=profile, policy=policy, balance=money("balance"),
+                   highest_closing_balance=money("highest_closing_balance"))
+        book.day = str(state["day"])
+        book.day_start_balance = money("day_start_balance")
+        book.day_realized = money("day_realized")
+        book.day_entries = int(state["day_entries"])  # type: ignore[arg-type]
+        book.losing_streak = int(state["losing_streak"])  # type: ignore[arg-type]
+        book.last_entry_ts_ns = optional_ns("last_entry_ts_ns")
+        book.last_loss_ts_ns = optional_ns("last_loss_ts_ns")
+        book.day_locked_reason = str(state["day_locked_reason"])
+        book.total_profit = money("total_profit")
+        book.micro_profit = money("micro_profit")
+        book.day_pnls = {str(k): Decimal(str(v)) for k, v in dict(state["day_pnls"]).items()}  # type: ignore[call-overload]
+        book.closing_balances = {
+            str(k): Decimal(str(v)) for k, v in dict(state["closing_balances"]).items()}  # type: ignore[call-overload]
+        book.traded_days = {str(day) for day in state["traded_days"]}  # type: ignore[union-attr]
+        for opened, closed, net, r_multiple in state["trades"]:  # type: ignore[union-attr,misc]
+            book.trades.append(ClosedTrade(int(opened), int(closed), Decimal(str(net)), Decimal(str(r_multiple))))
+        return book
 
 
 # --- loading ---------------------------------------------------------------------------------
@@ -571,35 +749,78 @@ def _new_york_time(ts_ns: int) -> time:
     return moment.time().replace(microsecond=0, tzinfo=None)
 
 
-def load_governor_policy(path: Path) -> GovernorPolicy:
-    """Read ``config/risk_governor.yaml``; a missing file means the safe defaults, a bad one raises.
-
-    Unknown keys are rejected so a typo can never silently leave a rule at its default.
-    """
+def _read_unique_mapping(path: Path) -> object:
+    """Parse YAML with the safe loader, refusing a key written twice (the last would win)."""
     import yaml
 
+    class _UniqueKeyLoader(yaml.SafeLoader):
+        pass
+
+    def _construct_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+        mapping: dict[object, object] = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise ValueError(f"{path}: setting {key!r} is written more than once")
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    _UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping)
+    return yaml.load(path.read_text(encoding="utf-8-sig"), Loader=_UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
+
+
+def _setting(path: Path, key: str, raw: object, default: object) -> object:
+    """Convert one YAML value to the type of its default, refusing anything ambiguous."""
+    where = f"{path}: {key}"
+    if isinstance(default, bool):
+        if not isinstance(raw, bool):
+            raise ValueError(f"{where} must be true or false (got {raw!r})")
+        return raw
+    if isinstance(default, Decimal):
+        if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+            raise ValueError(f"{where} must be a number (got {raw!r})")
+        try:
+            value = Decimal(str(raw).strip())
+        except ArithmeticError as error:
+            raise ValueError(f"{where} must be a number (got {raw!r})") from error
+        if not value.is_finite():
+            raise ValueError(f"{where} must be a finite number (got {raw!r})")
+        return value
+    if isinstance(default, int):
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise ValueError(f"{where} must be a whole number (got {raw!r})")
+        return raw
+    if isinstance(default, time):
+        if not isinstance(raw, str):
+            # YAML 1.1 reads an unquoted 9:35 as the number 575 (base-60), so insist on quotes.
+            raise ValueError(f'{where} must be a quoted New York time like "09:35" (got {raw!r})')
+        parts = raw.strip().split(":")
+        if len(parts) != 2 or not all(part.isdigit() for part in parts):
+            raise ValueError(f'{where} must look like "09:35" (got {raw!r})')
+        return time(int(parts[0]), int(parts[1]))
+    raise ValueError(f"{where} has an unsupported type")  # pragma: no cover
+
+
+def load_governor_policy(path: Path | str) -> GovernorPolicy:
+    """Read ``config/risk_governor.yaml``; a missing or empty file means the safe defaults.
+
+    Anything else that is not exactly right raises ``ValueError`` (``read_governor_policy``
+    turns that into a refusal to trade, never a silent default): unknown keys, a key written
+    twice, ``enabled`` that is not true/false, unquoted times, NaN, and any value outside the
+    bounds in :class:`GovernorPolicy`.
+    """
+    path = Path(path)
     defaults = GovernorPolicy()
     if not path.is_file():
         return defaults
-    payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    payload = _read_unique_mapping(path)
+    if payload is None:
+        return defaults
     if not isinstance(payload, dict):
         raise ValueError(f"{path}: expected a mapping of governor settings")
-    allowed = set(GovernorPolicy.__dataclass_fields__)
-    unknown = sorted(set(payload) - allowed)
+    allowed = set(GovernorPolicy.__dataclass_fields__) - {"config_error"}
+    unknown = sorted(str(key) for key in set(payload) - allowed)
     if unknown:
         raise ValueError(f"{path}: unknown governor setting(s): {', '.join(unknown)}")
-    values: dict[str, object] = {}
-    for key, raw in payload.items():
-        current = getattr(defaults, key)
-        if isinstance(current, bool):
-            values[key] = bool(raw)
-        elif isinstance(current, Decimal):
-            values[key] = Decimal(str(raw))
-        elif isinstance(current, int):
-            values[key] = int(raw)
-        elif isinstance(current, time):
-            hours, minutes = str(raw).split(":")[:2]
-            values[key] = time(int(hours), int(minutes))
-        else:  # pragma: no cover - every field is one of the types above
-            values[key] = raw
+    values = {key: _setting(path, key, raw, getattr(defaults, key)) for key, raw in payload.items()}
     return GovernorPolicy(**values)  # type: ignore[arg-type]

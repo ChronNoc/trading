@@ -27,16 +27,18 @@ account_size: "25000"
 # breaches the account.
 drawdown_method: "EOD trailing MLL $1000; trails highest closing balance to Initial Trail $26,100, then locks at $25,100"
 
-# The Daily Loss Limit is an optional checkout setting ("On or Off"). Its amount is not stated on
-# the evaluation or drawdown pages (other help pages report a $600 soft lock-out until the next
-# session; unconfirmed here). The project's own day budget is far stricter than that either way.
-daily_loss_rule: "optional at checkout (On/Off); amount not stated on the evaluation or drawdown pages"
+# The Daily Loss Limit is an optional checkout setting ("On or Off"): $600 on the Flex 25K plan card
+# (lucidtrading.com, read 2026-11-08). The project's own $250 day budget is stricter either way.
+daily_loss_rule: "optional at checkout (On/Off); $600 when on (plan card, 2026-11-08)"
 
 max_contracts: "2 mini OR 20 micros"
 
-# 40% consistency on the evaluation by default: no single day may supply more than 40% of total
-# profit (a 50% rule is an optional add-on at checkout; minimum 3 days, or 2 with the add-on).
-# Not applied in the funded stage ("No Consistency in Funded").
+# 40% consistency on the evaluation by default: Lucid divides the largest single-day profit by the
+# account profit, so losing days count (a 50% rule is an optional add-on at checkout; minimum 3
+# days, or 2 with the add-on). Not applied in the funded stage ("No Consistency in Funded").
+# Lucid's own pages disagree slightly: the Flex plan card shows 50%, the help article 40% by default;
+# the stricter 40% is used. Help pages carry dates of 2026-08-26 (drawdown, hours, microscalping)
+# and 2026-10-06 (hedging); the effective_date below has no source of its own.
 consistency_rule: "40% max single-day share of profit by default; 50% via optional add-on (evaluation only; not applied once funded)"
 
 # Lucid does not restrict instruments for LucidFlex; MNQ (Micro E-mini Nasdaq-100)

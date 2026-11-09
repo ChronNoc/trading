@@ -22,12 +22,14 @@ episode builder uses, so streaming and replay cannot drift into two strategies.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import re
 from collections import Counter, deque
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
 from typing import Mapping
 
 from app.market.state import MarketState
@@ -269,6 +271,7 @@ class DelayedPaperEngine:
         is_synthetic_fixture: bool = False,
         model_loader: object | None = None,
         governor_policy: object | None = None,
+        governor_state_path: Path | str | None = None,
     ) -> None:
         """Create an engine that begins evaluating as soon as warm-up completes.
 
@@ -284,6 +287,10 @@ class DelayedPaperEngine:
         module here. Only consulted when ``config.ml_decision_policy_enabled``
         is true, and always inside a broad try/except: a broken or absent
         loader can never stop or alter heuristic-only paper evaluation.
+
+        ``governor_policy`` switches the Lucid governor on. ``governor_state_path`` (optional)
+        makes its book survive restarts: it is read at start-up and rewritten after every
+        change (see ``app.risk.governor_state``); without it the book lives only in memory.
         """
         from app.paper.execution import PaperExecutor
         from app.risk.account_profile import load_selected_profile
@@ -315,6 +322,11 @@ class DelayedPaperEngine:
             entry_require_trade_through=self._config.entry_require_trade_through,
             cooldown_ns=int(self._config.entry_cooldown_seconds * Decimal(1_000_000_000)),
             time_stop_ns=int(self._config.time_stop_seconds * Decimal(1_000_000_000)),
+            # With the Lucid governor on, no profit is taken on a position held for Lucid's
+            # microscalping window or less, so a winner can never be a microscalp.
+            min_profit_hold_ns=(
+                (int(governor_policy.micro_hold_seconds) + 1) * 1_000_000_000  # type: ignore[attr-defined]
+                if governor_policy is not None else 0),
         )
         self._executor = PaperExecutor(
             starting_balance=self._profile.account_size,  # type: ignore[union-attr]
@@ -363,11 +375,18 @@ class DelayedPaperEngine:
         self._book = None
         self._last_booked_entry_ns = 0
         self._governor_checked_ns = 0
+        self._governor_state_path = Path(governor_state_path) if governor_state_path is not None else None
+        # Set when the saved state exists but cannot be used: entries are then refused (never a
+        # silently fresh account) until the file is fixed or deliberately removed.
+        self._governor_halt = ""
         if governor_policy is not None:
             from app.risk.lucid_governor import GovernorBook, LucidGovernor
 
-            self._governor = LucidGovernor(self._profile, governor_policy)  # type: ignore[arg-type]
+            self._governor = LucidGovernor(
+                self._profile, governor_policy, min_profit_hold_enforced=True)  # type: ignore[arg-type]
             self._book = GovernorBook(self._profile, governor_policy)  # type: ignore[arg-type]
+            if self._governor_state_path is not None:
+                self._restore_governor_state()
         self._risk_rejections: Counter[str] = Counter()
         self._closed_trades: deque[PaperTrade] = deque(maxlen=500)
         self._on_trade_closed: list[object] = []
@@ -518,6 +537,9 @@ class DelayedPaperEngine:
             trade = self._executor.liquidate(tick, CloseReason.DATA_GAP)
             if trade is not None:
                 self._closed_trades.append(trade)
+                self._peak_balance = max(self._peak_balance, self._executor.balance)
+                # The one loss that can jump past a stop must reach the governor's book too.
+                self._book_closed(trade)
                 for callback in self._on_trade_closed:
                     try:
                         callback(trade)  # type: ignore[operator]
@@ -566,8 +588,7 @@ class DelayedPaperEngine:
         try:
             self._govern(tick)
         except Exception as error:  # noqa: BLE001 - never kill capture
-            with self._lock:
-                self._status.error = f"risk governor error: {type(error).__name__}: {error}"
+            self._fail_safe_after_governor_error(error)
         self._sync_execution_status(tick)
 
     def _evaluate_now(self, tick: MarketTick | None) -> None:
@@ -878,8 +899,18 @@ class DelayedPaperEngine:
 
         governor, book = self._governor, self._book
         assert governor is not None and book is not None
+        if self._governor_halt:
+            return RiskDecision.reject("governor_state_unreadable", self._governor_halt)
         try:
-            book.roll_day(trading_day)
+            if book.roll_day(trading_day):
+                self._save_governor_state()
+            # A market entry fills at the far touch, not the mid the stop distance is measured
+            # from: half the spread is paid on the way in, so count it as a cost.
+            half_spread_ticks = Decimal("0")
+            if (self._exec_config.entry_order_type == "market"
+                    and tick.best_bid is not None and tick.best_ask is not None
+                    and tick.best_ask > tick.best_bid):
+                half_spread_ticks = (tick.best_ask - tick.best_bid) / MNQ_TICK_SIZE / 2
             verdict = governor.check_entry(
                 book.snapshot(tick.ts_ns),
                 EntryRequest(
@@ -888,7 +919,8 @@ class DelayedPaperEngine:
                     tick_value=self._instrument.tick_value,
                     commission_per_contract=self._exec_config.commission_per_contract,
                     slippage_ticks_round_trip=(
-                        self._exec_config.entry_slippage_ticks + self._exec_config.stop_slippage_ticks),
+                        self._exec_config.entry_slippage_ticks + self._exec_config.stop_slippage_ticks
+                        + half_spread_ticks),
                     contract_cap=decision.contracts,
                 ),
             )
@@ -902,13 +934,26 @@ class DelayedPaperEngine:
             reason=f"{decision.reason}; governor: {verdict.reason}")
 
     def _book_closed(self, trade: PaperTrade) -> None:
-        """Tell the governor a trade closed (balance, day result, streak, microscalp tally)."""
+        """Tell the governor a trade closed (balance, day result, streak, microscalp tally).
+
+        If the book cannot take it, the account can no longer be trusted: entries stop (never
+        the ledger or the other sinks, which the callers run regardless).
+        """
         if self._book is None:
             return
         from app.risk.lucid_governor import ClosedTrade
 
-        self._book.record_trade(
-            ClosedTrade(trade.opened_ts_ns, trade.closed_ts_ns, trade.net_pnl, trade.r_multiple))
+        try:
+            self._book.record_trade(
+                ClosedTrade(trade.opened_ts_ns, trade.closed_ts_ns, trade.net_pnl, trade.r_multiple))
+        except Exception as error:  # noqa: BLE001 - never kill capture; fail closed instead
+            self._executor.lock_out()
+            with self._lock:
+                self._status.error = (
+                    f"risk governor could not book a closed trade ({type(error).__name__}: {error}); "
+                    "entries are locked")
+            return
+        self._save_governor_state()
 
     def _govern(self, tick: MarketTick) -> None:
         """Watch the account against the governor's limits on every event."""
@@ -917,11 +962,13 @@ class DelayedPaperEngine:
             return
         from app.risk.lucid_governor import AccountStatus, PositionAction
 
-        book.roll_day(trading_day_for_timestamp(tick.ts_ns))
+        if book.roll_day(trading_day_for_timestamp(tick.ts_ns)):
+            self._save_governor_state()
         position = self._executor.position
         if position is not None and position.opened_ts_ns != self._last_booked_entry_ns:
             self._last_booked_entry_ns = position.opened_ts_ns
             book.record_entry(position.opened_ts_ns)
+            self._save_governor_state()
         if position is None and tick.ts_ns - self._governor_checked_ns < _GOVERNOR_IDLE_CHECK_NS:
             return
         self._governor_checked_ns = tick.ts_ns
@@ -935,8 +982,83 @@ class DelayedPaperEngine:
                 self.flatten(CloseReason.RISK_GOVERNOR)
             if verdict.action is PositionAction.FLATTEN_AND_LOCK_DAY:
                 book.lock_day(verdict.reason_code)
+                self._save_governor_state()
         if governor.status(snapshot) is not AccountStatus.ACTIVE:
             self._executor.lock_out()
+
+    def _fail_safe_after_governor_error(self, error: Exception) -> None:
+        """The governor itself failed while watching the account: get flat and stop entering.
+
+        Entries already fail closed in ``_govern_entry``; this covers an OPEN position, which
+        would otherwise run on with only its own stop and time stop.
+        """
+        with self._lock:
+            self._status.error = (
+                f"risk governor error: {type(error).__name__}: {error}; "
+                "position flattened and entries locked")
+        if self._executor.position is not None:
+            try:
+                self.flatten(CloseReason.RISK_GOVERNOR)
+            except Exception:  # noqa: BLE001,S110 - keep going: the lock below must still happen
+                pass
+        if self._book is not None:
+            try:
+                self._book.lock_day("governor_error")
+                self._save_governor_state()
+            except Exception:  # noqa: BLE001,S110
+                pass
+        self._executor.lock_out()
+
+    # -- governor state across restarts ----------------------------------------------
+
+    def _restore_governor_state(self) -> None:
+        """Continue the saved account (balance, high-water mark, locks, streak, evidence).
+
+        No saved file means a new evaluation attempt: the fresh book is written at once. A file
+        that exists but cannot be used is never replaced by a fresh account: entries are refused
+        (``governor_state_unreadable``) until it is fixed or deliberately removed.
+        """
+        from app.risk.governor_state import load_book_state
+        from app.risk.lucid_governor import AccountStatus, GovernorBook
+
+        path, governor, book = self._governor_state_path, self._governor, self._book
+        assert path is not None and governor is not None and book is not None
+        try:
+            state = load_book_state(path)
+            if state is None:
+                self._save_governor_state()
+                return
+            book = GovernorBook.from_state(self._profile, governor.policy, state)  # type: ignore[arg-type]
+            self._executor.resume_balance(book.balance)
+        except Exception as error:  # noqa: BLE001 - refuse to trade rather than start afresh
+            self._governor_halt = (
+                f"saved governor state {path} could not be used ({type(error).__name__}: {error}); "
+                "entries are refused until it is fixed, or removed with the backend stopped "
+                "(removing it starts a new evaluation attempt)")
+            logging.getLogger(__name__).error("%s", self._governor_halt)
+            with self._lock:
+                self._status.error = self._governor_halt
+            return
+        self._book = book
+        logging.getLogger(__name__).info(
+            "Lucid governor state restored from %s: balance %s, highest close %s, day %s",
+            path, book.balance, book.highest_closing_balance, book.day or "-")
+        if governor.status(book.snapshot(0)) is not AccountStatus.ACTIVE:
+            self._executor.lock_out()
+
+    def _save_governor_state(self) -> None:
+        """Write the book after a change (never over a file that could not be read)."""
+        if self._book is None or self._governor_state_path is None or self._governor_halt:
+            return
+        from app.risk.governor_state import save_book_state
+
+        try:
+            save_book_state(self._governor_state_path, self._book.to_state())
+        except Exception as error:  # noqa: BLE001 - never kill capture; surface it instead
+            with self._lock:
+                self._status.error = (
+                    f"risk governor state not saved to {self._governor_state_path} "
+                    f"({type(error).__name__}: {error}); a restart now would lose today's limits")
 
     def _note_risk_rejection(self, code: str, reason: str) -> None:
         self._risk_rejections[code] += 1

@@ -589,6 +589,7 @@ def run_assistant(config: AssistantConfig) -> int:
                                     read_fixed_sizing, read_entry_settings,
                                     read_scalping_cadence, read_governor_policy)
     from app.research.episode_builder import EpisodeConfig
+    from app.risk.governor_state import default_state_path
 
     # Built BEFORE the paper engine so the engine can be given a reference to
     # the same model loader whose shadow scores it may (if the policy is
@@ -613,6 +614,8 @@ def run_assistant(config: AssistantConfig) -> int:
         ),
         model_loader=model_loader,
         governor_policy=read_governor_policy(Path("config/risk_governor.yaml")),
+        # The governor's book survives restarts (data/paper/governor_state.json).
+        governor_state_path=default_state_path(config.paper_ledger_path),
     )
     # Every closed simulated trade is appended to the durable ledger. Opening an
     # existing ledger continues it - a prior run's trades are never overwritten.

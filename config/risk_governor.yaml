@@ -10,7 +10,18 @@
 #
 # The generic engine (app/risk/limits.py, sizing.py, kill_switch.py and the paper executor's
 # own caps) stays underneath as the outer guard. The governor only ever ADDS restrictions: the
-# stricter of the two always wins. A typo in this file is an error, never a silent default.
+# stricter of the two always wins.
+#
+# A mistake in this file is an ERROR, never a silent default: an unknown or repeated key, a value
+# of the wrong type, an unquoted time (write "09:35" with quotes), NaN, or a value outside its
+# bounds (see GovernorPolicy in app/risk/lucid_governor.py) makes the governor refuse every entry,
+# with the reason in the GUI and logs/, until the file is fixed. Restart the backend after editing.
+#
+# The account itself (balance, highest close, today's limits, streak, evidence) is kept in
+# data/paper/governor_state.json and survives restarts. Delete that file, with the backend
+# stopped, to start a new evaluation attempt.
+#
+# Only `enabled: false` (a real true/false, not "false" or 0) switches the governor off.
 enabled: true
 
 # --- survival: derived from the Max Loss Limit (an end-of-day trailing floor) ---------------
@@ -32,8 +43,8 @@ hard_stop_buffer_fraction: 0.10
 retire_buffer_fraction: 0.30
 
 # --- consistency: derived from the ACCOUNT PROFILE's single-day rule (evaluation only) -------
-# Lucid's LucidFlex evaluation allows no single day more than 40% of total profit (50% only with
-# a paid add-on). The governor stops for the day at (that share - this cushion) of the profit
+# Lucid's LucidFlex evaluation allows no single day more than 40% of the NET account profit (losing
+# days count; 50% only with a paid add-on). The governor stops for the day at (that share - this cushion) of the profit
 # target: 30% = $375 on the 25K account, so even a pass of exactly the target keeps the best day
 # 10 points inside the rule. If the profile's share changes, the cap follows it.
 consistency_cushion: 0.10

@@ -178,7 +178,7 @@ def test_entries_are_only_taken_inside_the_window(hour: int, minute: int, allowe
 
 
 def test_the_daily_entry_cap_blocks_the_next_entry() -> None:
-    governor, book = fresh(GovernorPolicy(max_entries_per_day=2, min_seconds_between_entries=0))
+    governor, book = fresh(GovernorPolicy(max_entries_per_day=2))
     book.record_entry(ts(10, 0))
     book.record_entry(ts(10, 10))
     result = decision(governor, book, ts(10, 40))
@@ -186,7 +186,7 @@ def test_the_daily_entry_cap_blocks_the_next_entry() -> None:
 
 
 def test_a_losing_streak_stops_the_day() -> None:
-    governor, book = fresh(GovernorPolicy(cooldown_after_loss_seconds=0))
+    governor, book = fresh()
     for minute in (0, 10, 20):
         book.record_trade(trade("-20", closed_at=ts(10, minute)))
     result = decision(governor, book, ts(11, 0))
@@ -212,7 +212,7 @@ def test_there_is_a_cooldown_after_a_loss_and_a_gap_between_entries() -> None:
 
 
 def test_the_day_loss_budget_locks_new_entries() -> None:
-    governor, book = fresh(GovernorPolicy(cooldown_after_loss_seconds=0, max_losing_streak=9))
+    governor, book = fresh()
     book.record_trade(trade("-250", closed_at=ts(10, 0)))
     result = decision(governor, book, ts(11, 0))
     assert "governor_day_loss_budget" in {c.name for c in result.failures}
@@ -225,14 +225,14 @@ def test_open_losses_count_against_the_day_budget_before_they_are_realised() -> 
 
 
 def test_the_profit_cap_protects_the_consistency_rule() -> None:
-    governor, book = fresh(GovernorPolicy(cooldown_after_loss_seconds=0))
+    governor, book = fresh()
     book.record_trade(trade("500", closed_at=ts(10, 0)))
     result = decision(governor, book, ts(11, 0))
     assert "governor_day_profit_cap" in {c.name for c in result.failures}
 
 
 def test_the_budget_left_today_limits_size_so_the_day_loss_cannot_be_exceeded() -> None:
-    governor, book = fresh(GovernorPolicy(cooldown_after_loss_seconds=0, max_losing_streak=9))
+    governor, book = fresh()
     book.record_trade(trade("-230", closed_at=ts(10, 0)))      # $20 of the $250 budget remains
     result = decision(governor, book, ts(11, 0))
     assert not result.allowed and "governor_risk_budget" in {c.name for c in result.failures}
@@ -268,7 +268,7 @@ def test_costs_decide_trade_quality_not_results() -> None:
 
 
 def test_microscalping_share_blocks_entries_before_it_reaches_lucids_limit() -> None:
-    governor, book = fresh(GovernorPolicy(cooldown_after_loss_seconds=0, min_seconds_between_entries=0))
+    governor, book = fresh()
     book.record_trade(trade("40", closed_at=ts(10, 0), held=3))
     book.record_trade(trade("40", closed_at=ts(10, 5), held=90))
     assert book.snapshot(ts(11)).micro_profit_share == D("0.5")
@@ -366,7 +366,7 @@ def test_reaching_the_target_passes_only_if_one_day_did_not_supply_more_than_40_
     book.balance = D("26250")
     for share, expected in (("0.60", AccountStatus.ACTIVE), ("0.45", AccountStatus.ACTIVE),
                             ("0.40", AccountStatus.PASSED), ("0.30", AccountStatus.PASSED)):
-        snapshot = replace(book.snapshot(ts(11)), best_day_share=D(share))
+        snapshot = replace(book.snapshot(ts(11)), best_day_share=D(share), traded_days=3)
         assert governor.status(snapshot) is expected, share
 
 

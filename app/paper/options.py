@@ -415,20 +415,35 @@ def read_daily_limits(production_config_path: Path) -> dict[str, int]:
 
 
 def read_governor_policy(governor_config_path: Path):
-    """Return the Lucid governor policy, or None when it is switched off.
+    """Return the Lucid governor policy, or None only when it is switched off ON PURPOSE.
 
-    A missing file means the strict defaults. An unreadable or invalid file ALSO means the
-    strict defaults - it fails to safe, never open - and says so in the log.
+    * a missing file: the strict defaults (logged);
+    * ``enabled: false``: None, logged as a warning, so switching it off is never silent;
+      ``enabled`` must be a real true/false, so a blank or mistyped value is an error, not "off";
+    * anything invalid (unknown or repeated key, wrong type, unquoted time, NaN, a value outside
+      the bounds): the strict defaults WITH ``config_error`` set. The governor then still guards
+      any open position but refuses every entry, with the reason in the GUI and the log, until
+      the file is fixed. A typo is an error, never a silent default, and the recorder keeps running.
     """
     import logging
 
     from app.risk.lucid_governor import GovernorPolicy, load_governor_policy
 
-    try:
-        policy = load_governor_policy(governor_config_path)
-    except Exception as error:  # noqa: BLE001 - a bad risk config must never weaken the rules
-        logging.getLogger(__name__).warning(
-            "risk governor config %s ignored (%s: %s); using the strict defaults",
-            governor_config_path, type(error).__name__, error)
+    log = logging.getLogger(__name__)
+    path = Path(governor_config_path)
+    if not path.is_file():
+        log.warning("risk governor config %s not found; using the strict defaults", path.resolve())
         return GovernorPolicy()
-    return policy if policy.enabled else None
+    try:
+        policy = load_governor_policy(path)
+    except Exception as error:  # noqa: BLE001 - a bad risk config must never weaken the rules
+        message = f"{type(error).__name__}: {error}"
+        log.error(
+            "risk governor config %s is invalid (%s); entries are refused until it is fixed",
+            path.resolve(), message)
+        return GovernorPolicy(config_error=message)
+    if not policy.enabled:
+        log.warning("risk governor switched OFF by %s (enabled: false)", path.resolve())
+        return None
+    log.info("Lucid risk governor ON (settings: %s)", path.resolve())
+    return policy

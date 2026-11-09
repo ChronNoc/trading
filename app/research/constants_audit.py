@@ -234,6 +234,7 @@ RATINGS: dict[str, dict[str, Rating]] = {
         "entry_limit_timeout_ns": _off("time", "entry-gate"),
         "entry_limit_cancel_ticks": _off("market-scale", "entry-gate"),
         "entry_require_trade_through": _r("switch", "simulation", "LOW", "Off, so a touch fills a resting order, which is optimistic."),
+        "min_profit_hold_ns": _off("time", "exit"),
     },
     "FillModelConfig": {
         "queue_ahead_contracts": _r("cost", "simulation", "MEDIUM", "Zero assumes nothing is ahead in the queue, which is optimistic."),

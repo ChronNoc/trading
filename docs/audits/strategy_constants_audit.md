@@ -12,9 +12,9 @@ A rating is a judgement about **fragility**: how likely a fixed value is to stop
 
 ## Summary
 
-186 parameters across 20 classes: **23 high**, 55 medium, 108 low.
+187 parameters across 20 classes: **23 high**, 55 medium, 109 low.
 
-By kind: market-scale 55, time 24, count 20, ratio 15, cost 22, limit 13, structural 12, switch 20, model 5.
+By kind: market-scale 55, time 25, count 20, ratio 15, cost 22, limit 13, structural 12, switch 20, model 5.
 
 ## Validate or scale these first (HIGH)
 
@@ -245,6 +245,7 @@ A parameter defined in more than one class can drift apart. Rows marked **differ
 | `entry_limit_timeout_ns` | `0` | time | entry-gate | LOW | Zero or off by default; no effect until a profile turns it on. |
 | `entry_limit_cancel_ticks` | `0` | market-scale | entry-gate | LOW | Zero or off by default; no effect until a profile turns it on. |
 | `entry_require_trade_through` | `False` | switch | simulation | LOW | Off, so a touch fills a resting order, which is optimistic. |
+| `min_profit_hold_ns` | `0` | time | exit | LOW | Zero or off by default; no effect until a profile turns it on. |
 
 ### FillModelConfig
 

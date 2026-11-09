@@ -86,6 +86,7 @@ def run_backend(
         read_target_reward_risk,
     )
     from app.research.episode_builder import EpisodeConfig
+    from app.risk.governor_state import default_state_path
     from app.runtime.controller import AutomaticRuntimeController
     from app.runtime.diagnostics import install_diagnostics
     from app.runtime.heartbeat import HeartbeatWriter, SnapshotCache
@@ -173,6 +174,8 @@ def run_backend(
         ),
         model_loader=model_loader,
         governor_policy=read_governor_policy(Path("config/risk_governor.yaml")),
+        # The governor's book survives restarts (data/paper/governor_state.json).
+        governor_state_path=default_state_path(config.paper_ledger_path),
     )
     paper_ledger = PaperLedger(config.paper_ledger_path)
     paper_engine.on_trade_closed(paper_ledger.append)

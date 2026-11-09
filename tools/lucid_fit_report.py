@@ -23,6 +23,17 @@ from app.risk.lucid_fit import FitScenario, estimate  # noqa: E402
 from app.risk.lucid_governor import load_governor_policy  # noqa: E402
 
 
+def wilson_interval(successes: int, runs: int, z: float = 1.96) -> tuple[float, float]:
+    """The 95% Wilson score interval for a rate (honest even near 0% and 100%)."""
+    if runs <= 0:
+        return 0.0, 0.0
+    rate = successes / runs
+    denominator = 1 + z * z / runs
+    centre = (rate + z * z / (2 * runs)) / denominator
+    half = z * ((rate * (1 - rate) / runs + z * z / (4 * runs * runs)) ** 0.5) / denominator
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runs", type=int, default=200, help="simulated evaluations per row (default 200)")
@@ -38,7 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     policy = load_governor_policy(args.governor_config)
     print(f"{profile.display_name}: target ${profile.profit_target}, max loss ${profile.max_loss_limit}, "
           f"stop {args.stop} / target {args.target} ticks, {args.runs} runs per row, 250-day horizon\n")
-    header = f"{'edge (R/trade)':>14} | {'rules':9} | {'pass':>5} {'retired':>7} {'failed':>6} {'other':>5} | {'median days to pass':>19}"
+    header = (f"{'edge (R/trade)':>14} | {'rules':9} | {'pass':>5} {'95% interval':>13} {'retired':>7} "
+              f"{'failed':>6} {'other':>5} | {'median days to pass':>19}")
     print(header)
     print("-" * len(header))
     for raw in args.edges.split(","):
@@ -47,10 +59,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary = estimate(profile, scenario, runs=args.runs, seed=args.seed, governed=governed, policy=policy)
             other = summary.stalled + summary.active
             days = "-" if summary.median_days_to_pass is None else str(summary.median_days_to_pass)
+            low, high = wilson_interval(summary.passed, summary.runs)
+            interval = f"{low:.0%}-{high:.0%}"
             print(f"{raw.strip():>14} | {'governed' if governed else 'old rules':9} | "
-                  f"{summary.rate(summary.passed):>5.0%} {summary.rate(summary.retired):>7.0%} "
-                  f"{summary.rate(summary.failed):>6.0%} {summary.rate(other):>5.0%} | {days:>19}")
-    print("\nretired = the governor stopped the account with room left; failed = the floor was touched.")
+                  f"{summary.rate(summary.passed):>5.0%} {interval:>13} {summary.rate(summary.retired):>7.0%} "
+                  f"{summary.rate(summary.failed):>6.0%} {summary.rate(other):>5.0%} | {days:>19}",
+                  flush=True)
+    print("\nretired = the governor stopped the account with room left; failed = the floor was touched;")
+    print("other = still active or stalled at the 250-day horizon. Every simulated loss is exactly one")
+    print("stop (no gaps, no slippage beyond the 2 ticks inside the costs, independent trades).")
     return 0
 
 
