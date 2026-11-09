@@ -4,6 +4,10 @@ __pycache__/
 .env
 logs/
 data/raw/
+# Databento downloads wait here until imported (several GB), and the importer's private
+# working folder; both are beside data/raw and never committed.
+data/.databento_downloads/
+data/.importing_raw/
 videos/
 video_output/
 *.joblib

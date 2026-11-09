@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Buy Databento history from the app** (`app/importers/databento_api.py`,
+  `databento_download.py`, `databento_key.py`; the "Download from Databento" card in the import
+  window; `python -m tools.databento_download`; guide `docs/DATABENTO_IMPORT.md`). With the user's
+  own API key: a price check first, a confirmation of the exact price, then MNQ MBP-10 history is
+  bought as daily CSV files and imported through the existing importer. Never spends more than
+  confirmed, never pays twice for a day (imported days are left out; purchases are recorded in a
+  ledger so a stopped run continues), and the key is kept outside the repository and sent only to
+  `*.databento.com`. Historical only: Bookmap stays the live feed. The only module allowed to use
+  the network (user-approved exception in AGENTS.md).
+- A "Databento Import" desktop shortcut with its own icon
+  (`tools/install_desktop_shortcut.ps1 -Importer`).
+
 - **Lucid risk governor** (`app/risk/lucid_governor.py`, `config/risk_governor.yaml`,
   `docs/RISK_GOVERNOR.md`): account-level rules fitted to the LucidFlex 25K evaluation - an
   end-of-day-floor day loss budget (25% of the buffer), a per-trade risk cap, a retire threshold,

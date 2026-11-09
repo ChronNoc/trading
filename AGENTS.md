@@ -12,6 +12,10 @@ inspectable rule or a versioned model — never a black-box output that directly
 - No hidden state: functions take explicit inputs and return explicit outputs where possible.
 - No network calls, no order submission, and no broker credentials in any module unless
   the task explicitly says "execution" or "broker" — see protected files below.
+  One user-approved exception (2026-11-09): `app/importers/databento_api.py` may call
+  Databento's Historical API to price and download historical market data (never orders,
+  never a broker). It is the only module allowed to; it uses the user's own key, which is kept
+  outside the repository, and buys nothing without the user confirming the price.
 - The system starts in OBSERVE mode by default everywhere. LIVE mode requires an explicit,
   separate config flag that defaults to false and is never set to true by generated code.
 - Log every decision (see decision log schema in strategy/logging.py) — accepted or

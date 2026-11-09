@@ -818,6 +818,10 @@ class _ImportIndex:
     def add(self, known: _Known) -> None:
         self.known.append(known)
 
+    def days(self) -> set[str]:
+        """The UTC days (YYYY-MM-DD) that already have an imported session."""
+        return {item.day for item in self.known}
+
     def same_content(self, content_key: str) -> _Known | None:
         return next((item for item in self.known if item.content_key == content_key), None)
 
@@ -826,6 +830,15 @@ class _ImportIndex:
             (item for item in self.known if item.day == day and item.first_ts <= last_ts and first_ts <= item.last_ts),
             None,
         )
+
+
+def imported_days(out_root: Path) -> set[str]:
+    """The UTC days (YYYY-MM-DD) that already have a Databento session under ``out_root``.
+
+    The downloader uses this to leave those days out of a purchase, so a day is never paid for
+    twice.
+    """
+    return _ImportIndex(Path(out_root)).days()
 
 
 # --- the whole import ---------------------------------------------------------------------
