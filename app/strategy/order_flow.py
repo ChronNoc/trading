@@ -915,7 +915,8 @@ def _defending_side(direction: TradeDirection) -> BookSide:
 
 
 def _depth_for_side(snapshot: MarketState, side: BookSide) -> tuple[DepthLevel, ...]:
-    return snapshot.bid_depth if side == BookSide.BID else snapshot.ask_depth
+    """The side's top ``BOOK_FEATURE_LEVELS`` levels: the same ten live and in Databento history."""
+    return snapshot.top_bid_depth if side == BookSide.BID else snapshot.top_ask_depth
 
 
 def _size_at_price(snapshot: MarketState, side: BookSide, price: Decimal) -> Decimal:

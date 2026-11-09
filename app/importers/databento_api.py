@@ -11,7 +11,12 @@ open-source Python client (``databento/databento-python``):
 * ``POST /v0/metadata.get_cost``  - the price of a request, in US dollars;
 * ``POST /v0/batch.submit_job``   - a batch job (CSV, zstd, one file per day);
 * ``GET  /v0/batch.get_job_details`` and ``GET /v0/batch.list_files`` - its progress and files;
+* ``GET  /v0/batch.list_jobs`` - recent jobs, to learn whether a purchase whose reply was lost
+  went through (so it is never bought twice);
 * the files themselves, from the HTTPS links Databento returns.
+
+A slow reply or a dropped connection raises ``DatabentoUnreachable``: nothing was refused, and a
+call that buys nothing can simply be made again. Buying (``submit_job``) is never repeated blindly.
 
 Authentication is HTTP basic with the API key as the user name and an empty password. The key is
 sent only to ``*.databento.com`` over HTTPS and never appears in a message, log line or repr.
@@ -21,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import http.client
 import json
 import os
 import urllib.error
@@ -28,10 +34,11 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 GATEWAY = "https://hist.databento.com"
 API_VERSION = "0"
@@ -39,6 +46,7 @@ DATASET = "GLBX.MDP3"            # CME Globex
 SCHEMA = "mbp-10"                # ten book levels plus every trade
 CONTINUOUS_SYMBOL = "MNQ.v.0"    # the most-traded MNQ contract each day (one instrument a day)
 USER_AGENT = "mnq-intelligence-downloader/1"
+NEW_YORK = ZoneInfo("America/New_York")
 _TRUSTED_HOST_SUFFIX = ".databento.com"
 _CHUNK = 1 << 20
 
@@ -53,6 +61,18 @@ class DatabentoError(RuntimeError):
 
 class DatabentoAuthError(DatabentoError):
     """Databento did not accept the API key."""
+
+
+class DatabentoUnreachable(DatabentoError):
+    """Databento was slow to answer, busy, or the connection dropped: nothing was refused.
+
+    A call that buys nothing (a price, a job's state, a file list, a download) can be made again.
+    """
+
+
+# Errors of the connection itself (not a refusal): a socket timeout, a reset or closed connection,
+# a reply cut short.
+_CONNECTION_ERRORS = (TimeoutError, ConnectionError, http.client.HTTPException)
 
 
 class _Response(Protocol):
@@ -94,7 +114,12 @@ def _default_opener(request: urllib.request.Request, timeout: float) -> _Respons
 
 @dataclass(frozen=True, slots=True)
 class RangeRequest:
-    """One continuous range of whole UTC days of MNQ order-book data."""
+    """MNQ order-book data: whole UTC days, or some New York hours of ONE day.
+
+    ``window`` (New York wall-clock start and end) limits a one-day request to those hours, for
+    example the regular trading hours only, which costs far less than the whole 23-hour day. The
+    times are converted to UTC for that date, so daylight saving is handled.
+    """
 
     start: date                 # first UTC day, inclusive
     end: date                   # UTC day after the last one (exclusive)
@@ -102,10 +127,16 @@ class RangeRequest:
     dataset: str = DATASET
     schema: str = SCHEMA
     stype_in: str = "continuous"
+    window: tuple[time, time] | None = None
 
     def __post_init__(self) -> None:
         if self.end <= self.start:
             raise ValueError("the end day must be after the start day")
+        if self.window is not None:
+            if self.end - self.start != timedelta(days=1):
+                raise ValueError("a time window applies to one day at a time")
+            if not self.window[0] < self.window[1]:
+                raise ValueError("the window must start before it ends")
 
     @property
     def days(self) -> int:
@@ -114,15 +145,24 @@ class RangeRequest:
 
     def fields(self) -> dict[str, str]:
         """The request fields Databento's price check and batch job share."""
+        if self.window is None:
+            start, end = self.start.isoformat(), self.end.isoformat()
+        else:
+            start, end = _utc_minute(self.start, self.window[0]), _utc_minute(self.start, self.window[1])
         return {
             "dataset": self.dataset,
-            "start": self.start.isoformat(),
-            "end": self.end.isoformat(),
+            "start": start,
+            "end": end,
             "symbols": self.symbol,
             "schema": self.schema,
             "stype_in": self.stype_in,
             "stype_out": "instrument_id",
         }
+
+
+def _utc_minute(day: date, clock: time) -> str:
+    """A New York wall-clock time on ``day`` as a UTC ``YYYY-MM-DDTHH:MM`` (Databento reads UTC)."""
+    return datetime.combine(day, clock, tzinfo=NEW_YORK).astimezone(UTC).strftime("%Y-%m-%dT%H:%M")
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +250,31 @@ class HistoricalClient:
             ))
         return files
 
+    def find_job(self, request: RangeRequest, since: datetime) -> str | None:
+        """The id of a job for exactly ``request`` that Databento received since ``since``, or None.
+
+        Asked only when the reply to ``submit_job`` was lost: the purchase may still have gone
+        through, and buying the day again would pay for it twice. Matching is strict (dataset,
+        schema, symbol, start and end); a reply in an unexpected shape matches nothing.
+        """
+        wanted = request.fields()
+        listing = self._json("GET", "batch.list_jobs", query={
+            "states": "received,queued,processing,done",
+            "since": since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        })
+        if not isinstance(listing, list):
+            raise DatabentoError("Databento returned an unexpected job list.")
+        for job in listing:
+            if not isinstance(job, Mapping):
+                continue
+            if (str(job.get("dataset")) == wanted["dataset"] and str(job.get("schema")) == wanted["schema"]
+                    and wanted["symbols"] in str(job.get("symbols"))
+                    and _same_moment(job.get("start"), wanted["start"])
+                    and _same_moment(job.get("end"), wanted["end"])
+                    and job.get("id")):
+                return str(job["id"])
+        return None
+
     def download(
         self, remote: RemoteFile, destination: Path, *,
         progress: Callable[[int, int], None] | None = None,
@@ -230,7 +295,11 @@ class HistoricalClient:
                 while True:
                     if cancel is not None and cancel():
                         raise DatabentoError("Stopped by you; the partial file was removed.")
-                    chunk = response.read(_CHUNK)
+                    try:
+                        chunk = response.read(_CHUNK)
+                    except _CONNECTION_ERRORS:
+                        raise DatabentoUnreachable(
+                            f"The download of {remote.filename} was interrupted after {received:,} bytes.") from None
                     if not chunk:
                         break
                     stream.write(chunk)
@@ -272,6 +341,8 @@ class HistoricalClient:
         response = self._open(urllib.request.Request(url, data=data, headers=headers, method=method))
         try:
             body = response.read()
+        except _CONNECTION_ERRORS:
+            raise DatabentoUnreachable(f"Databento's reply to {endpoint} was cut short; try again.") from None
         finally:
             response.close()
         try:
@@ -286,9 +357,10 @@ class HistoricalClient:
         except urllib.error.HTTPError as error:
             raise _translate(error) from None
         except urllib.error.URLError as error:
-            raise DatabentoError(f"Could not reach Databento ({error.reason}). Check the internet connection.") from None
-        except TimeoutError:
-            raise DatabentoError("Databento did not answer in time; try again.") from None
+            raise DatabentoUnreachable(
+                f"Could not reach Databento ({error.reason}). Check the internet connection.") from None
+        except _CONNECTION_ERRORS:
+            raise DatabentoUnreachable("Databento did not answer in time; try again.") from None
 
     @staticmethod
     def _require_trusted(url: str) -> None:
@@ -324,4 +396,20 @@ def _translate(error: urllib.error.HTTPError) -> DatabentoError:
         return DatabentoAuthError(f"Databento did not accept the API key (HTTP {error.code}){suffix}", status=error.code)
     if error.code == 402:
         return DatabentoError(f"Databento refused the purchase (HTTP 402: payment or credit){suffix}", status=402)
+    if error.code == 429 or error.code >= 500:
+        return DatabentoUnreachable(
+            f"Databento is busy (HTTP {error.code}){suffix}; try again in a few minutes.", status=error.code)
     return DatabentoError(f"Databento refused the request (HTTP {error.code}){suffix}", status=error.code)
+
+
+def _same_moment(value: object, wanted: str) -> bool:
+    """Whether a job's start or end (``2026-11-04T14:30:00.000000000Z`` or similar) is ``wanted``.
+
+    ``wanted`` is what this client sends: ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM``, in UTC.
+    """
+    text = str(value or "").strip().replace(" ", "T")
+    if not text.startswith(wanted):
+        return False
+    # Whatever follows may only be zero seconds/fractions and a UTC marker; any other clock or
+    # offset is a different moment.
+    return all(character in "0:.TZ+" for character in text[len(wanted):])

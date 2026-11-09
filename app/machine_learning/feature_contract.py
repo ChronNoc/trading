@@ -26,7 +26,10 @@ from app.strategy.order_flow import StrategyLevels, _reference_price
 
 NEW_YORK = ZoneInfo("America/New_York")
 NANOSECONDS_PER_SECOND = 1_000_000_000
-FEATURE_CONTRACT_VERSION = "shared-causal-market-features-v3"
+# v4 (2026-11-09): every book feature reads only the top BOOK_FEATURE_LEVELS (10) levels per side,
+# so features computed from Databento MBP-10 history equal those computed live (Bookmap shows up to
+# 20). Datasets and models built under v3 summed every visible level and are not comparable.
+FEATURE_CONTRACT_VERSION = "shared-causal-market-features-v4"
 FEATURE_PARITY_STATE = "SHARED_BUILDER_RUNTIME_DISCONNECTED"
 
 FEATURE_COLUMNS: tuple[str, ...] = (
@@ -50,13 +53,13 @@ FEATURE_COLUMNS: tuple[str, ...] = (
 )
 
 _FEATURE_FORMULAS: tuple[str, ...] = (
-    "last-book bid-size-minus-ask-size over total-size",
+    "last-book bid-size-minus-ask-size over total-size, top 10 levels per side",
     "last executed-buy-volume minus first executed-buy-volume",
     "last executed-sell-volume minus first executed-sell-volume",
-    "sum of positive same-side depth changes over sampled prefix",
-    "sum of negative same-side depth changes over sampled prefix",
+    "sum of positive same-side depth changes over sampled prefix, top 10 levels per side",
+    "sum of negative same-side depth changes over sampled prefix, top 10 levels per side",
     "best-bid depletion-to-reload cycles at default threshold",
-    "ticks from reference price to largest same-direction depth level",
+    "ticks from reference price to largest same-direction depth level among the top 10",
     "absolute first-to-last reference-price ticks per second",
     "executed volume delta per second",
     "last spread in ticks; row unavailable without a two-sided spread",
@@ -519,7 +522,7 @@ def _defended_distance_ticks(
     direction: str,
     tick_size: Decimal,
 ) -> Decimal:
-    depth = state.bid_depth if direction == "long" else state.ask_depth
+    depth = state.top_bid_depth if direction == "long" else state.top_ask_depth
     reference = _reference_price(state)
     if reference is None:
         raise ValueError("feature row unavailable: reference price is missing")

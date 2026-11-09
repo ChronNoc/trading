@@ -841,6 +841,56 @@ def imported_days(out_root: Path) -> set[str]:
     return _ImportIndex(Path(out_root)).days()
 
 
+@dataclass(frozen=True, slots=True)
+class TrainingPermission:
+    """One imported session's machine-learning permission, after ``set_training_permission``."""
+
+    day: str
+    session_id: str
+    changed: bool
+    trainable: bool               # what the catalog now says, opt-in included
+    reasons: tuple[str, ...]      # why it still cannot train, if it cannot
+
+
+def set_training_permission(
+    out_root: Path, enabled: bool | None, days: Iterable[str] | None = None, *, now: datetime | None = None,
+) -> list[TrainingPermission]:
+    """Switch training on (or off) for Databento days ALREADY imported: the opt-in, made later.
+
+    Only sessions this importer wrote are touched, and only their opt-in, its record and the
+    verdicts derived from it change; the data and every measured number stay as they were. The
+    catalog still decides: a day with quality problems stays out of training whatever the opt-in.
+    ``days`` limits it to those UTC days (YYYY-MM-DD); None means every imported day.
+    ``enabled=None`` only reports, writing nothing.
+    """
+    wanted = set(days) if days is not None else None
+    stamp = (now or datetime.now(UTC)).astimezone(UTC).isoformat(timespec="seconds")
+    results: list[TrainingPermission] = []
+    for path in sorted(Path(out_root).glob(f"*/*{SESSION_SUFFIX}/session_manifest.json")):
+        day = path.parent.parent.name
+        if wanted is not None and day not in wanted:
+            continue
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            source = manifest["import_source"]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if not isinstance(source, dict) or source.get("vendor") != "databento":
+            continue
+        changed = enabled is not None and source.get("allow_model_training") is not enabled
+        if changed:
+            source["allow_model_training"] = enabled
+            source["training_permission_changed"] = {"to": enabled, "at": stamp, "by": "set_training_permission"}
+        entry = classify_manifest(manifest, path)
+        stale = manifest.get("valid_for_real_training") is not entry.eligible_for_model_training
+        manifest["valid_for_real_training"] = entry.eligible_for_model_training
+        if enabled is not None and (changed or stale):
+            _write_manifest(path, manifest)
+        results.append(TrainingPermission(day, str(manifest.get("session_id") or path.parent.name), changed,
+                                          entry.eligible_for_model_training, entry.model_training_reasons))
+    return results
+
+
 # --- the whole import ---------------------------------------------------------------------
 
 

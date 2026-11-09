@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ledger so a stopped run continues), and the key is kept outside the repository and sent only to
   `*.databento.com`. Historical only: Bookmap stays the live feed. The only module allowed to use
   the network (user-approved exception in AGENTS.md).
+- Databento downloads can buy **trading hours only** (09:30–16:50 New York of each weekday), the
+  default, instead of whole 24-hour days, which cost about $13 per trading day on the first real
+  quote. History is chosen in trading days, from one day up to a year (`--hours rth|full` and
+  trading-day `--days` on the command line).
+- `python -m tools.databento_training [--on|--off] [--day YYYY-MM-DD]`
+  (`app.importers.databento.set_training_permission`): allow or stop machine-learning training on
+  Databento days already imported. Only the opt-in and the verdicts derived from it change; the catalog
+  still keeps a day with failed quality checks out of training.
 - A "Databento Import" desktop shortcut with its own icon
   (`tools/install_desktop_shortcut.ps1 -Importer`).
 
@@ -34,8 +42,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Lucid evaluation, governed and under the previous production rules, across a range of true edges.
 - `CloseReason.RISK_GOVERNOR` for positions the governor flattens.
 
+### Changed
+
+- **Book features read the top 10 levels of each side, live and in history** (user decision,
+  2026-11-09; `BOOK_FEATURE_LEVELS` in `app/market/state.py`). Databento MBP-10 history has 10 levels
+  and live Bookmap recordings up to 20, so features that summed the whole visible book differed
+  between the two. Book imbalance, liquidity added/cancelled, the largest defended level, and the
+  strategy's own block, loading-liquidity, ask-cancellation and size-at-price checks now read the same
+  top 10 everywhere. Live effect: a block more than 10 levels (2.5 points) from the price no longer
+  counts. The ML feature contract is now `shared-causal-market-features-v4` (v3 datasets and models
+  are not comparable; new training builds v4 datasets), and the strategy is `order-flow-plan-v2`, so
+  the build orchestrator rebuilds every session's episodes with the new rule.
+- An imported day may train when at most 1 trade in 10,000 had no aggressor side (those trades are
+  left out at import); it used to be blocked by a single one. Databento marked 2 of 1,340,741 trades
+  that way on 2026-11-02. User decision, 2026-11-09
+  (`IMPORT_UNSIDED_TRADES_PER_ALLOWED` in `app/research/session_catalog.py`).
+
 ### Fixed
 
+- **Databento downloads survive a slow or silent Databento** (2026-11-09: during the first real
+  purchase one 60-second unanswered status check ended the run after two days were paid and one was
+  downloaded). Timeouts, dropped connections and busy replies (HTTP 429/5xx) are now told apart from
+  refusals (`DatabentoUnreachable`); calls that buy nothing are tried again for about 8 minutes, a paid
+  job is waited out through 20 silent checks, and a dropped download is fetched again. A purchase is
+  never sent twice: when its reply is lost, `batch.list_jobs` is asked whether it went through (strict
+  match on dataset, schema, symbol, start and end), and if no job is listed the run stops and points to
+  the portal's Download center before that day is bought again. Messages now name the real buttons.
 - **Lucid governor red-team fix pack** (2026-11-08; a read-only 9-agent red-team confirmed the rules
   and Lucid numbers and found these holes):
   - a restart no longer resets the account: the governor's whole book, and the paper balance, are

@@ -52,9 +52,9 @@ def compute_market_features(
 
 
 def calculate_book_imbalance(state: MarketState) -> Decimal:
-    """Calculate normalized book imbalance from the latest snapshot."""
-    bid_size = _sum_depth_size(state.bid_depth)
-    ask_size = _sum_depth_size(state.ask_depth)
+    """Calculate normalized book imbalance from the latest snapshot's top levels."""
+    bid_size = _sum_depth_size(state.top_bid_depth)
+    ask_size = _sum_depth_size(state.top_ask_depth)
     total_size = bid_size + ask_size
     if total_size == Decimal("0"):
         return Decimal("0")
@@ -166,8 +166,8 @@ def _calculate_liquidity_changes(snapshots: Sequence[MarketState]) -> tuple[Deci
     cancelled = Decimal("0")
     for previous, current in zip(snapshots, snapshots[1:]):
         for previous_depth, current_depth in (
-            (previous.bid_depth, current.bid_depth),
-            (previous.ask_depth, current.ask_depth),
+            (previous.top_bid_depth, current.top_bid_depth),
+            (previous.top_ask_depth, current.top_ask_depth),
         ):
             previous_by_price = _depth_by_price(previous_depth)
             current_by_price = _depth_by_price(current_depth)

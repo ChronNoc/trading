@@ -20,7 +20,6 @@ import os
 import re
 import threading
 from collections.abc import Callable, Sequence
-from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -64,6 +63,7 @@ from app.importers.databento_download import (
     download_plan,
     latest_available_day,
     plan_download,
+    recent_trading_days,
     remove_downloads,
 )
 from app.importers.databento_key import (
@@ -75,9 +75,12 @@ from app.importers.databento_key import (
 )
 
 DEFAULT_OUT_ROOT = Path("data/raw")
-HISTORY_CHOICES = (("Last 7 days", 7), ("Last 30 days", 30), ("Last 90 days", 90),
-                   ("Last 180 days", 180), ("Last 365 days", 365))
-DEFAULT_HISTORY_DAYS = 30
+HISTORY_CHOICES = (("Last trading day", 1), ("Last 5 trading days (a week)", 5),
+                   ("Last 20 trading days (a month)", 20), ("Last 60 trading days (3 months)", 60),
+                   ("Last 120 trading days (6 months)", 120), ("Last 250 trading days (a year)", 250))
+DEFAULT_HISTORY_DAYS = 5
+HOURS_CHOICES = (("Trading hours only, 09:30–16:50 New York (cheaper)", True),
+                 ("Whole day, 24 hours (costs much more)", False))
 ClientFactory = Callable[[str], HistoricalClient]
 ConfirmPurchase = Callable[[str, str], bool]
 
@@ -132,9 +135,12 @@ class _PriceWorker(QThread):
     progress = Signal(object)    # DownloadEvent
     done = Signal(object, str)   # DownloadPlan or None, and an error message
 
-    def __init__(self, client_factory: ClientFactory, key: str, out_root: Path, days: int) -> None:
+    def __init__(
+        self, client_factory: ClientFactory, key: str, out_root: Path, days: int, rth_only: bool,
+    ) -> None:
         super().__init__()
         self._client_factory, self._key, self._out_root, self._days = client_factory, key, out_root, days
+        self._rth_only = rth_only
         self._stop = threading.Event()
 
     def stop(self) -> None:
@@ -144,9 +150,9 @@ class _PriceWorker(QThread):
     def run(self) -> None:  # noqa: D401 - QThread entry point
         try:
             last = latest_available_day()
-            plan = plan_download(self._client_factory(self._key), self._out_root,
-                                 last - timedelta(days=self._days - 1), last, progress=self.progress.emit,
-                                 cancel=self._stop.is_set)
+            first = recent_trading_days(last, self._days)[0]
+            plan = plan_download(self._client_factory(self._key), self._out_root, first, last,
+                                 progress=self.progress.emit, cancel=self._stop.is_set, rth_only=self._rth_only)
         except (DatabentoError, ValueError) as error:
             self.done.emit(None, str(error))
             return
@@ -236,7 +242,8 @@ def _plan_text(plan: DownloadPlan) -> str:
         parts.append(f"{len(plan.paid_days)} day(s) already paid for (download only)")
     if plan.already_imported:
         parts.append(f"{len(plan.already_imported)} day(s) already imported")
-    return f"{plan.first_day} to {plan.last_day}: " + "; ".join(parts) + "."
+    hours = "trading hours only" if plan.rth_only else "whole days"
+    return f"{plan.first_day} to {plan.last_day}, {hours}: " + "; ".join(parts) + "."
 
 
 def _result_text(result: ImportResult) -> str:
@@ -307,7 +314,8 @@ class DatabentoImportScreen(DashboardScreen):
         download_note = QLabel(
             "Buys MNQ order-book history (10 levels and every trade) with your own Databento account, then "
             "imports it like a drop. You always see the price first and confirm it; days you already have are "
-            "never bought again. History runs up to yesterday."
+            "never bought again. History runs up to yesterday. Trading hours only is much cheaper and covers "
+            "everything the paper account trades; the overnight high and low are then unknown."
         )
         download_note.setObjectName("import_download_note")
         download_note.setWordWrap(True)
@@ -337,6 +345,12 @@ class DatabentoImportScreen(DashboardScreen):
         self.history_combo.setCurrentIndex([days for _, days in HISTORY_CHOICES].index(DEFAULT_HISTORY_DAYS))
         self.history_combo.currentIndexChanged.connect(self._history_changed)
         form.addRow("History", self.history_combo)
+        self.hours_combo = QComboBox()
+        self.hours_combo.setObjectName("import_hours")
+        for label, rth_only in HOURS_CHOICES:
+            self.hours_combo.addItem(label, rth_only)
+        self.hours_combo.currentIndexChanged.connect(self._history_changed)
+        form.addRow("Hours", self.hours_combo)
         download.body.addLayout(form)
         self.price_line = _value("import_price", "Check the price to see what this would cost.")
         self.price_line.setWordWrap(True)
@@ -489,7 +503,7 @@ class DatabentoImportScreen(DashboardScreen):
         self.state_badge.set_status("PRICING", "neutral")
         self.status_line.setText("Asking Databento for the price…")
         worker = _PriceWorker(self.client_factory, self._api_key, self._out_root,
-                              int(self.history_combo.currentData()))
+                              int(self.history_combo.currentData()), bool(self.hours_combo.currentData()))
         worker.progress.connect(self.apply_download_progress)
         worker.done.connect(self.apply_price)
         self._price_worker = worker
@@ -521,8 +535,9 @@ class DatabentoImportScreen(DashboardScreen):
             return
         title = "Buy Databento data"
         if plan.total_cost > 0:
+            hours = "trading hours (09:30–16:50 New York)" if plan.rth_only else "whole days (24 hours)"
             question = (
-                f"Buy {plan.days_to_buy} day(s) of MNQ order-book data from Databento for "
+                f"Buy {plan.days_to_buy} day(s) of MNQ order-book data, {hours}, from Databento for "
                 f"${plan.total_cost:.2f}?\n\nIt is charged to your Databento account (any free credit is used "
                 "first). Days you already have are not bought again."
             )
@@ -649,7 +664,7 @@ class DatabentoImportScreen(DashboardScreen):
     def _history_changed(self, _index: int) -> None:
         if self._plan is not None:
             self._plan = None
-            self.price_line.setText("The history changed: check the price again.")
+            self.price_line.setText("The history or hours changed: check the price again.")
         self._set_idle()
 
     # -- applying immutable results (Qt thread, no I/O) ----------------------------------------
@@ -744,7 +759,7 @@ class DatabentoImportScreen(DashboardScreen):
         self.files_button.setEnabled(False)
         self.folder_button.setEnabled(False)
         self.training_option.setEnabled(False)
-        for control in (self.set_key_button, self.forget_key_button, self.history_combo,
+        for control in (self.set_key_button, self.forget_key_button, self.history_combo, self.hours_combo,
                         self.price_button, self.buy_button):
             control.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -760,6 +775,7 @@ class DatabentoImportScreen(DashboardScreen):
         self.set_key_button.setEnabled(True)
         self.forget_key_button.setEnabled(has_key)
         self.history_combo.setEnabled(True)
+        self.hours_combo.setEnabled(True)
         self.price_button.setEnabled(has_key)
         self.buy_button.setEnabled(has_key and plan is not None and not plan.nothing_to_do)
         if plan is not None and not plan.nothing_to_do:

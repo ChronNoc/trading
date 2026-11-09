@@ -352,6 +352,21 @@ def test_an_import_missing_an_aggressor_side_on_some_trades_cannot_train_even_af
     assert any("aggressor-side coverage incomplete (265/266 trades, 1 left out)" in r for r in entry.model_training_reasons)
 
 
+@pytest.mark.parametrize(("kept", "left_out", "trainable"), [
+    (1_340_739, 2, True),          # the real 2026-11-02 Databento day
+    (9_999, 1, True),              # exactly one in 10,000
+    (19_997, 3, False),            # more than one in 10,000
+])
+def test_an_import_may_train_with_at_most_one_unsided_trade_in_ten_thousand(
+    kept: int, left_out: int, trainable: bool,
+) -> None:
+    manifest = _import_manifest(allow_model_training=True, trades_with_aggressor_side=kept,
+                                trades_left_out_no_aggressor=left_out)
+    manifest["event_counts"]["trades"] = kept
+    entry = classify_manifest(manifest, Path("m.json"))
+    assert entry.eligible_for_model_training is trainable
+
+
 def test_a_manifest_that_merely_claims_another_vendor_gets_no_import_path() -> None:
     """Only a named vendor importer takes the import rules; anything else keeps the bridge rules."""
     entry = classify_manifest(_import_manifest(vendor="somebody-else", allow_model_training=True), Path("m.json"))

@@ -7,6 +7,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Mapping, TypeAlias
 
 MAX_DEPTH_LEVELS = 20
+# Every book feature (imbalance, liquidity added/cancelled, blocks, sizes at a price, the largest
+# level) reads only the best BOOK_FEATURE_LEVELS non-empty levels of each side. Historical
+# Databento MBP-10 data carries exactly ten; live Bookmap recordings keep up to MAX_DEPTH_LEVELS.
+# Reading the same ten everywhere keeps a feature learned or tested on history the same feature
+# live (2026-11-09, user decision).
+BOOK_FEATURE_LEVELS = 10
 RawEvent: TypeAlias = Mapping[str, object]
 
 
@@ -49,6 +55,16 @@ class MarketState:
             "bid": self.bid_depth,
             "ask": self.ask_depth,
         }
+
+    @property
+    def top_bid_depth(self) -> tuple[DepthLevel, ...]:
+        """The best ``BOOK_FEATURE_LEVELS`` bid levels (best first): what book features read."""
+        return self.bid_depth[:BOOK_FEATURE_LEVELS]
+
+    @property
+    def top_ask_depth(self) -> tuple[DepthLevel, ...]:
+        """The best ``BOOK_FEATURE_LEVELS`` ask levels (best first): what book features read."""
+        return self.ask_depth[:BOOK_FEATURE_LEVELS]
 
     def bid_size_at_level(self, level: int) -> Decimal:
         """Return bid size at a 1-based depth level, or zero if absent."""

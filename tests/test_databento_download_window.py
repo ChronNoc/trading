@@ -21,7 +21,7 @@ from app.gui.databento_import_window import DatabentoImportWindow
 from app.importers.databento import imported_days
 from app.importers.databento_api import HistoricalClient
 from app.importers.databento_download import download_folder
-from tests.test_databento_download import KEY, PRICE_PER_DAY, FakeDatabento, daily_files, http_error
+from tests.test_databento_download import KEY, PRICE_PER_DAY, RTH_PRICE, FakeDatabento, daily_files, http_error
 
 WAIT_MS = 60_000
 
@@ -33,13 +33,15 @@ def _private_key_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, "latest_available_day", lambda now=None: date(2025, 7, 21))
 
 
-def make(qtbot: object, tmp_path: Path, fake: FakeDatabento, *, with_key: bool = True) -> DatabentoImportWindow:
+def make(qtbot: object, tmp_path: Path, fake: FakeDatabento, *, with_key: bool = True,
+         history_index: int = 1, whole_day: bool = True) -> DatabentoImportWindow:
     window = DatabentoImportWindow(out_root=tmp_path / "raw")
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window.page.client_factory = lambda key: HistoricalClient(key, opener=fake)
     if with_key:
         assert window.page.set_api_key(KEY)
-    window.page.history_combo.setCurrentIndex(0)                       # "Last 7 days": 2025-07-15..21
+    window.page.history_combo.setCurrentIndex(history_index)          # 5 trading days back from Mon 2025-07-21
+    window.page.hours_combo.setCurrentIndex(1 if whole_day else 0)    # whole days: 2025-07-15..21
     return window
 
 
@@ -84,7 +86,7 @@ def test_checking_the_price_buys_nothing_and_arms_the_buy_button(qtbot, tmp_path
     assert "7 day(s) to buy for $2.94" in page.price_line.text()
     assert page.buy_button.isEnabled() and page.buy_button.text() == "Buy and import ($2.94)"
     assert fake.bought() == []
-    page.history_combo.setCurrentIndex(1)                                  # another history: price is stale
+    page.history_combo.setCurrentIndex(2)                                  # another history: price is stale
     assert not page.buy_button.isEnabled() and "check the price again" in page.price_line.text()
 
 
@@ -188,3 +190,23 @@ def test_the_new_card_writes_no_colours_of_its_own() -> None:
     assert "setStyleSheet(" not in source.split("class DatabentoImportWindow")[0]
     assert "#" not in "".join(line for line in source.splitlines() if "import_download" in line)
     assert D(str(PRICE_PER_DAY)) * 7 == D("2.94")
+
+
+def test_trading_hours_are_the_default_and_change_the_price_and_the_question(qtbot, tmp_path: Path) -> None:
+    fresh = DatabentoImportWindow(out_root=tmp_path / "other")
+    qtbot.addWidget(fresh)
+    assert fresh.page.hours_combo.currentData() is True                   # the cheaper choice by default
+    assert fresh.page.history_combo.currentData() == 5
+    fake = FakeDatabento()
+    window = make(qtbot, tmp_path, fake, whole_day=False)
+    page = window.page
+    asked: list[str] = []
+    page.confirm_purchase = lambda title, question: asked.append(question) or False
+    page.check_price()
+    idle(qtbot, window)
+    assert "trading hours only" in page.price_line.text() and "5 day(s) to buy for $0.85" in page.price_line.text()
+    assert RTH_PRICE * 5 == D("0.85")
+    page.buy()
+    assert "trading hours (09:30–16:50 New York)" in asked[0] and fake.bought() == []
+    page.hours_combo.setCurrentIndex(1)                                   # whole day: the price is stale
+    assert not page.buy_button.isEnabled() and "check the price again" in page.price_line.text()

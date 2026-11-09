@@ -239,6 +239,11 @@ def _bridge_training_reasons(manifest: dict[str, object], trades: int) -> list[s
 
 
 VENDOR_IMPORT_VENDORS = frozenset({"databento"})
+# An imported day may still train when at most one trade in this many carried no aggressor side
+# (those trades are left out at import; every kept trade must have one). Databento marks a few
+# trades a day that way: 2 of 1,340,741 on 2026-11-02. A larger share means the day's order flow
+# is not trusted for training. User decision, 2026-11-09; it was zero before.
+IMPORT_UNSIDED_TRADES_PER_ALLOWED = 10_000
 
 
 def _vendor_import_block(manifest: dict[str, object]) -> dict[str, object] | None:
@@ -267,7 +272,8 @@ def _vendor_import_training_reasons(block: dict[str, object], trades: int) -> li
         reasons.append("imported session: model training was not enabled for this import (opt-in)")
     covered = _as_int(block.get("trades_with_aggressor_side")) or 0
     left_out = _as_int(block.get("trades_left_out_no_aggressor")) or 0
-    if trades > 0 and (covered != trades or left_out > 0):
+    too_many_unsided = left_out * IMPORT_UNSIDED_TRADES_PER_ALLOWED > covered + left_out
+    if trades > 0 and (covered != trades or too_many_unsided):
         reasons.append(
             f"imported session: aggressor-side coverage incomplete ({covered}/{trades} trades, {left_out} left out)"
         )

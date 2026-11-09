@@ -1,8 +1,11 @@
 """Buy MNQ order-book history from Databento and import it (the command-line twin of the window).
 
-    py -m tools.databento_download --days 30                     # price only: buys nothing
-    py -m tools.databento_download --start 2026-08-01 --end 2026-08-31
-    py -m tools.databento_download --days 30 --buy --max-cost 25  # buy, but only if it costs <= $25
+    py -m tools.databento_download --days 5                      # price only: buys nothing
+    py -m tools.databento_download --start 2026-08-01 --end 2026-08-31 --hours full
+    py -m tools.databento_download --days 20 --buy --max-cost 25  # buy, but only if it costs <= $25
+
+``--days`` counts trading days (weekdays) back from yesterday. ``--hours rth`` (the default) buys
+only 09:30-16:50 New York of each weekday, which costs far less than ``--hours full`` (24 hours).
 
 The key is your own: ``DATABENTO_API_KEY`` in the environment, or the one saved from the import
 window. Without ``--buy`` nothing is ever bought; with it, ``--max-cost`` is your confirmation and
@@ -15,7 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -29,6 +32,7 @@ from app.importers.databento_download import (  # noqa: E402
     download_plan,
     latest_available_day,
     plan_download,
+    recent_trading_days,
     remove_downloads,
 )
 from app.importers.databento_key import ENV_VAR, load_api_key  # noqa: E402
@@ -47,9 +51,11 @@ def _money(text: str) -> Decimal:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     span = parser.add_mutually_exclusive_group()
-    span.add_argument("--days", type=int, help="the last N UTC days up to yesterday (default 30)")
+    span.add_argument("--days", type=int, help="the last N trading days up to yesterday (default 5)")
     span.add_argument("--start", type=date.fromisoformat, help="first UTC day, YYYY-MM-DD")
     parser.add_argument("--end", type=date.fromisoformat, help="last UTC day, YYYY-MM-DD (with --start)")
+    parser.add_argument("--hours", choices=("rth", "full"), default="rth",
+                        help="rth: 09:30-16:50 New York of each weekday (default, cheaper); full: 24 hours")
     parser.add_argument("--buy", action="store_true", help="buy and import (without it: price only)")
     parser.add_argument("--max-cost", type=_money, help="with --buy: the most you accept to pay, in US dollars")
     parser.add_argument("--allow-training", action="store_true", help="let machine learning train on the data")
@@ -83,13 +89,15 @@ def main(argv: Sequence[str] | None = None, *, client: HistoricalClient | None =
         first, last = args.start, args.end
     else:
         last = latest_available_day()
-        first = last - timedelta(days=(args.days or 30) - 1)
+        first = recent_trading_days(last, args.days or 5)[0]
+    rth_only = args.hours == "rth"
     try:
-        plan = plan_download(client, args.out, first, last, progress=_say)
+        plan = plan_download(client, args.out, first, last, progress=_say, rth_only=rth_only)
     except (DatabentoError, ValueError) as error:
         print(f"No price: {error}", file=sys.stderr)
         return 1
-    print(f"{first} to {last}: {plan.days_to_buy} day(s) to buy for ${plan.total_cost:.2f}; "
+    hours = "trading hours only" if rth_only else "whole days"
+    print(f"{first} to {last}, {hours}: {plan.days_to_buy} day(s) to buy for ${plan.total_cost:.2f}; "
           f"{len(plan.paid_days)} already paid for; {len(plan.already_imported)} already imported.")
     if plan.nothing_to_do:
         print("Nothing to do.")

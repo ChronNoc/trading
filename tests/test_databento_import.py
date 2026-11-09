@@ -415,6 +415,47 @@ def test_a_clean_import_is_usable_for_replay_but_not_for_training_until_you_opt_
     assert _manifest(opted)["valid_for_real_training"] is True
 
 
+def test_training_can_be_allowed_later_for_a_day_already_imported(tmp_path: Path) -> None:
+    from app.importers.databento import set_training_permission
+    from tools.databento_training import main as training_cli
+
+    result = _only(_import(tmp_path, Gen(seed=15).run(1000)[0]))
+    raw = tmp_path / "raw"
+    data_before = {p.name: p.read_bytes() for p in result.session_dir.glob("*.parquet")}
+    manifest_path = result.session_dir / "session_manifest.json"
+
+    shown = set_training_permission(raw, None)                    # report only: nothing written
+    assert [(r.trainable, r.changed) for r in shown] == [(False, False)]
+    assert _manifest(result)["import_source"]["allow_model_training"] is False
+
+    assert training_cli(["--on", "--raw", str(raw)]) == 0
+    after = _manifest(result)
+    assert after["import_source"]["allow_model_training"] is True
+    assert after["import_source"]["training_permission_changed"]["to"] is True
+    assert after["valid_for_real_training"] is True
+    assert [e.eligible_for_model_training for e in build_catalog(raw)] == [True]
+    assert {p.name: p.read_bytes() for p in result.session_dir.glob("*.parquet")} == data_before  # data untouched
+
+    again = set_training_permission(raw, True)
+    assert [r.changed for r in again] == [False]                   # already on: no rewrite
+    assert set_training_permission(raw, True, days=["2000-01-01"]) == []
+    off = set_training_permission(raw, False)
+    assert [(r.trainable, r.changed) for r in off] == [(False, True)]
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["valid_for_real_training"] is False
+
+
+def test_allowing_training_later_never_overrides_a_failed_quality_check(tmp_path: Path) -> None:
+    from app.importers.databento import set_training_permission
+
+    rows = Gen(seed=19).run(600)[0]
+    for index in (5, 6, 7):
+        rows[index][mbp_header().index("bid_px_00")] = fp("29499.10")
+    _only(_import(tmp_path, rows))
+    results = set_training_permission(tmp_path / "raw", True)
+    assert [r.trainable for r in results] == [False]
+    assert any("quality problems" in reason for reason in results[0].reasons)
+
+
 def test_the_manifest_records_what_was_measured_and_never_invents_a_live_bridge(tmp_path: Path) -> None:
     result = _only(_import(tmp_path, Gen(seed=16).run(1000)[0]))
     manifest = _manifest(result)

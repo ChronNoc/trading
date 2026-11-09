@@ -38,7 +38,9 @@ from app.strategy.order_flow import (
     evaluate_day_trading_plan,
 )
 
-STRATEGY_VERSION = "order-flow-plan-v1"
+# v2 (2026-11-09): the strategy's book checks read only the top 10 levels per side (same as
+# Databento MBP-10 history), so builds and paper trades of v1 are rebuilt / kept apart.
+STRATEGY_VERSION = "order-flow-plan-v2"
 BUILDER_VERSION = "real-episodes-v2"
 _NS_PER_SECOND = 1_000_000_000
 _REAL_PROVENANCES = frozenset({"REAL_DELAYED", "REAL_REPLAY", "REAL_REALTIME"})

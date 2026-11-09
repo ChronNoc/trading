@@ -295,8 +295,8 @@ def _ask_cancellation_ratio(snapshots: tuple[MarketState, ...]) -> Decimal:
     cancelled = Decimal("0")
 
     for previous, current in zip(snapshots, snapshots[1:]):
-        previous_by_price = {level.price: level.size for level in previous.ask_depth}
-        current_by_price = {level.price: level.size for level in current.ask_depth}
+        previous_by_price = {level.price: level.size for level in previous.top_ask_depth}
+        current_by_price = {level.price: level.size for level in current.top_ask_depth}
         for price in previous_by_price.keys() | current_by_price.keys():
             delta = current_by_price.get(price, Decimal("0")) - previous_by_price.get(
                 price,

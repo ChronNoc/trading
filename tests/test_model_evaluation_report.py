@@ -17,6 +17,7 @@ from app.machine_learning.evaluation_report import (
     render_model_evaluation_markdown,
     write_model_evaluation_report,
 )
+from app.machine_learning.feature_contract import FEATURE_CONTRACT_VERSION
 from app.machine_learning.outcome_journal import OutcomeRecord
 from app.machine_learning.shadow_predictor import ShadowPrediction
 from app.paper.streaming_engine import ConditionResult, EvaluationRecord
@@ -25,7 +26,7 @@ from app.paper.streaming_engine import ConditionResult, EvaluationRecord
 
 CURRENT_DATASET = {
     "dataset_id": "dataset-test-current0000",
-    "feature_contract_version": "shared-causal-market-features-v3",
+    "feature_contract_version": FEATURE_CONTRACT_VERSION,   # "current" means the contract in force
     "feature_contract_sha256": "c" * 64,
     "label_contract_version": "causal-triple-barrier-v2-resolution-provenance",
     "rows_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
