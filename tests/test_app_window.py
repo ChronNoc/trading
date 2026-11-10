@@ -1145,3 +1145,18 @@ def test_execution_connect_button_submits_a_backend_command(qtbot: object, tmp_p
         payload = CommandFile(tmp_path).consume()
         _time.sleep(0.02)
     assert payload is not None and payload["name"] == "connect_readonly"
+
+
+def test_page_titles_take_their_colours_from_the_active_theme(qtbot) -> None:
+    """2026-11-10: the shared page heading pinned the dark palette, so titles were white on white
+    in the light theme. Its colours must come from QLabel[role=...] rules in both themes."""
+    from app.gui.screens import _heading
+
+    heading, detail = _heading("Title", "Subtitle")
+    qtbot.addWidget(heading)
+    qtbot.addWidget(detail)
+    assert "color" not in heading.styleSheet() and "color" not in detail.styleSheet()
+    assert (heading.property("role"), detail.property("role")) == ("headline", "page_subtitle")
+    for sheet in (DASHBOARD_DARK, DASHBOARD_LIGHT):
+        assert 'QLabel[role="headline"]' in sheet and 'QLabel[role="page_subtitle"]' in sheet
+    assert 'QLabel[role="page_subtitle"] { color:#cbd5e1; }' in DASHBOARD_DARK      # dark look unchanged

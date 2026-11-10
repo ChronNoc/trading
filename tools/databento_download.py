@@ -25,7 +25,7 @@ from pathlib import Path
 if __package__ in (None, ""):  # `py tools/databento_download.py`
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.importers.databento import ImportOptions, import_many  # noqa: E402
+from app.importers.databento import ImportOptions, ImportResult, import_many  # noqa: E402
 from app.importers.databento_api import DatabentoError, HistoricalClient  # noqa: E402
 from app.importers.databento_download import (  # noqa: E402
     DownloadEvent,
@@ -112,21 +112,32 @@ def main(argv: Sequence[str] | None = None, *, client: HistoricalClient | None =
     if plan.total_cost > args.max_cost:
         print(f"Not bought: ${plan.total_cost:.2f} is above your --max-cost ${args.max_cost:.2f}.", file=sys.stderr)
         return 1
+    options = ImportOptions(out_root=args.out, allow_model_training=args.allow_training)
+    results: list[ImportResult] = []
+
+    def import_day(path: Path) -> None:
+        """Import one downloaded day at once and delete its file when it is in (one day on disk)."""
+        day_results = import_many([path], options)
+        results.extend(day_results)
+        if day_results and all(r.status in ("imported", "duplicate") for r in day_results):
+            remove_downloads([path])
+
     try:
-        files = download_plan(client, plan, args.out, confirmed_cost=min(plan.total_cost, args.max_cost),
-                              progress=_say)
+        download_plan(client, plan, args.out, confirmed_cost=min(plan.total_cost, args.max_cost),
+                      progress=_say, on_file=import_day)
     except DatabentoError as error:
+        _report(results)
         print(f"Stopped: {error}", file=sys.stderr)
         return 1
-    results = import_many(files, ImportOptions(out_root=args.out, allow_model_training=args.allow_training))
-    done = {Path(r.source) for r in results if r.status in ("imported", "duplicate")}
-    kept = {Path(r.source) for r in results if r.status not in ("imported", "duplicate")}
-    remove_downloads(path for path in files if path in done and path not in kept)
-    for result in results:
-        print(f"  {result.day or '-'}  {result.status:9}  {result.headline}")
+    _report(results)
     imported = sum(r.status == "imported" for r in results)
     print(f"Imported {imported} session(s).")
-    return 0 if not kept else 1
+    return 0 if all(r.status in ("imported", "duplicate") for r in results) else 1
+
+
+def _report(results: list[ImportResult]) -> None:
+    for result in results:
+        print(f"  {result.day or '-'}  {result.status:9}  {result.headline}")
 
 
 if __name__ == "__main__":

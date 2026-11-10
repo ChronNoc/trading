@@ -105,8 +105,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   FAILED, details in its tooltip and on the status line), and the progress reads "Model n of N
   (kind, size)".
 
+- **Databento days are imported as they land.** `download_plan(on_file=...)` hands each day's file
+  over as soon as it is downloaded and checked, before the next is fetched; the import window and
+  `tools.databento_download` import it there and delete the file once the day is in. A long range now
+  needs the disk space of one day's download (1.5-2.7 GB) instead of every day's at once, and a run
+  that stops part-way has already imported what it downloaded (on 2026-11-09 a stopped run left a paid,
+  downloaded day unimported).
+
 ### Fixed
 
+- **Page titles are readable in the light theme.** The shared page heading (`_heading` in
+  `app/gui/screens.py`, used by every page and the Databento window) pinned the dark palette's colours
+  inline, so titles and subtitles were white on white in the light theme. Colours now come from the
+  theme's `QLabel[role="headline"]` / new `QLabel[role="page_subtitle"]` rules; the dark theme keeps
+  its exact subtitle colour, and the screenshot baselines are unchanged.
 - **Progress reporting can no longer stop a training run.** On Windows, replacing the progress file
   while the GUI read it was refused ("Access is denied"); that error escaped and failed two training
   sizes on 2026-11-10. A refused write is retried briefly and then skipped; the GUI keeps its last

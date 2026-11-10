@@ -60,8 +60,10 @@ Need a specific range instead? Use the command line (below).
 | Import | about 4 minutes per day |
 | Kept on disk | about 450 MB per day |
 
-Downloads are all fetched before the import starts, so a long range needs about 1.5 GB of free space
-per day bought, on top of about 450 MB per day kept.
+Each day is imported as soon as its file is downloaded, and the file is deleted once the day is in,
+before the next one is fetched. A long range therefore needs free space for one day's download at a
+time (1.5–2.7 GB) plus about 450 MB per day kept, and a run that stops part-way has already imported
+every day it downloaded.
 
 ## What exactly is bought
 

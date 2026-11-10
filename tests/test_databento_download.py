@@ -566,3 +566,20 @@ def test_a_whole_day_bought_earlier_covers_a_trading_hours_request(tmp_path: Pat
     assert downloads.read_ledger_hours(download_folder(raw)) == {"2025-07-16": "full"}
     rth = plan_download(client(fake), raw, date(2025, 7, 16), date(2025, 7, 16), now=NOW, rth_only=True)
     assert rth.paid_days == (("2025-07-16", "GLBX-0001"),) and rth.total_cost == 0
+
+
+def test_each_day_is_handed_over_before_the_next_one_is_downloaded(tmp_path: Path, monkeypatch) -> None:
+    """Day by day: the caller imports (and deletes) a day before the next download starts."""
+    monkeypatch.setattr(downloads, "imported_days", lambda root: set())
+    fake = FakeDatabento()
+    raw = tmp_path / "raw"
+    plan = plan_download(client(fake), raw, date(2025, 7, 15), date(2025, 7, 17), now=NOW, rth_only=True)
+    downloads_so_far: list[int] = []
+
+    def on_file(path: Path) -> None:
+        downloads_so_far.append(sum("/download/" in r.full_url for r in fake.requests))
+        assert path.is_file()
+
+    files = download_plan(client(fake), plan, raw, confirmed_cost=plan.total_cost, sleep=lambda s: None,
+                          on_file=on_file)
+    assert len(files) == 3 and downloads_so_far == [1, 2, 3]

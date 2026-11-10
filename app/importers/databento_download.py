@@ -244,8 +244,14 @@ def download_plan(
     client: HistoricalClient, plan: DownloadPlan, out_root: Path, *, confirmed_cost: Decimal,
     progress: ProgressSink | None = None, cancel: Callable[[], bool] | None = None,
     sleep: Callable[[float], None] = time.sleep, poll_seconds: float = 10.0, max_wait_seconds: float = 4 * 3600.0,
+    on_file: Callable[[Path], None] | None = None,
 ) -> list[Path]:
     """Buy the new days of ``plan``, download every needed day; returns the files to import.
+
+    ``on_file(path)``, when given, is called as soon as each day's file is downloaded and checked,
+    BEFORE the next one is fetched: the caller imports (and deletes) it there, so a long range needs
+    the disk space of one day's download (1.5-2.7 GB), not of the whole range, and a run that stops
+    part-way has already imported what it downloaded.
 
     ``confirmed_cost`` is the price the user saw and accepted. The runs to buy are priced again
     first, and nothing at all is bought if their total is now above ``confirmed_cost`` (rounded up
@@ -256,6 +262,7 @@ def download_plan(
     folder = download_folder(out_root)
     ceiling = confirmed_cost.quantize(CENT, rounding="ROUND_CEILING")
     patient = {"sleep": sleep, "progress": progress, "cancel": cancel}
+    fetch = {**patient, "on_file": on_file}
     fresh = Decimal("0")
     for start, end in plan.runs:
         fresh += _patiently(lambda s=start, e=end: client.get_cost(range_request(s, e, plan.rth_only)),
@@ -275,7 +282,7 @@ def download_plan(
         stamps = {day.replace("-", "") for day in days}
         listing = _patiently(lambda j=job: client.list_files(j), "the file list", job_id=job, **patient)
         wanted = [item for item in data_files(listing) if any(s in item.filename for s in stamps)]
-        files += _fetch(client, wanted, folder / job, **patient)
+        files += _fetch(client, wanted, folder / job, **fetch)
     # 2. new days: buy (recording the purchase at once), wait, download
     ledger = read_ledger(folder)
     hours = read_ledger_hours(folder)
@@ -297,7 +304,7 @@ def download_plan(
         _wait_for(client, job, label, progress=progress, cancel=cancel, sleep=sleep,
                   poll_seconds=poll_seconds, max_wait_seconds=max_wait_seconds)
         listing = _patiently(lambda j=job: client.list_files(j), "the file list", job_id=job, **patient)
-        files += _fetch(client, data_files(listing), folder / job, **patient)
+        files += _fetch(client, data_files(listing), folder / job, **fetch)
     _emit(progress, "done", f"Downloaded {len(files)} file(s); importing them now.", 1, 1)
     return files
 
@@ -322,6 +329,7 @@ def remove_downloads(paths: Iterable[Path]) -> None:
 def _fetch(
     client: HistoricalClient, wanted: Sequence[RemoteFile], folder: Path, *,
     progress: ProgressSink | None, cancel: Callable[[], bool] | None, sleep: Callable[[float], None],
+    on_file: Callable[[Path], None] | None = None,
 ) -> list[Path]:
     paths: list[Path] = []
     for number, remote in enumerate(wanted, 1):
@@ -335,6 +343,8 @@ def _fetch(
             ),
             remote.filename, sleep=sleep, progress=progress, cancel=cancel,
         ))
+        if on_file is not None:
+            on_file(paths[-1])   # import (and delete) this day before downloading the next
     return paths
 
 

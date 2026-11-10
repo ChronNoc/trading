@@ -123,6 +123,7 @@ QLabel[role="section_title"] { font-weight:600; color:#e8eaee; }
 QLabel[role="metric"] { font-weight:600; color:#f0f2f5; }
 QLabel[role="meter_value"] { color:#e8eaee; font-weight:500; }
 QLabel[role="caption"], QLabel[role="muted"] { color:#8b919c; }
+QLabel[role="page_subtitle"] { color:#cbd5e1; }
 QLabel[state="ok"] { background:#13241d; color:#5fd3a0; border:1px solid #214034; border-radius:999px; padding:3px 11px; }
 QLabel[state="warn"] { background:#272014; color:#e6bd6a; border:1px solid #45391f; border-radius:999px; padding:3px 11px; }
 QLabel[state="fail"] { background:#271619; color:#ef8a93; border:1px solid #48272c; border-radius:999px; padding:3px 11px; }
@@ -190,6 +191,7 @@ QLabel[role="section_title"] { font-weight:600; color:#1a1d24; }
 QLabel[role="metric"] { font-weight:600; color:#14171d; }
 QLabel[role="meter_value"] { color:#1a1d24; font-weight:500; }
 QLabel[role="caption"], QLabel[role="muted"] { color:#767d88; }
+QLabel[role="page_subtitle"] { color:#4a5160; }
 QLabel[state="ok"] { background:#e7f6ef; color:#1c7a56; border:1px solid #b7e0cd; border-radius:999px; padding:3px 11px; }
 QLabel[state="warn"], QLabel[state="locked"] { background:#fcf2dc; color:#9a6b12; border:1px solid #ecd5a0; border-radius:999px; padding:3px 11px; font-weight:600; }
 QLabel[state="fail"] { background:#fdecee; color:#c0404a; border:1px solid #f2c6cb; border-radius:999px; padding:3px 11px; }

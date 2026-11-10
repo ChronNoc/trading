@@ -210,3 +210,32 @@ def test_trading_hours_are_the_default_and_change_the_price_and_the_question(qtb
     assert "trading hours (09:30–16:50 New York)" in asked[0] and fake.bought() == []
     page.hours_combo.setCurrentIndex(1)                                   # whole day: the price is stale
     assert not page.buy_button.isEnabled() and "check the price again" in page.price_line.text()
+
+
+class _SecondDayCorrupt(FakeDatabento):
+    """Day two arrives with a wrong checksum: the run stops after day one."""
+
+    def listing(self, job_id: str) -> list[dict[str, object]]:
+        items = super().listing(job_id)
+        for item in items:
+            if "20250716" in str(item["filename"]):
+                item["hash"] = "sha256:" + "0" * 64
+        return items
+
+
+def test_days_are_imported_as_they_land_so_a_later_failure_keeps_them(qtbot, tmp_path: Path) -> None:
+    fake = _SecondDayCorrupt(daily_files(tmp_path, days=7))
+    fake.polls_until_done = 0
+    window = make(qtbot, tmp_path, fake, whole_day=False)     # trading hours: one purchase per day
+    page = window.page
+    page.confirm_purchase = lambda title, question: True
+    page.check_price()
+    idle(qtbot, window)
+    page.buy()
+    qtbot.waitUntil(lambda: not page.running and page.state_badge.text() in {  # type: ignore[attr-defined]
+        "FINISHED", "FINISHED WITH PROBLEMS", "FAILED", "NOT DOWNLOADED"}, timeout=WAIT_MS)
+    assert page.state_badge.text() == "NOT DOWNLOADED"
+    assert "checksum" in page.status_line.text() and "1 day(s) were imported before it stopped" in page.status_line.text()
+    assert imported_days(tmp_path / "raw") == {"2025-07-15"}                 # day one is in, not waiting
+    assert not list(download_folder(tmp_path / "raw").rglob("*.csv.zst"))    # and its file is deleted
+    assert "2025-07-15" in " ".join(" ".join(row) for row in page._table_rows())

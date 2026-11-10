@@ -163,35 +163,62 @@ class _PriceWorker(QThread):
 
 
 class _DownloadWorker(QThread):
-    """Buys (within the confirmed price) and downloads, off the GUI thread; never raises."""
+    """Buys (within the confirmed price), downloads and imports each day in turn; never raises.
 
-    progress = Signal(object)    # DownloadEvent
-    done = Signal(object, str)   # the downloaded files, and an error message
+    Each day is imported as soon as its file is downloaded, and the file is deleted once the day is
+    in, BEFORE the next one is fetched: a long range needs the disk space of one day (1.5-2.7 GB)
+    instead of all of them, and a run that stops part-way has already imported what it downloaded.
+    """
+
+    progress = Signal(object)          # DownloadEvent (buying, preparing, downloading)
+    import_progress = Signal(object)   # ProgressEvent (importing the day just downloaded)
+    result = Signal(object)            # ImportResult, as soon as each exists
+    done = Signal(object, str)         # the downloaded files, and an error message
 
     def __init__(
         self, client_factory: ClientFactory, key: str, plan: DownloadPlan, out_root: Path, confirmed: Decimal,
+        options: ImportOptions | None = None,
     ) -> None:
         super().__init__()
         self._client_factory, self._key, self._plan = client_factory, key, plan
         self._out_root, self._confirmed = out_root, confirmed
+        self._options = options
         self._stop = threading.Event()
+        self.imported: list[ImportResult] = []   # read by the window once done (thread has ended)
+        self.note = ""
 
     def stop(self) -> None:
-        """Stop at the next safe point (before buying more, or between file chunks)."""
+        """Stop at the next safe point (before buying more, between file chunks, or between days)."""
         self._stop.set()
 
+    def _import_day(self, path: Path) -> None:
+        if self._options is None:
+            return
+        day_results = import_many([path], self._options, progress=self.import_progress.emit,
+                                  cancel=self._stop.is_set, on_result=self._record)
+        if day_results and all(item.status in ("imported", "duplicate") for item in day_results):
+            remove_downloads([path])
+
+    def _record(self, result: ImportResult) -> None:
+        self.imported.append(result)
+        self.result.emit(result)
+
     def run(self) -> None:  # noqa: D401 - QThread entry point
+        error = ""
+        files: list[Path] = []
         try:
             files = download_plan(self._client_factory(self._key), self._plan, self._out_root,
                                   confirmed_cost=self._confirmed, progress=self.progress.emit,
-                                  cancel=self._stop.is_set)
-        except DatabentoError as error:
-            self.done.emit([], str(error))
-            return
-        except Exception as error:  # noqa: BLE001 - report, never crash the GUI
-            self.done.emit([], f"The download stopped unexpectedly: {type(error).__name__}: {error}")
-            return
-        self.done.emit(files, "")
+                                  cancel=self._stop.is_set,
+                                  on_file=self._import_day if self._options is not None else None)
+        except DatabentoError as failure:
+            error = str(failure)
+        except Exception as failure:  # noqa: BLE001 - report, never crash the GUI
+            error = f"The download stopped unexpectedly: {type(failure).__name__}: {failure}"
+        if any(item.status == "imported" for item in self.imported) and not self._stop.is_set():
+            self.import_progress.emit(ProgressEvent("finishing", message="Updating the volatility history"))
+            self.note = _refresh_volatility(self._out_root)
+        self.done.emit([] if error else files, error)
 
 
 def _refresh_volatility(raw_root: Path) -> str:
@@ -547,12 +574,20 @@ class DatabentoImportScreen(DashboardScreen):
             self.status_line.setText("Not bought.")
             return
         self._downloaded = []
+        self._results = []
+        self._note = ""
+        self.results_table.set_rows(self._table_rows())
+        self._update_tiles()
         self._set_busy("Buying and downloading from Databento…")
         self.state_badge.set_status("BUYING", "neutral")
         self.status_line.setText("Starting…")
         self.rows_meter.set_fraction(0.0, "—")
-        worker = _DownloadWorker(self.client_factory, self._api_key, plan, self._out_root, plan.total_cost)
+        options = ImportOptions(out_root=self._out_root, allow_model_training=self.training_option.isChecked())
+        worker = _DownloadWorker(self.client_factory, self._api_key, plan, self._out_root, plan.total_cost,
+                                 options=options)
         worker.progress.connect(self.apply_download_progress)
+        worker.import_progress.connect(self.apply_progress)    # each day is imported as it lands
+        worker.result.connect(self.apply_result)
         worker.done.connect(self.apply_download_done)
         self._download_worker = worker
         worker.start()
@@ -568,17 +603,24 @@ class DatabentoImportScreen(DashboardScreen):
                 event.done / event.total, f"{event.done / 1_048_576:,.0f} of {event.total / 1_048_576:,.0f} MB")
 
     def apply_download_done(self, files: list[Path], error: str) -> None:
-        """Import what was downloaded through the normal path, or say why nothing was."""
-        # The done signal can arrive while the worker's thread is still returning; let it end, or
-        # start_import would see a busy page and decline the files that were just paid for.
+        """Show what the download imported (day by day, as each landed), or say why it stopped."""
+        # The done signal can arrive while the worker's thread is still returning; let it end
+        # before its results are read and the page is made idle again.
+        worker = self._download_worker
         self._finish_worker("_download_worker")
+        imported = list(worker.imported) if worker is not None else []
+        note = worker.note if worker is not None else ""
         self._plan = None
         self.buy_button.setText("Buy and import")
         if error:
             self._set_idle()
             self.state_badge.set_status("NOT DOWNLOADED", "fail")
-            self.status_line.setText(error)
+            days_in = sum(item.status == "imported" for item in imported)
+            self.status_line.setText(error + (f" {days_in} day(s) were imported before it stopped." if days_in else ""))
             self.price_line.setText("Check the price again before buying.")
+            if imported:
+                self.results_table.set_rows(self._table_rows())
+                self._update_tiles()
             return
         if not files:
             self._set_idle()
@@ -587,10 +629,8 @@ class DatabentoImportScreen(DashboardScreen):
                 "Databento delivered no data files for these days (for example a weekend or a holiday).")
             self.price_line.setText("Check the price to see what this would cost.")
             return
-        self._downloaded = list(files)
         self.price_line.setText("Check the price to see what this would cost.")
-        self._set_idle()
-        self.start_import(files)
+        self.apply_done(imported, note)   # every day is already imported: show the summary
 
     def set_api_key(self, key: str) -> bool:
         """Save the user's key (validated); False with the reason shown when it is refused."""

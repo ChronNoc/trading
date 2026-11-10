@@ -89,21 +89,21 @@ def _session_pnl(net_pnl: str) -> str:
 def _heading(title: str, subtitle: str) -> tuple[QLabel, QLabel]:
     from app.gui import design_tokens as dt
     
+    # Colours come from the active theme (QLabel[role=...] in app/gui/theme.py): pinning the
+    # dark palette here left page titles white on white in the light theme.
     heading = QLabel(title)
     heading.setProperty("role", "headline")
     heading.setStyleSheet(
         f"""
         font-size: {dt.FONT_SIZE_XL}px;
         font-weight: {dt.FONT_WEIGHT_BOLD};
-        color: {dt.COLOR_TEXT_PRIMARY};
         """
     )
     detail = QLabel(subtitle)
-    detail.setProperty("role", "muted")
+    detail.setProperty("role", "page_subtitle")
     detail.setWordWrap(True)
     detail.setStyleSheet(
         f"""
-        color: {dt.COLOR_TEXT_SECONDARY};
         font-size: {dt.FONT_SIZE_SM}px;
         """
     )
