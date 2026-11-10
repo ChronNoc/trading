@@ -30,6 +30,7 @@ class FileSnapshotProvider:
         """Bind to the backend's runtime directory."""
         self._status = StatusFile(runtime_dir)
         self._training_path = Path(runtime_dir) / "training_progress.json"
+        self._last_training = None
         self._last_good: AppSnapshot | None = None
 
     def __call__(self) -> AppSnapshot:
@@ -41,7 +42,11 @@ class FileSnapshotProvider:
         from dataclasses import replace
 
         snapshot = self._backend_snapshot()
-        return replace(snapshot, training=read_training_progress(self._training_path))
+        training = read_training_progress(self._training_path)
+        if training is None and self._training_path.exists():
+            training = self._last_training   # caught mid-replace: keep the last good reading
+        self._last_training = training
+        return replace(snapshot, training=training)
 
     def _backend_snapshot(self) -> AppSnapshot:
         document = self._status.read()

@@ -85,8 +85,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GUI reads it itself, so it never travels in the backend's status file (the snapshot codec skips the
   field, and a backend of either version stays readable). A run that stops writing shows as STOPPED.
 
+- **More kinds of model** (2026-11-10, user request): the offline pipeline now trains and tests
+  gradient-boosted trees and a random forest beside the logistic regression
+  (`MODEL_KINDS`/`make_classifier` in `app/machine_learning/pooled_training.py`), every one
+  single-threaded with a fixed seed, through the same walk-forward, stability and cost gates; the
+  logistic regression keeps exactly its earlier settings and candidate ids. The research grid is
+  every kind at every stop/target size (9 candidates). Trying more models raises the chance that one
+  passes by luck; the later gates (stability across days, cost stress) exist for that, and nothing
+  is ever approved or traded automatically.
+- A dataset is built once per size and reused by the other model kinds only when it is identical:
+  same schema, feature contract and hash, label contract and settings, same excluded sessions, and
+  every eligible session's source files byte-identical (hashed now), with the rows file still matching
+  its hash. A changed published dataset is never trusted (and the immutable publish refuses to
+  overwrite it).
+- A training run can be limited to one code version's candidates (`train_revision`); the backend's
+  start-up cycle uses its own revision, so it no longer retrains the copies every earlier version
+  proposed (141 had accumulated).
+- The training badge appears in the header strip on every page (TRAINING 42% / DONE / STOPPED /
+  FAILED, details in its tooltip and on the status line), and the progress reads "Model n of N
+  (kind, size)".
+
 ### Fixed
 
+- **Progress reporting can no longer stop a training run.** On Windows, replacing the progress file
+  while the GUI read it was refused ("Access is denied"); that error escaped and failed two training
+  sizes on 2026-11-10. A refused write is retried briefly and then skipped; the GUI keeps its last
+  good reading. A failed model no longer makes the bar read "size 4 of 3".
 - **Databento downloads survive a slow or silent Databento** (2026-11-09: during the first real
   purchase one 60-second unanswered status check ended the run after two days were paid and one was
   downloaded). Timeouts, dropped connections and busy replies (HTTP 429/5xx) are now told apart from

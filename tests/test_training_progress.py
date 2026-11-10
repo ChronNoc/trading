@@ -42,7 +42,7 @@ def test_progress_is_events_replayed_over_every_size(tmp_path: Path) -> None:
     assert view is not None and view.state == "running"
     # size 1 of 2, 300 of 1000 events: 0.3 x 0.97 of the first half
     assert view.fraction == pytest.approx(0.3 * 0.97 / 2)
-    assert view.headline == "Size 1 of 2 (12-tick target / 8-tick stop) - building data: session 1 of 2"
+    assert view.headline == "Model 1 of 2 (12-tick target / 8-tick stop) - building data: session 1 of 2"
     assert view.detail.startswith("15% - about ") and view.detail.endswith("min left")
 
 
@@ -68,7 +68,7 @@ def test_later_stages_finished_sizes_and_the_end(tmp_path: Path) -> None:
     progress.end_candidate("does not beat take-everything after costs (40 out-of-sample trades)")
     progress.begin_candidate("8-tick target / 8-tick stop")
     view = read_training_progress(path, now=clock.now)
-    assert view.headline.startswith("Size 2 of 2") and view.fraction == pytest.approx(0.5)
+    assert view.headline.startswith("Model 2 of 2") and view.fraction == pytest.approx(0.5)
     assert view.results == ("12-tick target / 8-tick stop: does not beat take-everything after costs "
                             "(40 out-of-sample trades)",)
     progress.finish("1 size(s) trained")
@@ -125,7 +125,7 @@ def test_the_status_file_never_carries_training_progress_and_old_files_still_dec
     from app.gui.snapshot_codec import decode_snapshot, encode_snapshot
     from app.gui.view_models import AppSnapshot
 
-    view = TrainingProgressView("running", 0.4, "Size 1 of 3", "40%", ())
+    view = TrainingProgressView("running", 0.4, "Model 1 of 3", "40%", ())
     encoded = encode_snapshot(replace(AppSnapshot(), training=view))
     assert '"training"' not in encoded
     assert decode_snapshot(encoded).training is None
@@ -140,12 +140,12 @@ def test_the_gui_reads_training_progress_beside_the_backend_status(tmp_path: Pat
     clock.now = time.time() - 60          # the provider reads with the real clock
     run_halfway(tmp_path / "training_progress.json", clock)
     snapshot = FileSnapshotProvider(tmp_path)()     # no backend status file at all
-    assert snapshot.training is not None and snapshot.training.headline.startswith("Size 1 of 2")
+    assert snapshot.training is not None and snapshot.training.headline.startswith("Model 1 of 2")
 
 
 @pytest.mark.parametrize(("view", "badge", "state"), [
     (None, "NOT RUNNING", "neutral"),
-    (TrainingProgressView("running", 0.25, "Size 1 of 3 - building data: session 2 of 6", "25% - about 40 min left",
+    (TrainingProgressView("running", 0.25, "Model 1 of 3 - building data: session 2 of 6", "25% - about 40 min left",
                           ()), "RUNNING", "neutral"),
     (TrainingProgressView("finished", 1.0, "Training finished", "3 size(s) trained", ("12/8: beats",)),
      "FINISHED", "ok"),
@@ -169,3 +169,56 @@ def test_the_research_page_shows_the_bar_badge_and_results(qtbot, view, badge: s
         assert screen.training_meter.value.text() == view.detail
         assert screen.training_headline.text() == view.headline
         assert ("Finished — 12/8: beats" in screen.training_results.text()) is bool(view.results)
+
+
+def test_a_refused_write_never_stops_the_run(tmp_path: Path, monkeypatch) -> None:
+    """2026-11-10: Windows refused to replace the file while the GUI read it; that error failed
+    two training sizes. Reporting must never raise."""
+    import os as os_module
+
+    import app.machine_learning.training_progress as module
+
+    clock = Clock()
+    path = tmp_path / "training_progress.json"
+    progress = run_halfway(path, clock)
+    real_replace = os_module.replace
+    calls = []
+
+    def refuse(*args, **kwargs):
+        calls.append(args)
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(module.os, "replace", refuse)
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    progress.stage("training and testing on unseen days")       # must not raise
+    progress.end_candidate("x")
+    assert len(calls) == 2 * module._REPLACE_ATTEMPTS            # retried, then skipped
+    monkeypatch.setattr(module.os, "replace", real_replace)
+    progress.finish("done")
+    assert json.loads(path.read_text())["status"] == "finished"  # the next write lands
+
+
+def test_a_size_beyond_the_plan_grows_the_total(tmp_path: Path) -> None:
+    clock = Clock()
+    path = tmp_path / "training_progress.json"
+    progress = TrainingProgress(path, clock=clock)
+    progress.plan(1)
+    progress.begin_candidate("a")
+    progress.end_candidate("failed (PermissionError)")
+    progress.begin_candidate("b")
+    view = read_training_progress(path, now=clock.now)
+    assert view.headline.startswith("Model 2 of 2")
+
+
+def test_the_gui_keeps_the_last_reading_when_a_read_is_caught_mid_replace(tmp_path: Path, monkeypatch) -> None:
+    import time
+
+    import app.gui.file_snapshot as file_snapshot
+
+    clock = Clock()
+    clock.now = time.time() - 60
+    run_halfway(tmp_path / "training_progress.json", clock)
+    provider = file_snapshot.FileSnapshotProvider(tmp_path)
+    first = provider().training
+    monkeypatch.setattr(file_snapshot, "read_training_progress", lambda path: None)
+    assert provider().training == first

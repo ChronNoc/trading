@@ -24,7 +24,7 @@ from app.gui.autonomous_view import (
 )
 from app.gui.charts import AggressorBar, ChartPanel, HistoryChart
 from app.gui.view_models import AppSnapshot, Health
-from app.machine_learning.training_progress import TrainingProgressView
+from app.machine_learning.training_progress import BADGE_STATES, TrainingProgressView
 from app.gui.widgets import (
     Card,
     EvidenceTable,
@@ -497,16 +497,11 @@ class ResearchHealthScreen(DashboardScreen):
         self.training_headline.setText(view.headline)
         self.training_meter.set_fraction(view.fraction, view.detail or f"{view.fraction:.0%}")
         self.training_results.setText(
-            "\n".join(f"Finished — {line}" for line in view.results) if view.results else "No size finished yet.")
+            "\n".join(f"Finished — {line}" for line in view.results) if view.results else "No model finished yet.")
 
 
-# Training run state -> badge text and the theme's semantic state.
-_TRAINING_BADGES = {
-    "running": ("RUNNING", "neutral"),
-    "finished": ("FINISHED", "ok"),
-    "stopped": ("STOPPED", "warn"),
-    "failed": ("FAILED", "fail"),
-}
+# Training run state -> badge text and the theme's semantic state (states shared with the header).
+_TRAINING_BADGES = {state: (state.upper(), BADGE_STATES[state]) for state in ("running", "finished", "stopped", "failed")}
 
 
 class RiskLucidScreen(DashboardScreen):

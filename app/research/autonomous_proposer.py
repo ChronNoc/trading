@@ -23,6 +23,7 @@ from app.research.autonomous_gates import (
     evaluate_requirements,
     next_gate,
 )
+from app.machine_learning.pooled_training import MODEL_KINDS, MODEL_LABELS
 from app.research.autonomous_models import CandidateKind, CandidateState, propose_candidate
 from app.research.autonomous_service import AutonomousIntelligenceService, GateResult
 from app.research.autonomous_store import AutonomousStore
@@ -66,18 +67,21 @@ def build_service(store: AutonomousStore) -> AutonomousIntelligenceService:
     )
 
 
-def _candidate(target_ticks: int, stop_ticks: int, *, now_ns: int, software_revision: str):
+def _candidate(target_ticks: int, stop_ticks: int, *, now_ns: int, software_revision: str,
+               model_kind: str = "logistic_regression"):
+    # The logistic wording is kept word for word, so earlier logistic candidates keep their ids.
+    model_words = "logistic" if model_kind == "logistic_regression" else MODEL_LABELS[model_kind]
     return propose_candidate(
         kind=CandidateKind.MODEL,
         hypothesis=(
-            "A logistic model on pooled triple-barrier features beats the take-everything "
+            f"A {model_words} model on pooled triple-barrier features beats the take-everything "
             f"baseline out-of-sample at a {target_ticks}-tick target / {stop_ticks}-tick stop."
         ),
         proposer="autonomous-backend",
         created_at_ns=now_ns,
         software_revision=software_revision,
         definition={
-            "model": "logistic_regression",
+            "model": model_kind,
             "features": "triple_barrier_v1",
             "target_ticks": target_ticks,
             "stop_ticks": stop_ticks,
@@ -101,13 +105,14 @@ def propose_research_grid(
     """Propose the research grid; return how many candidates were NEWLY added."""
     existing = {record.candidate_id for record in service.store.list_candidates()}
     newly_proposed = 0
-    for target_ticks, stop_ticks in RESEARCH_GRID:
-        candidate = _candidate(target_ticks, stop_ticks,
-                               now_ns=now_ns, software_revision=software_revision)
-        if candidate.candidate_id in existing:
-            continue
-        service.propose(candidate)
-        newly_proposed += 1
+    for model_kind in MODEL_KINDS:          # every kind of model at every stop/target size
+        for target_ticks, stop_ticks in RESEARCH_GRID:
+            candidate = _candidate(target_ticks, stop_ticks, now_ns=now_ns,
+                                   software_revision=software_revision, model_kind=model_kind)
+            if candidate.candidate_id in existing:
+                continue
+            service.propose(candidate)
+            newly_proposed += 1
     return newly_proposed
 
 
@@ -214,12 +219,15 @@ def default_offline_trainer(
         stop = float(definition.get("stop_ticks", 8))
         config = DatasetBuildConfig(SessionTrainingConfig(
             target_ticks=Decimal(str(target)), stop_ticks=Decimal(str(stop))))
+        model_kind = str(definition.get("model", "logistic_regression"))
         if progress is not None:
-            progress.begin_candidate(f"{target:g}-tick target / {stop:g}-tick stop")
+            progress.begin_candidate(
+                f"{MODEL_LABELS.get(model_kind, model_kind)}, {target:g}-tick target / {stop:g}-tick stop")
         try:
             result = build_validated_challenger(
                 Path(raw_root), Path(models_root), config=config, model_version="0.1.0",
-                target_ticks=target, stop_ticks=stop, min_oos_predictions=1, progress=progress)
+                target_ticks=target, stop_ticks=stop, min_oos_predictions=1, progress=progress,
+                model_kind=model_kind)
         except Exception as error:
             if progress is not None:
                 progress.end_candidate(f"failed ({type(error).__name__})")
@@ -262,6 +270,7 @@ def advance_offline_training(
     min_oos_predictions: int = 1,
     limit: int | None = None,
     owner: str = "autonomous-backend",
+    software_revision: str | None = None,
 ) -> int:
     """Advance DATA_VALIDATED candidates one governed step to OFFLINE_TRAINED.
 
@@ -280,6 +289,8 @@ def advance_offline_training(
             continue
         if next_gate(record) is not CandidateState.OFFLINE_TRAINED:
             continue
+        if software_revision is not None and record.software_revision != software_revision:
+            continue   # another code version's copy of the same idea: not retrained by this code
         if limit is not None and processed >= limit:
             break
         lease = store.try_acquire(record.candidate_id, owner, now_ns=now_ns)
@@ -730,8 +741,9 @@ def run_autonomous_cycle(
     now_ns: int,
     software_revision: str,
     train: bool = False,
-    train_limit: int = 1,
+    train_limit: int | None = 1,
     progress=None,
+    train_revision: str | None = None,
 ) -> dict[str, int]:
     """Propose the grid and advance data validation; optionally run offline training.
 
@@ -749,13 +761,14 @@ def run_autonomous_cycle(
         if progress is not None:   # a TrainingProgress: reporting only
             waiting = sum(1 for record in store.list_candidates()
                           if record.state is CandidateState.DATA_VALIDATED
-                          and next_gate(record) is CandidateState.OFFLINE_TRAINED)
+                          and next_gate(record) is CandidateState.OFFLINE_TRAINED
+                          and (train_revision is None or record.software_revision == train_revision))
             progress.plan(min(waiting, train_limit) if train_limit is not None else waiting)
         trained = advance_offline_training(
             store, trainer=default_offline_trainer(raw_root, models_root, progress=progress),
-            now_ns=now_ns, limit=train_limit)
+            now_ns=now_ns, limit=train_limit, software_revision=train_revision)
         if progress is not None:
-            progress.finish(f"{trained} size(s) trained with enough out-of-sample trades")
+            progress.finish(f"{trained} model(s) trained with enough out-of-sample trades")
     # Walk-forward and stability validation only read carried-forward metrics (no
     # ML), so they are cheap and always run - advancing any candidate left at the
     # prior state by this or an earlier cycle.

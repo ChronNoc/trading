@@ -121,6 +121,13 @@ def build_challenger_dataset(
         build_catalog(raw_root),
         key=lambda entry: (entry.utc_start or "", entry.session_id, str(entry.manifest_path)),
     )
+    if output_root is not None:
+        reused = _identical_published_dataset(
+            output_root, raw_root, entries, build_config=build_config, feature_hash=feature_hash)
+        if reused is not None:
+            if progress is not None:
+                progress.stage("reusing the data already built for this size")
+            return reused
     if progress is not None:
         progress.plan_sessions([(entry.session_id, entry.depth_updates + entry.trades)
                                 for entry in entries if entry.eligible_for_model_training])
@@ -234,6 +241,7 @@ def build_validated_challenger(
     min_train_days: int = 3,
     min_oos_predictions: int = 50,
     progress: TrainingProgress | None = None,
+    model_kind: str = "logistic_regression",
 ) -> dict[str, object]:
     """Build, validate, package, and register one offline-only challenger.
 
@@ -242,9 +250,8 @@ def build_validated_challenger(
     this function approves or loads the model at runtime.
     """
     from joblib import dump
-    from sklearn.linear_model import LogisticRegression
 
-    from app.machine_learning.pooled_training import walk_forward_evaluate
+    from app.machine_learning.pooled_training import make_classifier, walk_forward_evaluate
     from app.machine_learning.registry import (
         ModelRegistryRecord,
         register_challenger,
@@ -271,7 +278,7 @@ def build_validated_challenger(
         progress.stage("training and testing on unseen days")
     validation = walk_forward_evaluate(
         list(dataset.rows), target_ticks=target_ticks, stop_ticks=stop_ticks,
-        cost_ticks=cost_ticks, min_train_days=min_train_days,
+        cost_ticks=cost_ticks, min_train_days=min_train_days, model_kind=model_kind,
     )
     gates = {
         "has_rows": bool(dataset.rows),
@@ -298,7 +305,7 @@ def build_validated_challenger(
     attempt_core = {
         "dataset_id": dataset.dataset_id,
         "validation": validation_payload,
-        "model_type": "logistic_regression",
+        "model_type": model_kind,
         "model_version": model_version,
     }
     attempt_id = "attempt-" + _sha256_bytes(_canonical_json(attempt_core))[:24]
@@ -318,15 +325,15 @@ def build_validated_challenger(
 
     features = build_feature_matrix(dataset.rows)
     labels = build_label_array(dataset.rows)
-    model = LogisticRegression(max_iter=1_000, solver="liblinear", random_state=7)
-    model.fit(features, labels)
+    model = make_classifier(model_kind)
+    model.fit(features, labels)  # type: ignore[attr-defined]
 
     staging = models_root / ".staging" / attempt_id
     staging.mkdir(parents=True, exist_ok=True)
     model_path = staging / "model.joblib"
     dump({
         "model": model,
-        "model_type": "logistic_regression",
+        "model_type": model_kind,
         "version": model_version,
         "feature_columns": tuple(TRAIN_FEATURE_COLUMNS),
         "feature_contract_version": FEATURE_CONTRACT_VERSION,
@@ -339,7 +346,7 @@ def build_validated_challenger(
         "dataset_id": dataset.dataset_id,
         "dataset_sha256": str(dataset.manifest["rows_sha256"]),
         "model_sha256": model_sha256,
-        "model_type": "logistic_regression",
+        "model_type": model_kind,
         "model_version": model_version,
         "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "feature_contract_sha256": str(dataset.manifest["feature_contract_sha256"]),
@@ -386,7 +393,7 @@ def build_validated_challenger(
         artifact_sha256=model_sha256,
         dataset_id=dataset.dataset_id,
         dataset_sha256=str(dataset.manifest["rows_sha256"]),
-        model_type="logistic_regression",
+        model_type=model_kind,
         model_version=model_version,
         feature_contract_sha256=str(dataset.manifest["feature_contract_sha256"]),
         included_sessions=len(included_manifest),
@@ -419,6 +426,67 @@ def _excluded(entry: SessionEntry, *, raw_root: Path) -> ExcludedSessionRecord:
         manifest_path=_relative(entry.manifest_path, raw_root),
         reasons=tuple(reasons),
     )
+
+
+def _identical_published_dataset(
+    output_root: Path, raw_root: Path, entries: list[SessionEntry], *,
+    build_config: DatasetBuildConfig, feature_hash: str,
+) -> DatasetBuildResult | None:
+    """A dataset published earlier from EXACTLY these inputs, or None (then it is built).
+
+    Rebuilding a dataset replays every event of every eligible session (hours for a few
+    Databento days); several model kinds train on the same dataset of one size. An earlier
+    dataset is reused only when everything that defines it is the same: schema, feature contract
+    and its hash, label contract and settings, the same sessions excluded, and every eligible
+    session included with byte-identical source files (hashed now), and its rows file still hashes
+    to the manifest's rows hash. Anything else, including an eligible session that produced no
+    rows, means a fresh build.
+    """
+    eligible = [entry for entry in entries if entry.eligible_for_model_training]
+    if not eligible:
+        return None
+    ineligible = sorted(entry.session_id for entry in entries if not entry.eligible_for_model_training)
+    label_config = json.loads(json.dumps(build_config.to_json_dict()))
+    candidates = []
+    for manifest_path in sorted((output_root / "datasets").glob("dataset-*/dataset_manifest.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (not isinstance(manifest, dict)
+                or manifest.get("schema_version") != DATASET_SCHEMA_VERSION
+                or manifest.get("feature_contract_version") != FEATURE_CONTRACT_VERSION
+                or manifest.get("feature_contract_sha256") != feature_hash
+                or manifest.get("label_contract_version") != LABEL_CONTRACT_VERSION
+                or manifest.get("label_config") != label_config):
+            continue
+        included = {str(item.get("session_id")): item.get("input_files")
+                    for item in manifest.get("included_sessions") or [] if isinstance(item, dict)}
+        excluded = sorted(str(item.get("session_id"))
+                          for item in manifest.get("excluded_sessions") or [] if isinstance(item, dict))
+        if set(included) == {entry.session_id for entry in eligible} and excluded == ineligible:
+            candidates.append((manifest_path, manifest, included))
+    if not candidates:
+        return None
+    current = {   # hashed only when some manifest could match
+        entry.session_id: json.loads(json.dumps(_hash_paths(_source_paths(entry.manifest_path.parent,
+                                                                          entry.manifest_path), base=raw_root)))
+        for entry in eligible
+    }
+    for manifest_path, manifest, included in candidates:
+        if any(included[session_id] != files for session_id, files in current.items()):
+            continue
+        dataset_path = manifest_path.with_name("dataset.jsonl")
+        try:
+            payload = dataset_path.read_bytes()
+        except OSError:
+            continue
+        if _sha256_bytes(payload) != manifest.get("rows_sha256"):
+            continue
+        rows = tuple(json.loads(line) for line in payload.decode("utf-8").splitlines() if line)
+        return DatasetBuildResult(dataset_id=str(manifest["dataset_id"]), rows=rows, manifest=manifest,
+                                  dataset_path=dataset_path, manifest_path=manifest_path)
+    return None
 
 
 def _source_paths(session_dir: Path, manifest_path: Path) -> tuple[Path, ...]:

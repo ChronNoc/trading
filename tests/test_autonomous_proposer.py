@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.machine_learning.pooled_training import MODEL_KINDS
 from app.research.autonomous_proposer import (
     RESEARCH_GRID,
     build_service,
@@ -12,16 +13,19 @@ from app.research.autonomous_proposer import (
     run_proposer,
 )
 
+# Every model kind at every stop/target size of the grid.
+CANDIDATES = len(RESEARCH_GRID) * len(MODEL_KINDS)
+
 
 def test_proposes_the_grid_once_and_deduplicates(tmp_path: Path) -> None:
     store_root = tmp_path / "autonomous"
     first = run_proposer(store_root=store_root, now_ns=100, software_revision="rev-a")
     second = run_proposer(store_root=store_root, now_ns=999, software_revision="rev-a")
 
-    assert first == len(RESEARCH_GRID)  # every grid entry proposed
+    assert first == len(RESEARCH_GRID) * len(MODEL_KINDS)  # every model kind at every grid size
     assert second == 0, "a restart re-proposes nothing (content-addressed dedup)"
     candidates = build_store(store_root).list_candidates()
-    assert len(candidates) == len(RESEARCH_GRID)
+    assert len(candidates) == len(RESEARCH_GRID) * len(MODEL_KINDS)
     assert all(c.state.value == "PROPOSED" for c in candidates), "propose-only: never advanced"
 
 
@@ -123,7 +127,7 @@ def test_data_validation_advances_proposed_to_data_validated(tmp_path: Path) -> 
     store = build_store(store_root)
 
     passed = advance_data_validation(store, raw_root=raw, now_ns=200)
-    assert passed == 3, "each proposed candidate passes data validation"
+    assert passed == CANDIDATES, "each proposed candidate passes data validation"
     states = {c.state.value for c in store.list_candidates()}
     assert states == {"DATA_VALIDATED"}
     # Idempotent: re-running does not re-advance or fail already-validated candidates.
@@ -165,7 +169,7 @@ def test_run_autonomous_cycle_proposes_and_validates(tmp_path: Path) -> None:
     result = run_autonomous_cycle(
         store_root=tmp_path / "autonomous", raw_root=_raw_with_sessions(tmp_path / "raw", 2),
         now_ns=100, software_revision="rev-a")
-    grid = len(RESEARCH_GRID)
+    grid = CANDIDATES
     assert result == {"proposed": grid, "data_validated": grid, "offline_trained": 0,
                       "walk_forward_validated": 0, "stability_validated": 0, "cost_validated": 0,
                       "shadow_candidate": 0, "shadow_observing": 0, "shadow_eligible": 0,
@@ -191,7 +195,7 @@ def test_offline_training_advances_data_validated_to_offline_trained(tmp_path: P
     store = _validated_store(tmp_path)
     passed = advance_offline_training(
         store, trainer=lambda c: {"oos_predictions": 120, "evaluated_days": 5}, now_ns=300)
-    assert passed == 3
+    assert passed == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"OFFLINE_TRAINED"}
     # Idempotent: already-trained candidates are not re-processed.
     assert advance_offline_training(store, trainer=lambda c: {"oos_predictions": 120}, now_ns=400) == 0
@@ -234,7 +238,7 @@ def test_offline_training_is_bounded_by_limit(tmp_path: Path) -> None:
         store, trainer=lambda c: {"oos_predictions": 120}, now_ns=300, limit=1)
     assert passed == 1
     states = [c.state.value for c in store.list_candidates()]
-    assert states.count("OFFLINE_TRAINED") == 1 and states.count("DATA_VALIDATED") == 2
+    assert states.count("OFFLINE_TRAINED") == 1 and states.count("DATA_VALIDATED") == CANDIDATES - 1
 
 
 def test_offline_training_ignores_candidates_not_yet_data_validated(tmp_path: Path) -> None:
@@ -284,7 +288,7 @@ def test_walk_forward_advances_when_the_model_beats_baseline(tmp_path: Path) -> 
 
     store = _offline_trained_store(tmp_path, lambda c: _beats(0.8))
     passed = advance_walk_forward_validation(store, now_ns=400)
-    assert passed == 3
+    assert passed == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"WALK_FORWARD_VALIDATED"}
     # Idempotent: already-validated candidates are not re-processed.
     assert advance_walk_forward_validation(store, now_ns=500) == 0
@@ -332,7 +336,7 @@ def test_walk_forward_is_bounded_by_limit(tmp_path: Path) -> None:
     passed = advance_walk_forward_validation(store, now_ns=400, limit=1)
     assert passed == 1
     states = [c.state.value for c in store.list_candidates()]
-    assert states.count("WALK_FORWARD_VALIDATED") == 1 and states.count("OFFLINE_TRAINED") == 2
+    assert states.count("WALK_FORWARD_VALIDATED") == 1 and states.count("OFFLINE_TRAINED") == CANDIDATES - 1
 
 
 # -- STABILITY_VALIDATED gate (reads carried-forward per-fold consistency) ------------
@@ -358,7 +362,7 @@ def test_stability_advances_when_edge_is_consistent_across_days(tmp_path: Path) 
 
     store = _walk_forward_validated_store(tmp_path, stable=0.8)
     passed = advance_stability_validation(store, now_ns=400)
-    assert passed == 3
+    assert passed == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"STABILITY_VALIDATED"}
     assert advance_stability_validation(store, now_ns=500) == 0  # idempotent
 
@@ -424,7 +428,7 @@ def test_cost_advances_when_the_edge_survives_stress(tmp_path: Path) -> None:
 
     store = _stability_validated_store(tmp_path, expectancy=3.0)  # 3.0 - 2.0 stress = +1.0
     passed = advance_cost_validation(store, now_ns=400)
-    assert passed == 3
+    assert passed == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"COST_VALIDATED"}
     assert advance_cost_validation(store, now_ns=500) == 0  # idempotent
 
@@ -480,7 +484,7 @@ def test_shadow_candidate_admits_cost_validated(tmp_path: Path) -> None:
     from app.research.autonomous_proposer import advance_shadow_candidate
 
     store = _cost_validated_store(tmp_path)
-    assert advance_shadow_candidate(store, now_ns=400) == 3
+    assert advance_shadow_candidate(store, now_ns=400) == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"SHADOW_CANDIDATE"}
 
 
@@ -509,10 +513,10 @@ def test_shadow_full_chain_reaches_approved_with_a_strong_record(tmp_path: Path)
     )
 
     store = _cost_validated_store(tmp_path)
-    assert advance_shadow_candidate(store, now_ns=400) == 3
-    assert advance_shadow_observation(store, shadow_observer=_strong_shadow, now_ns=410) == 3
-    assert advance_shadow_eligibility(store, shadow_observer=_strong_shadow, now_ns=420) == 3
-    assert advance_shadow_approval(store, shadow_observer=_strong_shadow, now_ns=430) == 3
+    assert advance_shadow_candidate(store, now_ns=400) == CANDIDATES
+    assert advance_shadow_observation(store, shadow_observer=_strong_shadow, now_ns=410) == CANDIDATES
+    assert advance_shadow_eligibility(store, shadow_observer=_strong_shadow, now_ns=420) == CANDIDATES
+    assert advance_shadow_approval(store, shadow_observer=_strong_shadow, now_ns=430) == CANDIDATES
     assert {c.state.value for c in store.list_candidates()} == {"SHADOW_APPROVED"}
 
 

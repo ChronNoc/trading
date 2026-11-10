@@ -93,6 +93,38 @@ def _trading_day(timestamp_ns: int) -> str:
     return trading_day_for_timestamp(timestamp_ns)
 
 
+# The kinds of model the offline pipeline can train and test, all from scikit-learn, every one on a
+# single thread (background work must stay gentle; see app/runtime/background_limits.py). The
+# logistic regression keeps exactly its earlier settings, so its results are unchanged.
+MODEL_KINDS: tuple[str, ...] = ("logistic_regression", "gradient_boosting", "random_forest")
+MODEL_LABELS: dict[str, str] = {
+    "logistic_regression": "logistic regression",
+    "gradient_boosting": "gradient-boosted trees",
+    "random_forest": "random forest",
+}
+
+
+def make_classifier(kind: str = "logistic_regression") -> object:
+    """A fresh, deterministic (fixed seed) classifier of ``kind``."""
+    if kind == "logistic_regression":
+        from sklearn.linear_model import LogisticRegression
+
+        return LogisticRegression(max_iter=1_000, solver="liblinear", random_state=7)
+    if kind == "gradient_boosting":
+        from sklearn.ensemble import HistGradientBoostingClassifier
+
+        # Small, regularised trees and no early stopping (which would hold out a random split).
+        return HistGradientBoostingClassifier(
+            max_iter=150, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=20,
+            l2_regularization=1.0, early_stopping=False, random_state=7)
+    if kind == "random_forest":
+        from sklearn.ensemble import RandomForestClassifier
+
+        return RandomForestClassifier(
+            n_estimators=200, max_depth=5, min_samples_leaf=20, n_jobs=1, random_state=7)
+    raise ValueError(f"unknown model kind {kind!r}; choose one of {', '.join(MODEL_KINDS)}")
+
+
 def walk_forward_evaluate(
     rows: list[dict[str, object]],
     *,
@@ -100,8 +132,10 @@ def walk_forward_evaluate(
     stop_ticks: float = 8.0,
     cost_ticks: float = 2.0,
     min_train_days: int = 3,
+    model_kind: str = "logistic_regression",
 ) -> WalkForwardResult:
     """Train on strictly earlier days, score each later day, and retain folds."""
+    make_classifier(model_kind)   # an unknown kind fails before any work
     from app.machine_learning.train import build_feature_matrix, build_label_array
 
     ordered = sorted(
@@ -138,14 +172,12 @@ def walk_forward_evaluate(
         train_labels = {int(str(row["label"])) for row in train_rows}
         if len(train_rows) < 2 or train_labels != {0, 1}:
             continue
-        from sklearn.linear_model import LogisticRegression
-
         x_train = build_feature_matrix(train_rows)
         y_train = build_label_array(train_rows)
         x_test = build_feature_matrix(test_rows)
         y_test = build_label_array(test_rows)
-        model = LogisticRegression(max_iter=1_000, solver="liblinear", random_state=7)
-        model.fit(x_train, y_train)
+        model = make_classifier(model_kind)
+        model.fit(x_train, y_train)  # type: ignore[attr-defined]
         probabilities = [float(value) for value in model.predict_proba(x_test)[:, 1]]
         predictions = [int(value >= 0.5) for value in probabilities]
         actual = [int(value) for value in y_test]

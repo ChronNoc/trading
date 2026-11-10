@@ -17,10 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_PROGRESS_PATH = Path("runtime/training_progress.json")
+# A run's state -> the theme's semantic badge state: ONE table for every place that shows a run.
+BADGE_STATES = {"running": "neutral", "finished": "ok", "stopped": "warn", "failed": "fail"}
 _WRITE_EVERY_SECONDS = 1.0
 # A running run rewrites the file at least this often; older means it stopped without saying so
 # (closed, crashed, the PC restarted).
 STALE_AFTER_SECONDS = 180.0
+_REPLACE_ATTEMPTS = 5            # a file being read is usually free again within milliseconds
+_REPLACE_RETRY_SECONDS = 0.05
 
 
 class TrainingProgress:
@@ -47,8 +51,12 @@ class TrainingProgress:
         self._write(force=True)
 
     def begin_candidate(self, label: str) -> None:
-        """A new size starts (its dataset is rebuilt from the sessions)."""
+        """A new size starts (its dataset is built, or reused when identical)."""
         self._state["candidate_index"] = int(self._state["candidate_index"]) + 1
+        # More than planned (a size that failed does not count against the run's limit): the
+        # total grows rather than showing "size 4 of 3".
+        self._state["candidates_total"] = max(int(self._state["candidates_total"]),
+                                              int(self._state["candidate_index"]))
         self._state.update(candidate_label=label, stage="building data", sessions_total=0, session_index=0,
                            session_id="", events_total=0, events_before_session=0, events_done=0)
         self._write(force=True)
@@ -94,15 +102,31 @@ class TrainingProgress:
     # -- writing --------------------------------------------------------------------------------
 
     def _write(self, *, force: bool = False) -> None:
+        """Write the file; NEVER raise. Reporting must not be able to stop a training run.
+
+        On Windows, replacing a file another process is reading at that instant (the GUI reads it
+        every second) is refused with "Access is denied"; on 2026-11-10 that error escaped and
+        failed two training sizes. A refused write is retried briefly, then skipped: the next
+        report writes the newer state anyway.
+        """
         now = self._clock()
         if not force and now - self._last_write < _WRITE_EVERY_SECONDS:
             return
         self._last_write = now
         self._state["updated_at"] = now
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(self.path.name + ".tmp")
-        temporary.write_text(json.dumps(self._state), encoding="utf-8")
-        os.replace(temporary, self.path)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps(self._state), encoding="utf-8")
+        except OSError:
+            return
+        for attempt in range(_REPLACE_ATTEMPTS):
+            try:
+                os.replace(temporary, self.path)
+                return
+            except OSError:
+                if attempt + 1 < _REPLACE_ATTEMPTS:
+                    time.sleep(_REPLACE_RETRY_SECONDS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +135,7 @@ class TrainingProgressView:
 
     state: str            # running | finished | failed | stopped
     fraction: float       # 0..1 over the whole run
-    headline: str         # e.g. "Size 2 of 3 (8/8 ticks) - building data: session 3 of 6"
+    headline: str         # e.g. "Model 2 of 9 (random forest, 8-tick target / 8-tick stop) - building data: session 3 of 6"
     detail: str           # e.g. "41% - about 25 min left"
     results: tuple[str, ...]
 
@@ -128,8 +152,8 @@ def read_training_progress(
         return None
     now = time.time() if now is None else now
     try:
-        total = max(1, int(state.get("candidates_total") or 0))
         index = max(0, int(state.get("candidate_index") or 0))
+        total = max(1, int(state.get("candidates_total") or 0), index)
         events_total = max(0, int(state.get("events_total") or 0))
         events_done = min(events_total, max(0, int(state.get("events_done") or 0)))
         updated = float(state.get("updated_at") or 0.0)
@@ -157,7 +181,7 @@ def read_training_progress(
     session = int(state.get("session_index") or 0)
     where = (f"building data: session {session} of {sessions}" if stage == "building data" and sessions
              else stage or "starting")
-    headline = f"Size {max(index, 1)} of {total}" + (f" ({label})" if label else "") + f" - {where}"
+    headline = f"Model {max(index, 1)} of {total}" + (f" ({label})" if label else "") + f" - {where}"
     elapsed = max(0.0, now - started)
     if fraction >= 0.02 and elapsed > 0:
         left = elapsed / fraction * (1 - fraction)

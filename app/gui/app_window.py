@@ -34,6 +34,7 @@ from app.gui.screens import SCREEN_ORDER, build_screens
 from app.gui.snapshot_worker import SnapshotWorker
 from app.gui.theme import DASHBOARD_THEMES
 from app.gui.view_models import AppSnapshot
+from app.machine_learning.training_progress import BADGE_STATES
 from app.gui.widgets import StatusBadge
 
 SnapshotProvider = Callable[[], AppSnapshot]
@@ -42,6 +43,15 @@ SnapshotProvider = Callable[[], AppSnapshot]
 SNAPSHOT_INTERVAL_MS = 150
 
 THEMES = DASHBOARD_THEMES
+
+
+# Training run state -> header badge word; the theme state comes from the one shared table.
+_TRAINING_HEADER = {
+    "running": ("TRAINING", BADGE_STATES["running"]),
+    "finished": ("TRAINING DONE", BADGE_STATES["finished"]),
+    "stopped": ("TRAINING STOPPED", BADGE_STATES["stopped"]),
+    "failed": ("TRAINING FAILED", BADGE_STATES["failed"]),
+}
 
 
 class AppWindow(QMainWindow):
@@ -105,7 +115,11 @@ class AppWindow(QMainWindow):
         self._integrity_badge = StatusBadge("CAPTURE IDLE", "trust_integrity", "neutral")
         self._drops_badge = StatusBadge("SESSION DROPS 0", "trust_drops", "ok")
         self._live_badge = StatusBadge("LIVE LOCKED", "trust_live", "locked")
-        for badge in (self._source_badge, self._integrity_badge, self._drops_badge):
+        # Offline model training, on every page; shown only while a run exists (details in its
+        # tooltip, on the status line, and on Research and Model Health).
+        self._training_badge = StatusBadge("TRAINING", "trust_training", "neutral")
+        self._training_badge.setVisible(False)
+        for badge in (self._source_badge, self._integrity_badge, self._drops_badge, self._training_badge):
             trust_layout.addWidget(badge)
         trust_layout.addStretch(1)
         trust_layout.addWidget(self._live_badge)
@@ -256,9 +270,19 @@ class AppWindow(QMainWindow):
             "fail" if capture.current_session_drops else "ok",
         )
         message = snap.blocker or snap.next_action or "Awaiting backend state"
+        training = snap.training
+        self._training_badge.setVisible(training is not None)
+        training_note = ""
+        if training is not None:
+            word, state = _TRAINING_HEADER.get(training.state, ("TRAINING", "neutral"))
+            self._training_badge.set_status(
+                f"{word} {training.fraction:.0%}" if training.state == "running" else word, state)
+            self._training_badge.setToolTip(" — ".join(part for part in (training.headline, training.detail) if part))
+            if training.state == "running":
+                training_note = f"  ·  Training: {training.detail}"
         self._status_label.setText(
             f"{snap.plain_state}  ·  {message}  ·  Session drops: "
-            f"{capture.current_session_drops:,}  ·  LIVE LOCKED",
+            f"{capture.current_session_drops:,}{training_note}  ·  LIVE LOCKED",
         )
 
     # -- appearance ---------------------------------------------------------------

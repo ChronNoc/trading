@@ -235,7 +235,8 @@ def run_backend(
                     text=True, timeout=10, check=False).stdout.strip() or "unknown"
                 result = run_autonomous_cycle(
                     now_ns=time.time_ns(), software_revision=revision, train=_autonomous_train,
-                    progress=_training_progress(runtime_dir) if _autonomous_train else None)
+                    progress=_training_progress(runtime_dir) if _autonomous_train else None,
+                    train_revision=revision)   # this code's own candidates, not every older copy
                 logger.info(
                     "autonomous cycle: %s proposed, %s data-validated, %s offline-trained (revision %s)",
                     result["proposed"], result["data_validated"], result["offline_trained"], revision)
